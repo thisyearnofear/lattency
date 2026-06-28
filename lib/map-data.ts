@@ -113,23 +113,32 @@ export function projectLatLng(
 // ── Station waypoints ─────────────────────────────────────────────────────────
 // Per-cafe waypoint along its tier's *schematic* path (x/y and 0-1 progress).
 // The geographic view derives positions from projectLatLng() at render time.
+//
+// Keyed by café NAME (not id) so the cinematic resolves correctly against
+// either mock data or live Aurora rows. UUIDs change between environments;
+// names don't.
 
 export const STATION_WAYPOINT: Record<
   string,
   { x: number; y: number; progress: number }
 > = {
-  "mock-3": { x: 300, y: 280, progress: 0.13 },
-  "mock-6": { x: 520, y: 380, progress: 0.42 },
-  "mock-8": { x: 900, y: 320, progress: 0.68 },
-  "mock-11": { x: 1200, y: 540, progress: 0.95 },
-  "mock-1": { x: 250, y: 360, progress: 0.07 },
-  "mock-2": { x: 340, y: 380, progress: 0.18 },
-  "mock-4": { x: 480, y: 420, progress: 0.35 },
-  "mock-7": { x: 820, y: 420, progress: 0.62 },
-  "mock-10": { x: 1080, y: 560, progress: 0.84 },
-  "mock-12": { x: 1180, y: 600, progress: 0.93 },
-  "mock-5": { x: 560, y: 510, progress: 0.5 },
-  "mock-9": { x: 900, y: 480, progress: 0.88 },
+  // Express line — 4 stations end to end
+  "Connect Coffee Roasters":    { x: 300,  y: 280, progress: 0.13 },
+  "About Thyme":                { x: 520,  y: 380, progress: 0.42 },
+  "Savanna Coffee Lounge":      { x: 900,  y: 320, progress: 0.68 },
+  "Karen Blixen Coffee Garden": { x: 1200, y: 540, progress: 0.95 },
+
+  // Local line — 6 stations across all four neighbourhoods
+  "Java House Sarit Centre":    { x: 250,  y: 360, progress: 0.07 },
+  "Artcaffe Westgate":          { x: 340,  y: 380, progress: 0.18 },
+  "Kaldi's Coffee Yaya":        { x: 480,  y: 420, progress: 0.35 },
+  "Java House Mama Ngina":      { x: 820,  y: 420, progress: 0.62 },
+  "Talisman":                   { x: 1080, y: 560, progress: 0.84 },
+  "Java House The Hub Karen":   { x: 1180, y: 600, progress: 0.93 },
+
+  // Suspended line — 2 stations, dashed gaps between
+  "Brew Bistro Kilimani":       { x: 560,  y: 510, progress: 0.50 },
+  "Dormans Standard Street":    { x: 900,  y: 480, progress: 0.88 },
 };
 
 // ── Geographic tier connectors ────────────────────────────────────────────────

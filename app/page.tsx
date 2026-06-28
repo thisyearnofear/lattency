@@ -1,13 +1,16 @@
-import { MOCK_CAFES } from "@/lib/mock-cafes";
+import { getCafes } from "@/lib/cafes";
 import { Masthead } from "@/components/masthead";
 import { CinematicMap } from "@/components/cinematic-map";
 import { Legend } from "@/components/legend";
 import { StationIndex } from "@/components/station-index";
 
-export default function Home() {
-  // STEP 2 will replace this with a server query against cafe_speed_stats.
-  // The CafeStation shape is identical to what the API will return.
-  const cafes = MOCK_CAFES;
+// Re-fetched at most once per minute. The materialized view is refreshed
+// after every POST /api/measurements, so reads stay close to live without
+// hammering Aurora on every page view.
+export const revalidate = 60;
+
+export default async function Home() {
+  const cafes = await getCafes();
 
   return (
     <>

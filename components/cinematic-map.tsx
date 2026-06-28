@@ -353,8 +353,8 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
     view === "geographic" ? geo.paths[t] : TIER_PATH[t];
   const stationPos = (c: CafeStation) =>
     view === "geographic"
-      ? (geo.positions.get(c.id) ?? STATION_WAYPOINT[c.id])
-      : STATION_WAYPOINT[c.id];
+      ? (geo.positions.get(c.id) ?? STATION_WAYPOINT[c.name])
+      : STATION_WAYPOINT[c.name];
 
   useGSAP(
     () => {
@@ -481,14 +481,14 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
         maxProgress = 1,
       ) => {
         cafes
-          .filter((c) => c.tier === tier && STATION_WAYPOINT[c.id])
+          .filter((c) => c.tier === tier && STATION_WAYPOINT[c.name])
           .sort(
             (a, b) =>
-              STATION_WAYPOINT[a.id].progress -
-              STATION_WAYPOINT[b.id].progress,
+              STATION_WAYPOINT[a.name].progress -
+              STATION_WAYPOINT[b.name].progress,
           )
           .forEach((c) => {
-            const wp = STATION_WAYPOINT[c.id];
+            const wp = STATION_WAYPOINT[c.name];
             if (wp.progress > maxProgress) return;
             tl.to(
               `.cm-station[data-cafe-id="${c.id}"]`,
@@ -510,14 +510,14 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
         maxProgress = 1,
       ) => {
         cafes
-          .filter((c) => c.tier === tier && STATION_WAYPOINT[c.id])
+          .filter((c) => c.tier === tier && STATION_WAYPOINT[c.name])
           .sort(
             (a, b) =>
-              STATION_WAYPOINT[a.id].progress -
-              STATION_WAYPOINT[b.id].progress,
+              STATION_WAYPOINT[a.name].progress -
+              STATION_WAYPOINT[b.name].progress,
           )
           .forEach((c) => {
-            const wp = STATION_WAYPOINT[c.id];
+            const wp = STATION_WAYPOINT[c.name];
             if (wp.progress > maxProgress) return;
             tl.call(
               () => {
