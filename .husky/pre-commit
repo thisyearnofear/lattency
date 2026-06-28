@@ -1,0 +1,24 @@
+# 1. Block any .env file (except .env.example) from being committed.
+staged_env=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^\.env' | grep -v '^\.env\.example$' || true)
+if [ -n "$staged_env" ]; then
+  echo "✗ blocked: .env file(s) in commit"
+  echo "$staged_env" | sed 's/^/    /'
+  echo "  (if you really need to commit one, rename it .env.example with secrets stripped)"
+  exit 1
+fi
+
+# 2. Block Postgres connection strings with embedded passwords.
+#    Looks for postgres://user:password@host in added lines (the leading + filters
+#    the diff to additions only). Placeholders are allowed.
+pg_leak=$(git diff --cached -U0 -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.md' '*.yml' '*.yaml' '*.sh' '*.sql' \
+  2>/dev/null | grep -nE '^\+.*postgres(ql)?://[^:/]+:[^@/]+@' \
+  | grep -ivE 'changeme|<password>|user:pass@|your[_-]?password|example\.com|\$\{[A-Z_]+\}' || true)
+if [ -n "$pg_leak" ]; then
+  echo "✗ blocked: postgres URL with embedded password in staged diff"
+  echo "$pg_leak" | sed 's/^/    /'
+  echo "  (use a placeholder like postgres://user:CHANGEME@... or read from env)"
+  exit 1
+fi
+
+# 3. lint-staged — runs secretlint on every staged file + eslint on JS/TS.
+pnpm exec lint-staged

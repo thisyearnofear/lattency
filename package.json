@@ -9,7 +9,16 @@
     "lint": "eslint",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
-    "db:check": "tsx scripts/db-check.ts"
+    "db:check": "tsx scripts/db-check.ts",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix --max-warnings 0"
+    ],
+    "*.{ts,tsx,js,jsx,json,md,mdx,yml,yaml,sh,sql,env,toml,html,css}": [
+      "secretlint --maskSecrets"
+    ]
   },
   "dependencies": {
     "@gsap/react": "2.1.2",
@@ -21,6 +30,7 @@
     "react-dom": "19.2.7"
   },
   "devDependencies": {
+    "@secretlint/secretlint-rule-preset-recommend": "13.0.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "8.20.0",
@@ -28,6 +38,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.0-preview.5",
+    "husky": "9.1.7",
+    "lint-staged": "17.0.8",
+    "secretlint": "13.0.2",
     "tailwindcss": "^4",
     "tsx": "4.22.4",
     "typescript": "^5"
