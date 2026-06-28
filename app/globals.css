@@ -1,26 +1,151 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Newsprint poster palette — cream paper, warm ink, three transit lines. */
+  --color-cream:        #F4ECD8;
+  --color-cream-edge:   #E5DBBE;
+  --color-cream-deep:   #D9CFB1;
+  --color-ink:          #1A1612;
+  --color-ink-soft:     #3D362B;
+  --color-ink-faint:    #8A7F6B;
+
+  --color-express:      #006D45;
+  --color-express-ink:  #003D26;
+  --color-local:        #C77F00;
+  --color-local-ink:    #7A4D00;
+  --color-suspended:    #B23A48;
+  --color-suspended-ink:#73212B;
+
+  /* Type stack — set by next/font in layout.tsx. */
+  --font-display: var(--font-big-shoulders), "Helvetica Neue Condensed", "Arial Narrow", sans-serif;
+  --font-mono:    var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+  --font-serif:   var(--font-fraunces), "Times New Roman", serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  background: var(--color-cream);
+  color: var(--color-ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-mono);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Newsprint paper grain — tiny noisy SVG used as repeating background. */
+.paper-grain {
+  position: relative;
+  isolation: isolate;
+}
+.paper-grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.18'/></svg>");
+  mix-blend-mode: multiply;
+  opacity: 0.45;
+}
+
+/* A faint repeating column grid behind the masthead, like a printer's reference. */
+.print-rules {
+  background-image:
+    linear-gradient(to right, var(--color-cream-edge) 1px, transparent 1px);
+  background-size: 80px 100%;
+  background-position: 0 0;
+}
+
+/* Edition stamp — a tiny rotated text used a couple of places. */
+.stamp {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* Station name labels inside the SVG should not be selectable, feels paper. */
+.transit-svg text {
+  user-select: none;
+}
+
+/* Subtle hover for station roundels. */
+.transit-svg g.station {
+  cursor: pointer;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.transit-svg g.station:hover { transform: scale(1.12); }
+
+/* On-load staggered reveal for the three lines. */
+@keyframes line-draw {
+  from { stroke-dashoffset: 1400; }
+  to   { stroke-dashoffset: 0; }
+}
+.transit-svg .line-track {
+  stroke-dasharray: 1400;
+  animation: line-draw 1100ms cubic-bezier(0.5, 0, 0.1, 1) forwards;
+}
+.transit-svg .line-track.is-suspended {
+  /* Suspended line stays visually dashed — animation uses different keyframe. */
+  animation: line-draw-dashed 1300ms cubic-bezier(0.5, 0, 0.1, 1) forwards;
+}
+@keyframes line-draw-dashed {
+  from { stroke-dasharray: 0 1400; }
+  to   { stroke-dasharray: 14 10; }
+}
+
+/* Station roundels fade up after the lines complete. */
+@keyframes station-pop {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.transit-svg g.station {
+  opacity: 0;
+  animation: station-pop 400ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Masthead reveal. */
+@keyframes mast-rise {
+  from { opacity: 0; transform: translateY(20px); letter-spacing: -0.04em; }
+  to   { opacity: 1; transform: translateY(0); letter-spacing: -0.02em; }
+}
+.mast-title {
+  animation: mast-rise 800ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Cinematic map — train glow pulses softly, line draw keeps a clean cut. */
+@keyframes cm-train-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.18); opacity: 0.4; }
+}
+.transit-svg .cm-train-aura {
+  transform-origin: 50% 50%;
+  animation: cm-train-pulse 1.4s ease-in-out infinite;
+}
+
+/* Subtle parallax on neighbourhood labels so they breathe with the POV. */
+.transit-svg .cm-neighbourhoods text {
+  paint-order: stroke fill;
+  stroke: var(--color-cream);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transit-svg .line-track,
+  .transit-svg g.station,
+  .mast-title,
+  .transit-svg .cm-train-aura {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+    stroke-dasharray: none;
+  }
+  .transit-svg .line-track.is-suspended { stroke-dasharray: 14 10; }
+  .transit-svg .cm-line-suspended      { stroke-dasharray: 14 9; }
 }
