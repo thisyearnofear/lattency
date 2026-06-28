@@ -1,128 +1,40 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { MotionPathPlugin } from "gsap/MotionPathPlugin";
+import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import { useGSAP } from "@gsap/react";
-import type { CafeStation, Neighbourhood, Tier } from "@/lib/types";
+import type { CafeStation, Tier } from "@/lib/types";
+import {
+  CENTER_X,
+  CENTER_Y,
+  HOODS,
+  STATION_WAYPOINT,
+  TIER_COLOUR,
+  TIER_PATH,
+  TIER_TINT,
+  VIEW_H,
+  VIEW_W,
+  WORLD_CITIES,
+  WORLD_OUTLINE_D,
+  projectLatLng,
+  smoothPathThrough,
+  splitName,
+} from "@/lib/map-data";
 
-gsap.registerPlugin(ScrollTrigger, useGSAP);
+gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, DrawSVGPlugin, useGSAP);
 
-const VIEW_W = 1440;
-const VIEW_H = 720;
-const CENTER_X = VIEW_W / 2;
-const CENTER_Y = VIEW_H / 2;
+// ── Phases ───────────────────────────────────────────────────────────────────
 
-const TIER_COLOUR: Record<Tier, string> = {
-  express: "#006D45",
-  local: "#C77F00",
-  suspended: "#B23A48",
-};
-const TIER_TINT: Record<Tier, string> = {
-  express: "#9FC7B5",
-  local: "#E8C98A",
-  suspended: "#DDA0A4",
-};
-
-type Hood = {
-  id: Neighbourhood;
-  label: string;
-  ordinal: string;
-  d: string;
-  anchor: { x: number; y: number };
-};
-
-const HOODS: Hood[] = [
-  {
-    id: "Westlands",
-    label: "WESTLANDS",
-    ordinal: "01",
-    d: "M 80 130 L 380 110 L 440 240 L 390 340 L 90 340 Z",
-    anchor: { x: 250, y: 96 },
-  },
-  {
-    id: "Kilimani",
-    label: "KILIMANI",
-    ordinal: "02",
-    d: "M 440 240 L 680 220 L 720 460 L 460 490 Z",
-    anchor: { x: 560, y: 196 },
-  },
-  {
-    id: "CBD",
-    label: "CBD",
-    ordinal: "03",
-    d: "M 720 200 L 1000 190 L 1040 470 L 740 470 Z",
-    anchor: { x: 860, y: 168 },
-  },
-  {
-    id: "Karen",
-    label: "KAREN",
-    ordinal: "04",
-    d: "M 1040 360 L 1360 350 L 1380 640 L 1060 640 Z",
-    anchor: { x: 1210, y: 326 },
-  },
-];
-
-// Bezier paths — Q endpoints match the station waypoints below.
-const TIER_PATH: Record<Tier, string> = {
-  express:
-    "M 100 220 Q 200 260, 300 280 Q 410 350, 520 380 Q 720 410, 900 320 Q 1060 360, 1200 540 Q 1280 580, 1340 580",
-  local:
-    "M 100 360 Q 170 340, 250 360 Q 300 370, 340 380 Q 410 400, 480 420 Q 660 460, 820 420 Q 950 460, 1080 560 Q 1140 600, 1180 600 Q 1260 620, 1340 620",
-  suspended:
-    "M 140 480 Q 360 500, 560 510 Q 720 500, 900 480 Q 1020 460, 1100 460",
-};
-
-// Per-cafe waypoint along its tier's path (x/y and 0-1 progress).
-const STATION_WAYPOINT: Record<string, { x: number; y: number; progress: number }> = {
-  "mock-3": { x: 300, y: 280, progress: 0.13 },
-  "mock-6": { x: 520, y: 380, progress: 0.42 },
-  "mock-8": { x: 900, y: 320, progress: 0.68 },
-  "mock-11": { x: 1200, y: 540, progress: 0.95 },
-  "mock-1": { x: 250, y: 360, progress: 0.07 },
-  "mock-2": { x: 340, y: 380, progress: 0.18 },
-  "mock-4": { x: 480, y: 420, progress: 0.35 },
-  "mock-7": { x: 820, y: 420, progress: 0.62 },
-  "mock-10": { x: 1080, y: 560, progress: 0.84 },
-  "mock-12": { x: 1180, y: 600, progress: 0.93 },
-  "mock-5": { x: 560, y: 510, progress: 0.50 },
-  "mock-9": { x: 900, y: 480, progress: 0.88 },
-};
-
-function splitName(name: string): [string, string?] {
-  const upper = name.toUpperCase();
-  const words = upper.split(" ");
-  if (words.length <= 2 && upper.length <= 16) return [upper];
-  const splitAt = words.length <= 3 ? 1 : 2;
-  return [words.slice(0, splitAt).join(" "), words.slice(splitAt).join(" ")];
-}
-
-function NameLabel({ name, x, y }: { name: string; x: number; y: number }) {
-  const [line1, line2] = splitName(name);
-  return (
-    <text
-      x={x}
-      y={y}
-      textAnchor="middle"
-      fontFamily="var(--font-display)"
-      fontWeight={800}
-      fontSize={13}
-      letterSpacing="0.04em"
-      fill="var(--color-ink)"
-    >
-      <tspan x={x}>{line1}</tspan>
-      {line2 && (
-        <tspan x={x} dy={14}>
-          {line2}
-        </tspan>
-      )}
-    </text>
-  );
-}
-
-// ── Chyron (top bar) ────────────────────────────────────────────────────────
-
-type Phase = "wide" | "express" | "local" | "suspended" | "finale";
+type Phase =
+  | "intro"
+  | "wide"
+  | "express"
+  | "local"
+  | "suspended"
+  | "finale";
 
 const PHASE_DETAILS: Record<
   Phase,
@@ -135,6 +47,13 @@ const PHASE_DETAILS: Record<
     blurb: string;
   }
 > = {
+  intro: {
+    number: "00",
+    title: "Boarding",
+    line: "ALL LINES",
+    tone: "neutral",
+    blurb: "Twelve stations. Three lines. One city, measured in megabits.",
+  },
   wide: {
     number: "00",
     title: "The Whole System",
@@ -168,10 +87,10 @@ const PHASE_DETAILS: Record<
   },
   finale: {
     number: "04",
-    title: "The Network, In Full",
-    line: "ALL LINES",
+    title: "One Engine, Every City",
+    line: "GLOBAL",
     tone: "neutral",
-    blurb: "Keep scrolling. The stations index is next.",
+    blurb: "Nairobi was the first board. The next twelve thousand are next.",
   },
 };
 
@@ -181,6 +100,48 @@ const PHASE_TONE_BG: Record<Tier | "neutral", string> = {
   suspended: "bg-suspended",
   neutral: "bg-ink",
 };
+
+// ── View mode ────────────────────────────────────────────────────────────────
+
+type ViewMode = "schematic" | "geographic";
+
+// ── Small presentational helpers ─────────────────────────────────────────────
+
+function NameLabel({
+  name,
+  x,
+  y,
+  className,
+}: {
+  name: string;
+  x: number;
+  y: number;
+  className?: string;
+}) {
+  const [line1, line2] = splitName(name);
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      fontFamily="var(--font-display)"
+      fontWeight={800}
+      fontSize={13}
+      letterSpacing="0.04em"
+      fill="var(--color-ink)"
+      className={className}
+    >
+      <tspan x={x}>{line1}</tspan>
+      {line2 && (
+        <tspan x={x} dy={14}>
+          {line2}
+        </tspan>
+      )}
+    </text>
+  );
+}
+
+// ── Chyron (top bar) ──────────────────────────────────────────────────────────
 
 function Chyron({
   phase,
@@ -251,17 +212,17 @@ function RouteCard({
   stopsVisited,
   stopsTotal,
   activeStopName,
+  activeStopVibe,
 }: {
   phase: Phase;
   stopsVisited: number;
   stopsTotal: number;
   activeStopName: string | null;
+  activeStopVibe: string | null;
 }) {
   const d = PHASE_DETAILS[phase];
   const tone =
-    d.tone === "neutral"
-      ? "var(--color-ink)"
-      : `var(--color-${d.tone})`;
+    d.tone === "neutral" ? "var(--color-ink)" : `var(--color-${d.tone})`;
   return (
     <div className="absolute bottom-8 right-6 md:right-10 z-20 pointer-events-none max-w-[320px]">
       <div className="bg-cream/95 border border-ink/80 px-4 py-3 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft">
@@ -277,6 +238,11 @@ function RouteCard({
         <p className="font-display font-black uppercase tracking-[-0.01em] text-ink text-2xl mt-2 leading-none truncate min-h-[1.5em]">
           {activeStopName ?? "—"}
         </p>
+        {activeStopVibe && (
+          <p className="font-serif italic normal-case tracking-normal text-ink-faint text-xs mt-1.5">
+            {activeStopVibe}
+          </p>
+        )}
         <div className="mt-3 h-0.5 bg-cream-deep relative overflow-hidden">
           <span
             className="absolute inset-y-0 left-0 transition-[width] duration-300"
@@ -297,15 +263,98 @@ function RouteCard({
   );
 }
 
+// ── View toggle (bottom-left) ────────────────────────────────────────────────
+
+function ViewToggle({
+  view,
+  onChange,
+  disabled,
+}: {
+  view: ViewMode;
+  onChange: (v: ViewMode) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="absolute bottom-8 left-6 md:left-10 z-20 pointer-events-auto">
+      <div className="flex items-center gap-1 bg-cream/95 border border-ink/80 p-1 font-mono text-[10px] tracking-[0.2em] uppercase">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange("schematic")}
+          className={`px-2.5 py-1.5 transition-colors disabled:opacity-40 ${
+            view === "schematic"
+              ? "bg-ink text-cream"
+              : "text-ink-soft hover:text-ink"
+          }`}
+        >
+          Schematic
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange("geographic")}
+          className={`px-2.5 py-1.5 transition-colors disabled:opacity-40 ${
+            view === "geographic"
+              ? "bg-ink text-cream"
+              : "text-ink-soft hover:text-ink"
+          }`}
+        >
+          Geographic
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── CinematicMap ─────────────────────────────────────────────────────────────
 
 export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
   const scope = useRef<HTMLDivElement>(null);
-  const [phase, setPhase] = useState<Phase>("wide");
+  const [phase, setPhase] = useState<Phase>("intro");
   const [stopsVisited, setStopsVisited] = useState(0);
   const [activeStopName, setActiveStopName] = useState<string | null>(null);
+  const [activeStopVibe, setActiveStopVibe] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>("schematic");
+  const [toggleDisabled, setToggleDisabled] = useState(false);
 
   const stopsTotal = cafes.length;
+
+  // Pre-compute geographic positions + smoothed tier paths for the geographic view.
+  const geo = useMemo(() => {
+    const positions = new Map<string, { x: number; y: number }>();
+    for (const c of cafes) {
+      positions.set(c.id, projectLatLng(c.lat, c.lng));
+    }
+    const tierPoints: Record<Tier, Array<{ x: number; y: number }>> = {
+      express: [],
+      local: [],
+      suspended: [],
+    };
+    for (const c of cafes) {
+      const p = positions.get(c.id);
+      if (p) tierPoints[c.tier].push(p);
+    }
+    // Sort by x (west → east) so the line reads left-to-right.
+    (Object.keys(tierPoints) as Tier[]).forEach((t) =>
+      tierPoints[t].sort((a, b) => a.x - b.x),
+    );
+    return {
+      positions,
+      paths: {
+        express: smoothPathThrough(tierPoints.express),
+        local: smoothPathThrough(tierPoints.local),
+        suspended: smoothPathThrough(tierPoints.suspended),
+      } as Record<Tier, string>,
+    };
+  }, [cafes]);
+
+  // The path source switches with the view mode.
+  const tierPath = (t: Tier) =>
+    view === "geographic" ? geo.paths[t] : TIER_PATH[t];
+  const stationPos = (c: CafeStation) =>
+    view === "geographic"
+      ? (geo.positions.get(c.id) ?? STATION_WAYPOINT[c.id])
+      : STATION_WAYPOINT[c.id];
 
   useGSAP(
     () => {
@@ -315,53 +364,56 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
         "(prefers-reduced-motion: reduce)",
       ).matches;
       if (reduceMotion) {
-        gsap.set(".cm-line", { strokeDashoffset: 0, opacity: 1 });
+        gsap.set(".cm-line", { drawSVG: "100%", opacity: 1 });
         gsap.set(".cm-station", { opacity: 1, scale: 1 });
         gsap.set(".cm-train-wrap", { opacity: 1 });
         gsap.set(".cm-pov", { x: 0, y: 0, scale: 1 });
         gsap.set(".cm-pan", { x: 0, y: 0 });
+        gsap.set(".cm-parallax-far", { opacity: 0.5 });
+        gsap.set(".cm-parallax-mid", { opacity: 0.8 });
+        gsap.set(".cm-atmos", { opacity: 0 });
+        gsap.set(".cm-vignette", { opacity: 0.3 });
+        gsap.set(".cm-world", { opacity: 0 });
         return;
       }
 
-      gsap.set(".cm-pov", { x: 0, y: 0, scale: 1 });
+      // ── Initial state ────────────────────────────────────────────────
+      gsap.set(".cm-pov", { x: 0, y: 0, scale: 1.4 });
       gsap.set(".cm-pan", { x: 0, y: 0 });
 
-      const expressLine = document.querySelector<SVGPathElement>(
-        ".cm-line-express",
-      );
-      const localLine = document.querySelector<SVGPathElement>(
-        ".cm-line-local",
-      );
-      const suspendedLine = document.querySelector<SVGPathElement>(
-        ".cm-line-suspended",
-      );
+      // DrawSVG gives us clean path-drawing primitives. Lines start empty.
+      gsap.set(".cm-line-express", { drawSVG: "0%", opacity: 1 });
+      gsap.set(".cm-line-local", { drawSVG: "0%", opacity: 1 });
+      gsap.set(".cm-line-suspended", { drawSVG: "0%", opacity: 0 });
 
-      const lenE = expressLine?.getTotalLength() ?? 1500;
-      const lenL = localLine?.getTotalLength() ?? 1800;
+      // Parallax depth layers — distant grid, neighbourhoods, stations.
+      gsap.set(".cm-parallax-far", { opacity: 0.35 });
+      gsap.set(".cm-parallax-mid", { opacity: 0.7 });
 
-      gsap.set(".cm-line-express", {
-        strokeDasharray: lenE,
-        strokeDashoffset: lenE,
-      });
-      gsap.set(".cm-line-local", {
-        strokeDasharray: lenL,
-        strokeDashoffset: lenL,
-      });
-      // Suspended line is genuinely dashed (broken-service look).
-      gsap.set(".cm-line-suspended", {
-        strokeDasharray: "14 9",
-        opacity: 0,
-      });
+      // Atmosphere starts off, intensifies when zoomed into a line.
+      gsap.set(".cm-atmos", { opacity: 0 });
+      gsap.set(".cm-vignette", { opacity: 0.15 });
 
+      // Stations start hidden, pop as the train visits them.
       gsap.set(".cm-station", {
         opacity: 0,
         scale: 0,
         transformOrigin: "50% 50%",
       });
 
+      // Train marker.
       gsap.set(".cm-train-wrap", { opacity: 0 });
-      gsap.set(".cm-train", { x: 0, y: 0 });
 
+      // World layer (finale) starts invisible.
+      gsap.set(".cm-world", { opacity: 0 });
+      gsap.set(".cm-world-outline", { drawSVG: "0%", opacity: 0.4 });
+      gsap.set(".cm-world-city", { opacity: 0, scale: 0, transformOrigin: "50% 50%" });
+      gsap.set(".cm-world-arc", { drawSVG: "0%", opacity: 0 });
+
+      // ── Camera quickTo functions ─────────────────────────────────────
+      // These are the heart of the "camera" rig: optimized tweeners that
+      // we call every frame to follow the train, exactly as the GSAP
+      // scroll-driven SVG tutorial prescribes.
       const xTo = gsap.quickTo(".cm-pan", "x", {
         duration: 1,
         ease: "expo.out",
@@ -371,40 +423,58 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
         ease: "expo.out",
       });
 
+      // ── Timeline ─────────────────────────────────────────────────────
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: scope.current,
+          start: "top top",
+          end: "bottom bottom",
+          scrub: 0.6,
+        },
+      });
+
+      // ── Helper: drive the train along a path using MotionPathPlugin ──
+      // This replaces the manual getPointAtLength loop. MotionPathPlugin
+      // animates a proxy object along the SVG path; we read its x/y each
+      // frame and feed the camera quickTo functions — the tutorial pattern.
       const driveTrain = (
-        lineEl: SVGPathElement | null,
+        pathSelector: string,
         label: string,
         ease: string,
         maxProgress = 1,
       ) => {
-        if (!lineEl) return;
-        const length = lineEl.getTotalLength();
-        const progress = { value: 0 };
+        const proxy = { x: 0, y: 0 };
         tl.to(
-          progress,
+          proxy,
           {
-            value: maxProgress,
+            motionPath: {
+              path: pathSelector,
+              end: maxProgress,
+            },
             duration: 1,
             ease,
+            onStart: () => gsap.set(".cm-train-wrap", { opacity: 1 }),
             onUpdate: () => {
-              const p = lineEl.getPointAtLength(progress.value * length);
-              gsap.set(".cm-train", { x: p.x, y: p.y });
-              xTo(-p.x);
-              yTo(-p.y);
+              gsap.set(".cm-train", { x: proxy.x, y: proxy.y });
+              // Camera follows: invert the train position to center it.
+              xTo(-proxy.x);
+              yTo(-proxy.y);
             },
           },
           label,
         );
       };
 
+      // ── Helper: draw a line with DrawSVGPlugin ────────────────────────
       const drawLine = (selector: string, label: string, ease: string) => {
         tl.to(
           selector,
-          { strokeDashoffset: 0, duration: 1, ease },
+          { drawSVG: "100%", duration: 1, ease },
           label,
         );
       };
 
+      // ── Helper: pop stations as the train passes them ────────────────
       const popStationsForTier = (
         tier: Tier,
         label: string,
@@ -433,6 +503,7 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
           });
       };
 
+      // ── Helper: tick the stops-visited counter ───────────────────────
       const tickStopVisits = (
         tier: Tier,
         label: string,
@@ -452,6 +523,7 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
               () => {
                 setStopsVisited((n) => n + 1);
                 setActiveStopName(c.name);
+                setActiveStopVibe(c.vibe);
               },
               undefined,
               `${label}+=${wp.progress}`,
@@ -459,22 +531,56 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
           });
       };
 
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: scope.current,
-          start: "top top",
-          end: "bottom bottom",
-          scrub: 0.6,
-        },
-      });
+      // ═════════════════════════════════════════════════════════════════
+      // PHASE 0 — Intro: the map fades in, camera settles from above.
+      // A theatrical opening beat — the paper folds open.
+      // ═════════════════════════════════════════════════════════════════
+      tl.addLabel("intro")
+        .call(
+          () => {
+            setPhase("intro");
+            setStopsVisited(0);
+            setActiveStopName(null);
+            setActiveStopVibe(null);
+          },
+          undefined,
+          "intro",
+        )
+        .fromTo(
+          ".cm-pov",
+          { scale: 2.4, x: -120, y: -80 },
+          { scale: 1.4, x: 0, y: 0, duration: 0.5, ease: "power3.out" },
+          "intro",
+        )
+        .fromTo(
+          ".cm-parallax-far",
+          { opacity: 0 },
+          { opacity: 0.35, duration: 0.4 },
+          "intro",
+        )
+        .fromTo(
+          ".cm-parallax-mid",
+          { opacity: 0 },
+          { opacity: 0.7, duration: 0.4 },
+          "intro+=0.05",
+        )
+        .fromTo(
+          ".cm-vignette",
+          { opacity: 0 },
+          { opacity: 0.15, duration: 0.5 },
+          "intro",
+        );
 
-      // ── Phase 0 — Wide overview ────────────────────────────────────
+      // ═════════════════════════════════════════════════════════════════
+      // PHASE 1 — Wide overview: all lines draw at once, camera steady.
+      // ═════════════════════════════════════════════════════════════════
       tl.addLabel("wide")
         .call(
           () => {
             setPhase("wide");
             setStopsVisited(0);
             setActiveStopName(null);
+            setActiveStopVibe(null);
           },
           undefined,
           "wide",
@@ -490,18 +596,42 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
           "wide",
         );
 
-      // ── Phase 1 — Express tour ────────────────────────────────────
+      // Draw all three lines concurrently in the wide view.
+      drawLine(".cm-line-express", "wide", "power1.inOut");
+      drawLine(".cm-line-local", "wide+=0.05", "power1.inOut");
+      tl.to(
+        ".cm-line-suspended",
+        { opacity: 0.85, drawSVG: "100%", duration: 0.9, ease: "power1.inOut" },
+        "wide+=0.1",
+      );
+
+      // Pop all stations in the wide view, staggered.
+      tl.to(
+        ".cm-station",
+        {
+          opacity: 1,
+          scale: 1,
+          stagger: { each: 0.025, from: "start" },
+          duration: 0.2,
+          ease: "back.out(1.6)",
+        },
+        "wide+=0.3",
+      );
+
+      // ═════════════════════════════════════════════════════════════════
+      // PHASE 2 — Express tour: zoom in, ride the green line.
+      // ═════════════════════════════════════════════════════════════════
       tl.addLabel("express")
         .call(
           () => {
             setPhase("express");
             setStopsVisited(0);
             setActiveStopName(null);
+            setActiveStopVibe(null);
           },
           undefined,
           "express",
         )
-        .to(".cm-train-wrap", { opacity: 1, duration: 0.05 }, "express")
         .to(
           ".cm-pov",
           {
@@ -512,19 +642,28 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
             ease: "power2.inOut",
           },
           "express",
-        );
-      driveTrain(expressLine, "express", "power1.inOut");
-      drawLine(".cm-line-express", "express", "power1.inOut");
+        )
+        // Atmosphere intensifies — vignette + active-line glow.
+        .to(".cm-atmos", { opacity: 0.6, duration: 0.4 }, "express")
+        .to(".cm-vignette", { opacity: 0.35, duration: 0.4 }, "express")
+        // Dim the non-active lines slightly.
+        .to(".cm-line-local", { opacity: 0.25, duration: 0.4 }, "express")
+        .to(".cm-line-suspended", { opacity: 0.15, duration: 0.4 }, "express");
+
+      driveTrain(".cm-line-express", "express", "power1.inOut");
       popStationsForTier("express", "express");
       tickStopVisits("express", "express");
 
-      // ── Phase 2 — Local tour ───────────────────────────────────────
+      // ═════════════════════════════════════════════════════════════════
+      // PHASE 3 — Local tour: amber line, the everyday backbone.
+      // ═════════════════════════════════════════════════════════════════
       tl.addLabel("local")
         .call(
           () => {
             setPhase("local");
             setStopsVisited(0);
             setActiveStopName(null);
+            setActiveStopVibe(null);
           },
           undefined,
           "local",
@@ -539,19 +678,27 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
             ease: "power2.inOut",
           },
           "local",
-        );
-      driveTrain(localLine, "local", "power1.inOut");
-      drawLine(".cm-line-local", "local", "power1.inOut");
+        )
+        // Restore express line, dim it; bring local to full.
+        .to(".cm-line-express", { opacity: 0.3, duration: 0.4 }, "local")
+        .to(".cm-line-local", { opacity: 1, duration: 0.4 }, "local")
+        .to(".cm-line-suspended", { opacity: 0.15, duration: 0.4 }, "local");
+
+      driveTrain(".cm-line-local", "local", "power1.inOut");
       popStationsForTier("local", "local");
       tickStopVisits("local", "local");
 
-      // ── Phase 3 — Suspended tour (stutter, service drops out) ─────
+      // ═════════════════════════════════════════════════════════════════
+      // PHASE 4 — Suspended tour: the line stutters, service drops out.
+      // The train only makes it 65% before the signal dies.
+      // ═════════════════════════════════════════════════════════════════
       tl.addLabel("suspended")
         .call(
           () => {
             setPhase("suspended");
             setStopsVisited(0);
             setActiveStopName(null);
+            setActiveStopVibe(null);
           },
           undefined,
           "suspended",
@@ -566,18 +713,17 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
             ease: "power2.inOut",
           },
           "suspended",
-        );
-      // Train only makes it ~65% — past Brew Bistro service drops, Dormans never lights up.
-      driveTrain(suspendedLine, "suspended", "steps(8)", 0.65);
-      // Suspended line fades in (the dashed pattern means strokeDashoffset won't draw it).
-      tl.to(
-        ".cm-line-suspended",
-        { opacity: 0.85, duration: 0.5, ease: "power1.in" },
-        "suspended",
-      );
+        )
+        .to(".cm-line-express", { opacity: 0.2, duration: 0.4 }, "suspended")
+        .to(".cm-line-local", { opacity: 0.2, duration: 0.4 }, "suspended")
+        .to(".cm-line-suspended", { opacity: 1, duration: 0.4 }, "suspended");
+
+      // Train stutters (steps ease = jerky motion) and only reaches 65%.
+      driveTrain(".cm-line-suspended", "suspended", "steps(8)", 0.65);
       popStationsForTier("suspended", "suspended", 0.65);
       tickStopVisits("suspended", "suspended", 0.65);
-      // After Brew Bistro, the line and train fade — service drops out.
+
+      // After 65%, service drops — line and train fade.
       tl.to(
         ".cm-line-suspended",
         { opacity: 0.2, duration: 0.3, ease: "power1.in" },
@@ -588,44 +734,112 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
         "suspended+=0.55",
       );
 
-      // ── Phase 4 — Finale, zoom back out ────────────────────────────
+      // ═════════════════════════════════════════════════════════════════
+      // PHASE 5 — Global finale: zoom way out, Nairobi becomes one star
+      // in a constellation of world cities. The "twelve thousand" promise.
+      // ═════════════════════════════════════════════════════════════════
       tl.addLabel("finale")
         .call(
           () => {
             setPhase("finale");
             setActiveStopName(null);
+            setActiveStopVibe(null);
           },
           undefined,
           "finale",
         )
+        // Fade out the city map layers.
         .to(".cm-train-wrap", { opacity: 0, duration: 0.2 }, "finale")
+        .to(".cm-atmos", { opacity: 0, duration: 0.3 }, "finale")
+        .to(".cm-vignette", { opacity: 0.5, duration: 0.5 }, "finale")
+        .to(
+          [".cm-line-express", ".cm-line-local", ".cm-line-suspended"],
+          { opacity: 0.1, duration: 0.4 },
+          "finale",
+        )
+        .to(".cm-station", { opacity: 0.15, scale: 0.4, duration: 0.4 }, "finale")
+        .to(".cm-parallax-far", { opacity: 0.1, duration: 0.4 }, "finale")
+        .to(".cm-parallax-mid", { opacity: 0.15, duration: 0.4 }, "finale")
+        // Zoom the POV way out and recenter.
         .to(
           ".cm-pov",
-          { scale: 1, x: 0, y: 0, duration: 0.8, ease: "power3.inOut" },
+          { scale: 0.45, x: 0, y: 0, duration: 0.7, ease: "power2.inOut" },
           "finale",
         )
         .to(
           ".cm-pan",
-          { x: 0, y: 0, duration: 0.8, ease: "power3.inOut" },
+          { x: 0, y: 0, duration: 0.7, ease: "power2.inOut" },
           "finale",
         )
+        // Reveal the world layer.
+        .to(".cm-world", { opacity: 1, duration: 0.4 }, "finale+=0.2")
+        // Draw the continent outline.
         .to(
-          ".cm-station",
-          {
-            opacity: 1,
-            scale: 1,
-            stagger: 0.015,
-            duration: 0.2,
-            ease: "power2.out",
-          },
-          "finale",
+          ".cm-world-outline",
+          { drawSVG: "100%", duration: 0.5, ease: "power1.inOut" },
+          "finale+=0.2",
         );
+
+      // Light up each city, staggered — Nairobi pulses first, then the rest.
+      const darkCities = WORLD_CITIES.filter((c) => !c.lit);
+
+      // Nairobi gets a pulse.
+      tl.to(
+        `.cm-world-city[data-city-id="nairobi"]`,
+        { opacity: 1, scale: 1.4, duration: 0.3, ease: "back.out(2)" },
+        "finale+=0.3",
+      ).to(
+        `.cm-world-city[data-city-id="nairobi"]`,
+        { scale: 1, duration: 0.3, ease: "power2.out" },
+        "finale+=0.55",
+      );
+
+      // Draw arcs from Nairobi to each dark city, then light them.
+      darkCities.forEach((city, i) => {
+        const arcSel = `.cm-world-arc[data-target="${city.id}"]`;
+        const citySel = `.cm-world-city[data-city-id="${city.id}"]`;
+        const pos = `finale+=${0.6 + i * 0.06}`;
+        tl.to(
+          arcSel,
+          { drawSVG: "100%", opacity: 0.5, duration: 0.15, ease: "none" },
+          pos,
+        ).to(
+          citySel,
+          { opacity: 1, scale: 1, duration: 0.2, ease: "back.out(1.8)" },
+          `${pos}+=0.1`,
+        );
+      });
+
+      // Final settle — all arcs fade to a gentle glow, vignette softens.
+      tl.to(".cm-world-arc", { opacity: 0.2, duration: 0.4 }, "finale+=1.4")
+        .to(".cm-vignette", { opacity: 0.2, duration: 0.5 }, "finale+=1.4");
     },
-    { scope, dependencies: [cafes] },
+    { scope, dependencies: [cafes, view] },
   );
 
+  // ── View toggle transition ──────────────────────────────────────────────
+  // When the user flips schematic ↔ geographic, we crossfade the line paths
+  // and station positions. The GSAP timeline re-runs via the `view` dep above,
+  // but we also do a quick morph tween for immediate visual feedback.
+  const handleViewChange = (next: ViewMode) => {
+    if (next === view) return;
+    setToggleDisabled(true);
+    // A quick fade of the map content, then the timeline rebuilds on the
+    // new view's paths. The `view` dependency in useGSAP handles the rebuild.
+    gsap.to([".cm-line", ".cm-station"], {
+      opacity: 0.15,
+      duration: 0.3,
+      onComplete: () => {
+        setView(next);
+        // Re-enable after the timeline has had a frame to rebuild.
+        setTimeout(() => setToggleDisabled(false), 400);
+      },
+    });
+  };
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <section ref={scope} className="relative h-[700vh] -mx-6 md:-mx-12">
+    <section ref={scope} className="relative h-[800vh] -mx-6 md:-mx-12">
       <div className="sticky top-0 h-screen overflow-hidden bg-cream">
         <Chyron
           phase={phase}
@@ -664,9 +878,31 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
                 <stop offset="55%" stopColor="#FFF6E0" stopOpacity="0.25" />
                 <stop offset="100%" stopColor="#FFF6E0" stopOpacity="0" />
               </radialGradient>
+              {/* Vignette — darkens edges when zoomed in for cinematic depth. */}
+              <radialGradient id="cm-vignette" cx="50%" cy="50%" r="75%">
+                <stop offset="55%" stopColor="#000" stopOpacity="0" />
+                <stop offset="100%" stopColor="#1A1612" stopOpacity="0.5" />
+              </radialGradient>
+              {/* Atmosphere — soft warm glow behind the active line. */}
+              <radialGradient id="cm-atmos-glow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#FFF6E0" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#FFF6E0" stopOpacity="0" />
+              </radialGradient>
+              {/* World layer — ocean gradient for the finale. */}
+              <radialGradient id="cm-world-ocean" cx="50%" cy="50%" r="70%">
+                <stop offset="0%" stopColor="#F4ECD8" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#D9CFB1" stopOpacity="0.6" />
+              </radialGradient>
+              <filter id="cm-world-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
 
-            {/* Static page chrome */}
+            {/* ── Static page chrome (paper + grid) ────────────────────── */}
             <rect
               x={0}
               y={0}
@@ -674,16 +910,300 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
               height={VIEW_H}
               fill="url(#cm-paper)"
             />
+
+            {/* ── World layer (finale) ─────────────────────────────────── */}
+            {/* Sits above the paper, below the city map. The finale fades */}
+            {/* the city content out and reveals this layer underneath.    */}
+            <g className="cm-world" style={{ opacity: 0 }}>
+              <rect
+                x={0}
+                y={0}
+                width={VIEW_W}
+                height={VIEW_H}
+                fill="url(#cm-world-ocean)"
+              />
+              {/* Stylized continent outlines */}
+              <path
+                className="cm-world-outline"
+                d={WORLD_OUTLINE_D}
+                fill="var(--color-cream-edge)"
+                fillOpacity={0.3}
+                stroke="var(--color-ink-soft)"
+                strokeWidth={1}
+                strokeOpacity={0.3}
+              />
+
+              {/* Arcs from Nairobi to each city */}
+              {WORLD_CITIES.filter((c) => !c.lit).map((city) => {
+                const nbi = WORLD_CITIES.find((c) => c.id === "nairobi")!;
+                // Quadratic arc bowing upward from Nairobi to the city.
+                const midX = (nbi.x + city.x) / 2;
+                const midY = (nbi.y + city.y) / 2 - Math.abs(city.x - nbi.x) * 0.25 - 20;
+                return (
+                  <path
+                    key={`arc-${city.id}`}
+                    className="cm-world-arc"
+                    data-target={city.id}
+                    d={`M ${nbi.x} ${nbi.y} Q ${midX} ${midY}, ${city.x} ${city.y}`}
+                    fill="none"
+                    stroke="var(--color-express)"
+                    strokeWidth={1}
+                    strokeOpacity={0.6}
+                    strokeDasharray="2 4"
+                  />
+                );
+              })}
+
+              {/* City dots */}
+              {WORLD_CITIES.map((city) => (
+                <g
+                  key={city.id}
+                  className="cm-world-city"
+                  data-city-id={city.id}
+                  transform={`translate(${city.x} ${city.y})`}
+                >
+                  <circle
+                    r={city.lit ? 6 : 4}
+                    fill={city.lit ? "var(--color-express)" : "var(--color-ink-soft)"}
+                    filter="url(#cm-world-glow)"
+                  />
+                  <circle
+                    r={city.lit ? 3 : 2}
+                    fill="var(--color-cream)"
+                  />
+                  <text
+                    x={0}
+                    y={city.lit ? -14 : -10}
+                    textAnchor="middle"
+                    fontFamily="var(--font-mono)"
+                    fontSize={city.lit ? 11 : 9}
+                    fontWeight={city.lit ? 600 : 400}
+                    letterSpacing="0.1em"
+                    fill="var(--color-ink)"
+                  >
+                    {city.name.toUpperCase()}
+                  </text>
+                  {city.lit && (
+                    <text
+                      x={0}
+                      y={20}
+                      textAnchor="middle"
+                      fontFamily="var(--font-serif)"
+                      fontStyle="italic"
+                      fontSize={9}
+                      fill="var(--color-ink-faint)"
+                    >
+                      {city.stations} stations live
+                    </text>
+                  )}
+                </g>
+              ))}
+            </g>
+
+            {/* ── Parallax layer: FAR (grid) ───────────────────────────── */}
+            <g className="cm-parallax-far" style={{ opacity: 0.35 }}>
+              <rect
+                x={0}
+                y={0}
+                width={VIEW_W}
+                height={VIEW_H}
+                fill="url(#cm-grid)"
+                opacity={0.6}
+              />
+            </g>
+
+            {/* ── Atmosphere glow (behind POV, intensifies on zoom) ────── */}
+            <g className="cm-atmos" style={{ opacity: 0 }}>
+              <rect
+                x={0}
+                y={0}
+                width={VIEW_W}
+                height={VIEW_H}
+                fill="url(#cm-atmos-glow)"
+              />
+            </g>
+
+            {/* ── POV group — scaled & translated (the "camera") ──────── */}
+            <g className="cm-pov">
+              <g className="cm-pan">
+                {/* ── Parallax layer: MID (neighbourhoods) ─────────────── */}
+                <g className="cm-parallax-mid cm-neighbourhoods" style={{ opacity: 0.7 }}>
+                  {HOODS.map((h) => (
+                    <g key={h.id}>
+                      <path
+                        d={h.d}
+                        fill="var(--color-cream-edge)"
+                        stroke="var(--color-ink-faint)"
+                        strokeWidth={1}
+                        strokeDasharray="3 5"
+                        opacity={0.5}
+                      />
+                      <path
+                        d={h.d}
+                        fill="none"
+                        stroke="var(--color-ink)"
+                        strokeWidth={0.6}
+                        opacity={0.22}
+                      />
+                      <text
+                        x={h.anchor.x}
+                        y={h.anchor.y}
+                        textAnchor="middle"
+                        fontFamily="var(--font-mono)"
+                        fontSize={10}
+                        fontWeight={500}
+                        letterSpacing="0.32em"
+                        fill="var(--color-ink-soft)"
+                        opacity={0.75}
+                      >
+                        {h.ordinal} · {h.label}
+                      </text>
+                    </g>
+                  ))}
+                </g>
+
+                {/* ── Faint glow halos under each line for depth ────── */}
+                <path
+                  d={tierPath("express")}
+                  fill="none"
+                  stroke={TIER_TINT.express}
+                  strokeWidth={26}
+                  strokeLinecap="round"
+                  opacity={0.35}
+                  className="cm-line-glow cm-line-glow-express"
+                />
+                <path
+                  d={tierPath("local")}
+                  fill="none"
+                  stroke={TIER_TINT.local}
+                  strokeWidth={26}
+                  strokeLinecap="round"
+                  opacity={0.35}
+                  className="cm-line-glow cm-line-glow-local"
+                />
+                <path
+                  d={tierPath("suspended")}
+                  fill="none"
+                  stroke={TIER_TINT.suspended}
+                  strokeWidth={26}
+                  strokeLinecap="round"
+                  opacity={0.3}
+                  className="cm-line-glow cm-line-glow-suspended"
+                />
+
+                {/* ── The visible bezier paths ──────────────────────── */}
+                <path
+                  className="cm-line cm-line-express"
+                  d={tierPath("express")}
+                  fill="none"
+                  stroke={TIER_COLOUR.express}
+                  strokeWidth={11}
+                  strokeLinecap="round"
+                />
+                <path
+                  className="cm-line cm-line-local"
+                  d={tierPath("local")}
+                  fill="none"
+                  stroke={TIER_COLOUR.local}
+                  strokeWidth={9}
+                  strokeLinecap="round"
+                />
+                <path
+                  className="cm-line cm-line-suspended"
+                  d={tierPath("suspended")}
+                  fill="none"
+                  stroke={TIER_COLOUR.suspended}
+                  strokeWidth={8}
+                  strokeLinecap="butt"
+                  strokeDasharray="14 9"
+                />
+
+                {/* ── Stations ──────────────────────────────────────── */}
+                {cafes.map((cafe) => {
+                  const wp = stationPos(cafe);
+                  if (!wp) return null;
+                  const stroke =
+                    cafe.tier === "suspended"
+                      ? "var(--color-suspended-ink)"
+                      : "var(--color-ink)";
+                  return (
+                    <g
+                      key={cafe.id}
+                      className={`cm-station cm-station-${cafe.tier}`}
+                      data-cafe-id={cafe.id}
+                      data-tier={cafe.tier}
+                    >
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r={17}
+                        fill="var(--color-cream)"
+                        opacity={0.88}
+                      />
+                      <text
+                        x={wp.x}
+                        y={wp.y - 24}
+                        textAnchor="middle"
+                        fontFamily="var(--font-mono)"
+                        fontWeight={600}
+                        fontSize={12}
+                        fill={TIER_COLOUR[cafe.tier]}
+                        letterSpacing="0.04em"
+                      >
+                        {Math.round(cafe.medianDownMbps)}
+                      </text>
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r={11}
+                        fill="var(--color-cream)"
+                        stroke={stroke}
+                        strokeWidth={3}
+                      />
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r={3}
+                        fill={TIER_COLOUR[cafe.tier]}
+                      />
+                      <NameLabel name={cafe.name} x={wp.x} y={wp.y + 32} />
+                    </g>
+                  );
+                })}
+
+                {/* ── The train — positioned along the active path ──── */}
+                <g className="cm-train-wrap">
+                  <g className="cm-train" transform="translate(0 0)">
+                    <circle
+                      r={34}
+                      fill="url(#cm-train-glow)"
+                      className="cm-train-aura"
+                    />
+                    <circle
+                      r={18}
+                      fill="var(--color-cream)"
+                      stroke="var(--color-ink)"
+                      strokeWidth={3}
+                    />
+                    <circle r={6} fill="var(--color-ink)" />
+                    <circle r={2.5} fill="var(--color-cream)" />
+                  </g>
+                </g>
+              </g>
+            </g>
+
+            {/* ── Vignette overlay (above map, below chrome) ─────────── */}
             <rect
+              className="cm-vignette"
               x={0}
               y={0}
               width={VIEW_W}
               height={VIEW_H}
-              fill="url(#cm-grid)"
-              opacity={0.6}
+              fill="url(#cm-vignette)"
+              style={{ opacity: 0.15, pointerEvents: "none" }}
             />
 
-            {/* Compass */}
+            {/* ── Static chrome (compass, scale, stamps) ─────────────── */}
             <g transform={`translate(${VIEW_W - 90} ${VIEW_H - 130})`}>
               <circle
                 r={28}
@@ -742,7 +1262,6 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
               </text>
             </g>
 
-            {/* Scale bar */}
             <g transform={`translate(64 ${VIEW_H - 70})`}>
               <line
                 x1={0}
@@ -810,172 +1329,6 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
               </text>
             </g>
 
-            {/* ── POV group — scaled & translated ───────────────── */}
-            <g className="cm-pov">
-              <g className="cm-pan">
-                {/* Neighbourhood polygons */}
-                <g className="cm-neighbourhoods">
-                  {HOODS.map((h) => (
-                    <g key={h.id}>
-                      <path
-                        d={h.d}
-                        fill="var(--color-cream-edge)"
-                        stroke="var(--color-ink-faint)"
-                        strokeWidth={1}
-                        strokeDasharray="3 5"
-                        opacity={0.5}
-                      />
-                      <path
-                        d={h.d}
-                        fill="none"
-                        stroke="var(--color-ink)"
-                        strokeWidth={0.6}
-                        opacity={0.22}
-                      />
-                      <text
-                        x={h.anchor.x}
-                        y={h.anchor.y}
-                        textAnchor="middle"
-                        fontFamily="var(--font-mono)"
-                        fontSize={10}
-                        fontWeight={500}
-                        letterSpacing="0.32em"
-                        fill="var(--color-ink-soft)"
-                        opacity={0.75}
-                      >
-                        {h.ordinal} · {h.label}
-                      </text>
-                    </g>
-                  ))}
-                </g>
-
-                {/* Faint glow halos under each line for depth */}
-                <path
-                  d={TIER_PATH.express}
-                  fill="none"
-                  stroke={TIER_TINT.express}
-                  strokeWidth={26}
-                  strokeLinecap="round"
-                  opacity={0.35}
-                />
-                <path
-                  d={TIER_PATH.local}
-                  fill="none"
-                  stroke={TIER_TINT.local}
-                  strokeWidth={26}
-                  strokeLinecap="round"
-                  opacity={0.35}
-                />
-                <path
-                  d={TIER_PATH.suspended}
-                  fill="none"
-                  stroke={TIER_TINT.suspended}
-                  strokeWidth={26}
-                  strokeLinecap="round"
-                  opacity={0.3}
-                />
-
-                {/* The visible bezier paths */}
-                <path
-                  className="cm-line cm-line-express"
-                  d={TIER_PATH.express}
-                  fill="none"
-                  stroke={TIER_COLOUR.express}
-                  strokeWidth={11}
-                  strokeLinecap="round"
-                />
-                <path
-                  className="cm-line cm-line-local"
-                  d={TIER_PATH.local}
-                  fill="none"
-                  stroke={TIER_COLOUR.local}
-                  strokeWidth={9}
-                  strokeLinecap="round"
-                />
-                <path
-                  className="cm-line cm-line-suspended"
-                  d={TIER_PATH.suspended}
-                  fill="none"
-                  stroke={TIER_COLOUR.suspended}
-                  strokeWidth={8}
-                  strokeLinecap="butt"
-                />
-
-                {/* Stations */}
-                {cafes.map((cafe) => {
-                  const wp = STATION_WAYPOINT[cafe.id];
-                  if (!wp) return null;
-                  const stroke =
-                    cafe.tier === "suspended"
-                      ? "var(--color-suspended-ink)"
-                      : "var(--color-ink)";
-                  return (
-                    <g
-                      key={cafe.id}
-                      className={`cm-station cm-station-${cafe.tier}`}
-                      data-cafe-id={cafe.id}
-                      data-tier={cafe.tier}
-                    >
-                      <circle
-                        cx={wp.x}
-                        cy={wp.y}
-                        r={17}
-                        fill="var(--color-cream)"
-                        opacity={0.88}
-                      />
-                      <text
-                        x={wp.x}
-                        y={wp.y - 24}
-                        textAnchor="middle"
-                        fontFamily="var(--font-mono)"
-                        fontWeight={600}
-                        fontSize={12}
-                        fill={TIER_COLOUR[cafe.tier]}
-                        letterSpacing="0.04em"
-                      >
-                        {Math.round(cafe.medianDownMbps)}
-                      </text>
-                      <circle
-                        cx={wp.x}
-                        cy={wp.y}
-                        r={11}
-                        fill="var(--color-cream)"
-                        stroke={stroke}
-                        strokeWidth={3}
-                      />
-                      <circle
-                        cx={wp.x}
-                        cy={wp.y}
-                        r={3}
-                        fill={TIER_COLOUR[cafe.tier]}
-                      />
-                      <NameLabel name={cafe.name} x={wp.x} y={wp.y + 32} />
-                    </g>
-                  );
-                })}
-
-                {/* The train — positioned along the active path */}
-                <g className="cm-train-wrap">
-                  <g className="cm-train" transform="translate(0 0)">
-                    <circle
-                      r={34}
-                      fill="url(#cm-train-glow)"
-                      className="cm-train-aura"
-                    />
-                    <circle
-                      r={18}
-                      fill="var(--color-cream)"
-                      stroke="var(--color-ink)"
-                      strokeWidth={3}
-                    />
-                    <circle r={6} fill="var(--color-ink)" />
-                    <circle r={2.5} fill="var(--color-cream)" />
-                  </g>
-                </g>
-              </g>
-            </g>
-
-            {/* Edition stamp — static */}
             <text
               x={1408}
               y={VIEW_H - 16}
@@ -1006,11 +1359,20 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
           stopsVisited={stopsVisited}
           stopsTotal={stopsTotal}
           activeStopName={activeStopName}
+          activeStopVibe={activeStopVibe}
+        />
+
+        <ViewToggle
+          view={view}
+          onChange={handleViewChange}
+          disabled={toggleDisabled}
         />
 
         <div className="absolute inset-x-0 bottom-3 text-center pointer-events-none">
           <p className="font-mono text-[10px] tracking-[0.32em] uppercase text-ink-faint">
-            scroll to ride the lines ↓
+            {phase === "finale"
+              ? "the network is everywhere ↑"
+              : "scroll to ride the lines ↓"}
           </p>
         </div>
       </div>
