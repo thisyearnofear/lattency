@@ -80,28 +80,37 @@ pnpm dev                           # random high port (see AGENTS.md)
 
 ```
 app/
-├── api/cafes/near        # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
-├── api/cafes/[id]        # GET /api/cafes/:id (detail + time-bucket distribution)
-├── api/measurements      # POST /api/measurements (insert + refresh MV)
-├── opengraph-image.tsx   # Dynamic OG image (1200×630, masthead aesthetic)
-├── icon.svg              # Favicon — minimal three-line metro mark
-└── page.tsx              # Server component composing the home
+├── page.tsx                  # Utility-first home: hero + MapShell + StationDirectory
+├── tour/page.tsx             # The cinematic experience (scroll-driven, 800vh)
+├── cafes/[slug]/page.tsx     # Per-café standalone page (SSG, OG metadata)
+├── api/cafes/near            # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
+├── api/cafes/[id]            # GET /api/cafes/:id (detail + time-bucket distribution)
+├── api/measurements          # POST /api/measurements (insert + refresh MV)
+├── opengraph-image.tsx       # Dynamic OG image (1200×630, masthead aesthetic)
+└── icon.svg                  # Favicon — minimal three-line metro mark
 
 components/
-├── cinematic-map.tsx     # GSAP scroll-driven SVG map (client)
-├── masthead.tsx          # Hero block with steam-wisp coffee identity
-├── legend.tsx            # Three lines of service (roast vocabulary + bean glyph)
-├── station-directory.tsx # Interactive directory: geolocation finder, tier filter, clickable cards
-├── cafe-detail.tsx       # Detail drawer: time-bucket distribution chart + metadata
-└── measurement-form.tsx  # Optimistic-UI speed measurement submission with live tier preview
+├── top-nav.tsx               # Sticky nav: LATTENCY · CitySwitcher · Map · Watch the story
+├── city-switcher.tsx         # Nairobi (live) + 5 "coming soon" cities — multi-city ambition
+├── map-shell.tsx             # Product-grade map: SVG schematic ↔ Leaflet geographic toggle
+├── map-leaflet.tsx           # Leaflet wrapper — CARTO Light tiles, tier markers, focus pin
+├── cinematic-map.tsx         # GSAP scroll-driven SVG map (used on /tour only)
+├── masthead.tsx              # Hero block with steam-wisp coffee identity (on /tour)
+├── legend.tsx                # Three lines of service (roast vocabulary + bean glyph)
+├── station-directory.tsx     # Interactive list: geolocation finder, tier filter, clickable cards
+├── cafe-detail.tsx           # Slide-in modal: distribution chart + metadata + form + share link
+├── cafe-page.tsx             # Full-page version of CafeDetail for /cafes/[slug]
+├── measurement-form.tsx      # Optimistic-UI speed submission with live tier preview
+└── copy-share-link.tsx       # "Share link" button (writes window.location to clipboard)
 
 lib/
-├── db.ts                 # pg.Pool singleton, serverless-safe
-├── cafes.ts              # getCafes(opts), getCafeById(id) — with mock fallback
-├── types.ts              # CafeStation, CafeDetail, Tier, TimeBucket
-├── mock-cafes.ts         # Bundled Nairobi snapshot — API contract + fallback source
-├── map-data.ts           # Shared geometry: tier paths, hood polygons, world cities
-└── world-path.ts         # Natural Earth land silhouette for the global finale
+├── db.ts                     # pg.Pool singleton, serverless-safe
+├── cafes.ts                  # getCafes(opts), getCafeById(id), getCafeBySlug(slug) — with mock fallback
+├── slug.ts                   # slugify() — deterministic URL slugs derived from names
+├── types.ts                  # CafeStation, CafeDetail, Tier, TimeBucket
+├── mock-cafes.ts             # Bundled Nairobi snapshot — API contract + fallback source
+├── map-data.ts               # Shared geometry: tier paths, hood polygons, world cities
+└── world-path.ts             # Natural Earth land silhouette for the global finale
 
 migrations/
 ├── 0001_extensions.sql   # postgis, uuid-ossp
@@ -221,6 +230,8 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 
 ## Status
 
+**Hackathon submission (the data + cinematic spine):**
+
 | Step                                       | State |
 | ------------------------------------------ | ----- |
 | 0. Scaffold + Aurora provisioned           | done  |
@@ -235,8 +246,28 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | Coffee identity (roast vocabulary, bean glyph, ring stain, steam wisps) | done |
 | Schematic ↔ geographic view toggle         | done  |
 | Real Natural Earth world map finale        | done  |
-| 4. Browser-driven speed test contributor   | pending |
-| Vercel × AWS Marketplace integration       | post-submission |
+| OG image + per-page metadata               | done  |
+| AI-narrated demo video pipeline            | done  |
+
+**Post-submission product polish (v2 / v3):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| `/` → utility-first home (no forced scroll cinematic) | done  |
+| `/tour` → houses the cinematic experience | done  |
+| Real Leaflet basemap under geographic mode (CARTO Light tiles) | done  |
+| Judge-aware geolocation (far → demo neighbourhoods) | done  |
+| Multi-city switcher (Nairobi live · 5 coming soon) | done  |
+| Sharable per-café pages at `/cafes/[slug]` | done  |
+| Speed-tier filters on the map              | pending |
+| Auto-layout for a second city (`/lagos`)   | pending |
+
+**Beyond the hackathon:**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| Browser-driven speed test contributor (auto-measure) | pending |
+| Vercel × AWS Marketplace integration       | pending |
 
 ---
 
