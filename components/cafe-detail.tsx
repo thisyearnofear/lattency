@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CafeDetail, CafeStation, Tier, TimeBucket } from "@/lib/types";
+import type { CafeDetail, CafeStation, MeasurementReading, Tier, TimeBucket } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 import { MeasurementForm } from "./measurement-form";
+import { SignalQuality } from "./signal-quality";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -179,7 +180,7 @@ export function CafeDetail({
   // Optimistically fold a freshly contributed reading into the visible stats
   // and time-of-day curve, then re-sync from the server in the background.
   const onContributed = useCallback(
-    (r: { downMbps: number; upMbps: number; latencyMs: number }) => {
+    (r: MeasurementReading) => {
       if (!station) return;
       const base: CafeDetail =
         detail && detail.id === station.id
@@ -209,6 +210,16 @@ export function CafeDetail({
         medianDownMbps: blend(base.medianDownMbps, r.downMbps),
         medianUpMbps: blend(base.medianUpMbps, r.upMbps),
         medianLatencyMs: blend(base.medianLatencyMs, r.latencyMs),
+        // Blend jitter/loss only when the reading includes them (auto-test).
+        // Manual entries don't have these, so we keep the existing medians.
+        medianJitterMs:
+          r.jitterMs !== undefined
+            ? blend(base.medianJitterMs, r.jitterMs)
+            : base.medianJitterMs,
+        medianLossPct:
+          r.lossPct !== undefined
+            ? blend(base.medianLossPct, r.lossPct)
+            : base.medianLossPct,
         distribution,
       });
       // Reconcile with the authoritative materialized view once it refreshes.
@@ -292,6 +303,13 @@ export function CafeDetail({
               <Stat label="Down" value={String(Math.round(d.medianDownMbps))} unit="Mbps" />
               <Stat label="Up" value={d.medianUpMbps.toFixed(1)} unit="Mbps" />
               <Stat label="Ping" value={String(Math.round(d.medianLatencyMs))} unit="ms" />
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-ink/10">
+              <SignalQuality
+                jitterMs={d.medianJitterMs}
+                lossPct={d.medianLossPct}
+              />
             </div>
             {d.measurementCount > 0 ? (
               <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-faint mt-3">

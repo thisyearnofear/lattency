@@ -8,6 +8,7 @@ import Link from "next/link";
 import type { CafeDetail as CafeDetailType, Tier, TimeBucket } from "@/lib/types";
 import { MeasurementForm } from "./measurement-form";
 import { CopyShareLink } from "./copy-share-link";
+import { SignalQuality } from "./signal-quality";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -202,6 +203,12 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
             <Stat label="Down" value={String(Math.round(cafe.medianDownMbps))} unit="Mbps" />
             <Stat label="Up" value={cafe.medianUpMbps.toFixed(1)} unit="Mbps" />
             <Stat label="Ping" value={String(Math.round(cafe.medianLatencyMs))} unit="ms" />
+          </div>
+          <div className="pt-3 border-t border-ink/10">
+            <SignalQuality
+              jitterMs={cafe.medianJitterMs}
+              lossPct={cafe.medianLossPct}
+            />
           </div>
           {cafe.measurementCount > 0 ? (
             <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint">

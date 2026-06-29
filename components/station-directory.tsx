@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
 import { CITIES } from "@/lib/cities";
 import { CafeDetail } from "./cafe-detail";
+import { SignalQuality } from "./signal-quality";
 
 const TIER_BG: Record<Tier, string> = {
   express: "bg-express",
@@ -125,6 +126,12 @@ function StationCard({
             </div>
           ))}
         </div>
+
+        <SignalQuality
+          jitterMs={cafe.medianJitterMs}
+          lossPct={cafe.medianLossPct}
+          compact
+        />
 
         <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-faint group-hover:text-ink transition-colors">
           {cafe.measurementCount > 0

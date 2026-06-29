@@ -60,6 +60,8 @@ interface CafeRow {
   median_down_mbps: string | number;
   median_up_mbps: string | number;
   median_latency_ms: string | number;
+  median_jitter_ms: string | number;
+  median_loss_pct: string | number;
   measurement_count: string | number;
   latest_photo_url: string | null;
 }
@@ -75,6 +77,8 @@ function rowToStation(r: CafeRow): CafeStation {
     medianDownMbps: Number(r.median_down_mbps),
     medianUpMbps: Number(r.median_up_mbps),
     medianLatencyMs: Number(r.median_latency_ms),
+    medianJitterMs: Number(r.median_jitter_ms),
+    medianLossPct: Number(r.median_loss_pct),
     measurementCount: Number(r.measurement_count),
     latestPhotoUrl: r.latest_photo_url,
     vibe: r.vibe ?? "",
@@ -122,6 +126,8 @@ export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[
         cs.median_down_mbps,
         cs.median_up_mbps,
         cs.median_latency_ms,
+        cs.median_jitter_ms,
+        cs.median_loss_pct,
         cs.measurement_count,
         lp.photo_url AS latest_photo_url
       FROM cafe_speed_stats cs
@@ -155,6 +161,8 @@ export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[
         cs.median_down_mbps,
         cs.median_up_mbps,
         cs.median_latency_ms,
+        cs.median_jitter_ms,
+        cs.median_loss_pct,
         cs.measurement_count,
         lp.photo_url AS latest_photo_url
       FROM cafe_speed_stats cs
@@ -235,6 +243,8 @@ export async function getCafeById(id: string): Promise<CafeDetail | null> {
         cs.median_down_mbps,
         cs.median_up_mbps,
         cs.median_latency_ms,
+        cs.median_jitter_ms,
+        cs.median_loss_pct,
         cs.measurement_count,
         lp.photo_url AS latest_photo_url
       FROM cafe_speed_stats cs

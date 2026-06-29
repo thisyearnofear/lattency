@@ -86,7 +86,9 @@ app/
 ├── cafes/[slug]/page.tsx     # Per-café standalone page (SSG across both cities, OG metadata)
 ├── api/cafes/near            # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
 ├── api/cafes/[id]            # GET /api/cafes/:id (detail + time-bucket distribution)
-├── api/measurements          # POST /api/measurements (insert + refresh MV)
+├── api/measurements          # POST /api/measurements (insert + rate-limit + outlier flag + refresh MV)
+├── api/speedtest/upload      # POST /api/speedtest/upload (consume + discard body, for upload phase)
+├── api/speedtest/whereami    # GET /api/speedtest/whereami (Vercel edge region for transparency)
 ├── opengraph-image.tsx       # Dynamic OG image (1200×630, masthead aesthetic)
 └── icon.svg                  # Favicon — minimal three-line metro mark
 
@@ -98,10 +100,11 @@ components/
 ├── cinematic-map.tsx         # GSAP scroll-driven SVG map (used on /tour only)
 ├── masthead.tsx              # Hero block with steam-wisp coffee identity (on /tour)
 ├── legend.tsx                # Three lines of service (roast vocabulary + bean glyph)
-├── station-directory.tsx     # Interactive list: geolocation finder, tier filter, clickable cards
-├── cafe-detail.tsx           # Slide-in modal: distribution chart + metadata + form + share link
+├── station-directory.tsx     # Interactive list: geolocation finder, tier filter, clickable cards + signal quality
+├── cafe-detail.tsx           # Slide-in modal: distribution chart + stats + signal quality + form + share link
 ├── cafe-page.tsx             # Full-page version of CafeDetail for /cafes/[slug]
-├── measurement-form.tsx      # Optimistic-UI speed submission with live tier preview
+├── measurement-form.tsx      # One-click in-browser speed test + manual entry fallback, optimistic UI
+├── signal-quality.tsx        # Shared signal-quality indicator (jitter/loss bars + stability label)
 └── copy-share-link.tsx       # "Share link" button (writes window.location to clipboard)
 
 lib/
@@ -109,24 +112,31 @@ lib/
 ├── cafes.ts                  # getCafes({city}), getCafeById(id), getCafeBySlug(slug) — mock fallback per city
 ├── cities.ts                 # City registry (centre, zoom, bounds, demo neighbourhoods) — one entry per supported city
 ├── slug.ts                   # slugify() — deterministic URL slugs derived from names
-├── types.ts                  # CafeStation (with .city), CafeDetail, CityId, Tier, TimeBucket
+├── types.ts                  # CafeStation, CafeDetail, MeasurementReading, MeasurementInput, Tier, TestMethod, TimeBucket
+├── speedtest.ts              # In-browser speed test: streaming download + HEAD ping/jitter/loss + chunked upload
+├── stability.ts              # assessStability(jitter, loss) → stability rating (stable/variable/unstable)
+├── rate-limit.ts             # IP hashing + checkRateLimit (per IP+cafe, 10min window) + isOutlierReading
 ├── mock-cafes.ts             # Bundled snapshot — Nairobi (Aurora fallback) + SF (mock-only) = 24 cafés
 ├── map-data.ts               # Shared geometry: tier paths, hood polygons, world cities, computeWaypoints() auto-layout
 └── world-path.ts             # Natural Earth land silhouette for the global finale
 
 migrations/
-├── 0001_extensions.sql   # postgis, uuid-ossp
-├── 0002_schema.sql       # cafes, measurements, cafe_speed_stats MV
-└── 0003_cafe_vibe.sql    # add vibe column, recreate MV
+├── 0001_extensions.sql           # postgis, uuid-ossp
+├── 0002_schema.sql               # cafes, measurements, cafe_speed_stats MV
+├── 0003_cafe_vibe.sql            # add vibe column, recreate MV
+├── 0004_measurement_provenance.sql  # jitter/loss + test_method/target_server/device_type/download_*; recreate MV
+└── 0005_rate_limit_outlier.sql   # contributor_ip_hash + is_outlier + rate-limit index
 
 scripts/
-├── provision-aurora.sh   # AWS CLI Aurora bootstrap
-├── migrate.ts            # raw-SQL runner
-├── seed.ts               # apply seeds/nairobi.sql + REFRESH MV
-├── db-check.ts           # SELECT postgis_full_version()
-└── bootstrap-env.ts      # dotenv side-effect import
+├── provision-aurora.sh       # AWS CLI Aurora bootstrap
+├── migrate.ts                # raw-SQL runner
+├── seed.ts                   # apply seeds/nairobi.sql + REFRESH MV
+├── db-check.ts               # SELECT postgis_full_version()
+├── gen-speedtest-blobs.ts    # Generate 10MB random download blob (chained into dev + build)
+└── bootstrap-env.ts          # dotenv side-effect import
 
 seeds/nairobi.sql         # 12 cafés × ~4 measurements, refresh at end
+public/speedtest/         # Generated 10MB download.bin (gitignored, reproducible)
 ```
 
 ---
@@ -181,25 +191,50 @@ Returns the same shape plus `distribution: { timeBucket, medianDownMbps, sampleS
   "downMbps": 62.5,
   "upMbps": 11.2,
   "latencyMs": 28,
+  "jitterMs": 3.5,
+  "lossPct": 0,
   "measuredAt": "2026-06-28T22:55:00Z",
   "contributorId": "anonymous",
-  "photoUrl": null
+  "photoUrl": null,
+  "testMethod": "browser-auto",
+  "targetServer": "iad1::abc123",
+  "downloadBytes": 10485760,
+  "downloadDurationMs": 1156
 }
 ```
 
 `measuredAt` defaults to server now; only `cafeId` + the three speed numbers are required. `time_bucket` is derived in `Africa/Nairobi`. Returns the new measurement ID and the resolved bucket.
+
+**Provenance:** `test_method` is derived server-side from the presence of `downloadBytes` + `downloadDurationMs` — the client's claim is advisory, not authoritative. `device_type` is derived from the User-Agent. `target_server` is the Vercel edge region from the speed test's response headers.
+
+**Rate-limiting:** One measurement per IP+café per 10-minute window. The IP is SHA-256 hashed (never stored raw, never returned by any endpoint). Returns `429` when rate-limited.
+
+**Outlier detection:** Readings >5× or <0.2× the café's existing median (when ≥3 measurements exist) are flagged `is_outlier = true` but still accepted. The flag is stored for future analysis; the materialized view does not yet exclude outliers.
+
+### `POST /api/speedtest/upload`
+
+Consumes and discards the request body. Used by the in-browser speed test's upload phase (`lib/speedtest.ts`) — the client POSTs 1 MB payloads sequentially and measures wall-clock time. `force-dynamic` so each POST runs as a function. Returns `200` with no body.
+
+### `GET /api/speedtest/whereami`
+
+```json
+{ "edge": "iad1", "vercelId": "iad1::abc123" }
+```
+
+Returns the Vercel edge region serving the request, parsed from the `x-vercel-id` header. Used for transparency — the UI can display "Measured against: iad1" so users know which edge their speed test targeted.
 
 ---
 
 ## Data model
 
 - **`cafes`** — id (uuid), name, neighbourhood, lat, lng, `location geography(Point,4326)`, vibe, created_at. GiST index on `location`.
-- **`measurements`** — id, cafe_id (FK CASCADE), down_mbps, up_mbps, latency_ms, measured_at, time_bucket (`'morning'|'afternoon'|'evening'`), contributor_id, photo_url. BRIN index on `measured_at`, btree on `cafe_id`.
-- **`cafe_speed_stats`** (materialized view) — per café: medians, measurement count, tier. Tier rule:
+- **`measurements`** — id, cafe_id (FK CASCADE), down_mbps, up_mbps, latency_ms, jitter_ms, loss_pct, measured_at, time_bucket (`'morning'|'afternoon'|'evening'`), contributor_id, photo_url, test_method (`'manual'|'browser-auto'`), target_server, device_type, download_bytes, download_duration_ms, contributor_ip_hash, is_outlier. BRIN index on `measured_at`, btree on `cafe_id`, composite index on `(contributor_ip_hash, cafe_id, measured_at DESC)` for rate-limiting.
+- **`cafe_speed_stats`** (materialized view) — per café: medians (down, up, latency, jitter, loss), measurement count, tier. Tier rule:
   - `express` ≥ 50 Mbps
   - `local` 10–49 Mbps
   - `suspended` < 10 Mbps
   - Cafés with zero measurements don't appear (INNER JOIN to measurements).
+  - `median_jitter_ms` and `median_loss_pct` COALESCE to 0 when no auto-test readings exist.
 
 ---
 
@@ -286,6 +321,32 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | Mobile-responsive tier chips (badge + count only below 640px) | done  |
 | Mobile-responsive locate panel (190px width, demo picks auto-show on far/denied) | done  |
 
+**In-browser speed test + signal quality (v6):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| In-browser speed test: streaming download + HEAD ping/jitter/loss + chunked upload | done  |
+| One-click "Run speed test" in MeasurementForm with live progress gauge | done  |
+| Manual entry preserved as fallback (auto-test metadata invalidates on edit) | done  |
+| Schema: jitter_ms, loss_pct, test_method, target_server, device_type, download_bytes, download_duration_ms | done  |
+| Server-side provenance: test_method derived from metadata, device_type from UA | done  |
+| Signal-quality indicator (jitter/loss bars + stable/variable/unstable label) | done  |
+| Signal quality surfaced on station cards, detail modal, and café page | done  |
+| Optimistic jitter/loss blending in cafe-detail onContributed | done  |
+| Static 10MB download blob (generated, gitignored, CDN-served) | done  |
+| `POST /api/speedtest/upload` endpoint (consume + discard) | done  |
+
+**Trust + integrity (v7):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| Rate-limiting: one measurement per IP+cafe per 10min window (SHA-256 hashed) | done  |
+| 429 response with user-friendly message in the form | done  |
+| Outlier detection: flag readings >5× or <0.2× median (≥3 measurements baseline) | done  |
+| Outliers accepted but flagged (never rejected — genuine speed changes possible) | done  |
+| `GET /api/speedtest/whereami` — Vercel edge region for transparency | done  |
+| "Measured against [edge]" displayed in speed test result state | done  |
+
 **Beyond the hackathon:**
 
 | Step                                       | State |
@@ -293,7 +354,8 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | Schema migration to real multi-city Aurora (city column + per-city seed) | pending |
 | `/cafes/[slug]` Open Graph image generator per café (currently text metadata only) | pending |
 | Real measurements from a community-sourced public dataset | pending |
-| Browser-driven speed test contributor (auto-measure from the page) | pending |
+| Exclude flagged outliers from materialized view median (needs real traffic to calibrate) | pending |
+| Composite "workability score" (bandwidth × stability) — needs user research | pending |
 | Vercel × AWS Marketplace integration       | pending |
 
 ---
