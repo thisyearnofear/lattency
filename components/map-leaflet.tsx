@@ -6,7 +6,11 @@
 // Loaded only on the client (Leaflet needs `window`) via next/dynamic.
 
 import { useEffect, useRef } from "react";
-import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
+import type {
+  Map as LeafletMap,
+  Marker as LeafletMarker,
+  Layer as LeafletLayer,
+} from "leaflet";
 import type { CafeStation, Tier } from "@/lib/types";
 import { TIER_COLOUR } from "@/lib/map-data";
 import "leaflet/dist/leaflet.css";
@@ -22,12 +26,25 @@ interface Props {
   onSelectStation: (cafe: CafeStation) => void;
   /** When set, drops a "you are here" marker and pans the map to it. */
   focusOn: { lat: number; lng: number; label: string } | null;
+  /** Which tiers to display. Markers + polylines for hidden tiers are removed. */
+  activeTiers: Set<Tier>;
 }
 
-export default function MapLeaflet({ cafes, onSelectStation, focusOn }: Props) {
+export default function MapLeaflet({
+  cafes,
+  onSelectStation,
+  focusOn,
+  activeTiers,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const focusMarkerRef = useRef<LeafletMarker | null>(null);
+  // Layers grouped by tier so we can toggle visibility without re-creating the map.
+  const tierLayersRef = useRef<Record<Tier, LeafletLayer[]>>({
+    express: [],
+    local: [],
+    suspended: [],
+  });
   // Stash the callback in a ref so the init effect can call the latest one
   // without listing it as a dependency (otherwise we'd re-init the map on
   // every parent render). Updated via useEffect to satisfy react-hooks rules.
@@ -66,13 +83,15 @@ export default function MapLeaflet({ cafes, onSelectStation, focusOn }: Props) {
         },
       ).addTo(map);
 
-      // Tier polylines — connect same-tier stations west-to-east.
+      // Tier polylines — connect same-tier stations west-to-east. Each
+      // polyline is stashed in tierLayersRef so visibility toggling can
+      // add/remove it without re-creating the map.
       for (const tier of TIER_ORDER) {
         const stations = cafes
           .filter((c) => c.tier === tier)
           .sort((a, b) => a.lng - b.lng);
         if (stations.length < 2) continue;
-        L.polyline(
+        const line = L.polyline(
           stations.map((c) => [c.lat, c.lng] as [number, number]),
           {
             color: TIER_COLOUR[tier],
@@ -83,6 +102,7 @@ export default function MapLeaflet({ cafes, onSelectStation, focusOn }: Props) {
             lineJoin: "round",
           },
         ).addTo(map);
+        tierLayersRef.current[tier].push(line);
       }
 
       // Station markers — cream-fill, ink-stroke circle markers.
@@ -110,6 +130,7 @@ export default function MapLeaflet({ cafes, onSelectStation, focusOn }: Props) {
           },
         );
         marker.on("click", () => onSelectRef.current(cafe));
+        tierLayersRef.current[cafe.tier].push(marker);
       }
     })();
 
@@ -123,8 +144,23 @@ export default function MapLeaflet({ cafes, onSelectStation, focusOn }: Props) {
         mapRef.current.remove();
         mapRef.current = null;
       }
+      tierLayersRef.current = { express: [], local: [], suspended: [] };
     };
   }, [cafes]);
+
+  // Reactive: when the activeTiers set changes, add or remove the layers
+  // for each tier from the map without rebuilding it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const tier of TIER_ORDER) {
+      const want = activeTiers.has(tier);
+      for (const layer of tierLayersRef.current[tier]) {
+        if (want && !map.hasLayer(layer)) layer.addTo(map);
+        else if (!want && map.hasLayer(layer)) layer.removeFrom(map);
+      }
+    }
+  }, [activeTiers]);
 
   // Reactive: handle focus marker / pan whenever focusOn changes.
   useEffect(() => {

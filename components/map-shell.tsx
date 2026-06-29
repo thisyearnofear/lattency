@@ -111,9 +111,11 @@ function NameLabel({ name, x, y }: { name: string; x: number; y: number }) {
 
 function SchematicLayer({
   cafes,
+  activeTiers,
   onSelect,
 }: {
   cafes: CafeStation[];
+  activeTiers: Set<Tier>;
   onSelect: (cafe: CafeStation) => void;
 }) {
   return (
@@ -124,27 +126,38 @@ function SchematicLayer({
       role="img"
       aria-label="Schematic network — twelve stations across three speed tiers"
     >
-      {/* Three line tracks */}
-      {TIER_ORDER.map((tier) => (
-        <path
-          key={tier}
-          d={TIER_PATH[tier]}
-          fill="none"
-          stroke={TIER_COLOUR[tier]}
-          strokeWidth={tier === "suspended" ? 14 : 16}
-          strokeLinecap={tier === "suspended" ? "butt" : "round"}
-          strokeLinejoin="round"
-          strokeDasharray={tier === "suspended" ? "14 10" : undefined}
-          opacity={tier === "suspended" ? 0.85 : 1}
-          style={{ pointerEvents: "none" }}
-        />
-      ))}
+      {/* Three line tracks — inactive tiers fade to a hint of themselves */}
+      {TIER_ORDER.map((tier) => {
+        const active = activeTiers.has(tier);
+        return (
+          <path
+            key={tier}
+            d={TIER_PATH[tier]}
+            fill="none"
+            stroke={TIER_COLOUR[tier]}
+            strokeWidth={tier === "suspended" ? 14 : 16}
+            strokeLinecap={tier === "suspended" ? "butt" : "round"}
+            strokeLinejoin="round"
+            strokeDasharray={tier === "suspended" ? "14 10" : undefined}
+            opacity={active ? (tier === "suspended" ? 0.85 : 1) : 0.08}
+            style={{ pointerEvents: "none", transition: "opacity 300ms" }}
+          />
+        );
+      })}
 
-      {/* Tier badges + thresholds */}
+      {/* Tier badges + thresholds — slightly faded when their tier is off */}
       {TIER_ORDER.map((tier, i) => {
         const y = 220 + i * 160;
+        const active = activeTiers.has(tier);
         return (
-          <g key={`badge-${tier}`} style={{ pointerEvents: "none" }}>
+          <g
+            key={`badge-${tier}`}
+            style={{
+              pointerEvents: "none",
+              opacity: active ? 1 : 0.3,
+              transition: "opacity 300ms",
+            }}
+          >
             <rect
               x={36}
               y={y - 20}
@@ -180,8 +193,8 @@ function SchematicLayer({
         );
       })}
 
-      {/* Stations */}
-      {cafes.map((cafe) => {
+      {/* Stations — filtered out entirely when their tier is off */}
+      {cafes.filter((c) => activeTiers.has(c.tier)).map((cafe) => {
         const pos = STATION_WAYPOINT[cafe.name];
         if (!pos) return null;
         const stroke =
@@ -247,6 +260,32 @@ export function MapShell({ cafes }: { cafes: CafeStation[] }) {
   const [focus, setFocus] = useState<{ lat: number; lng: number; label: string } | null>(null);
   const [locStatus, setLocStatus] = useState<LocateStatus>("idle");
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  const [activeTiers, setActiveTiers] = useState<Set<Tier>>(
+    () => new Set(["express", "local", "suspended"]),
+  );
+
+  function toggleTier(tier: Tier) {
+    setActiveTiers((prev) => {
+      const next = new Set(prev);
+      if (next.has(tier)) next.delete(tier);
+      else next.add(tier);
+      return next;
+    });
+  }
+
+  function showAllTiers() {
+    setActiveTiers(new Set(["express", "local", "suspended"]));
+  }
+
+  const tierCounts = TIER_ORDER.reduce<Record<Tier, number>>(
+    (acc, t) => {
+      acc[t] = cafes.filter((c) => c.tier === t).length;
+      return acc;
+    },
+    { express: 0, local: 0, suspended: 0 },
+  );
+  const allActive = activeTiers.size === 3;
+  const noneActive = activeTiers.size === 0;
 
   function ensureGeographic() {
     if (view !== "geographic") setView("geographic");
@@ -305,10 +344,75 @@ export function MapShell({ cafes }: { cafes: CafeStation[] }) {
 
   return (
     <div className="relative w-full">
+      {/* Tier filter chips — above the map. Click any to toggle, "All" resets. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={showAllTiers}
+          aria-pressed={allActive}
+          className={`px-3 py-1.5 font-mono text-[10px] tracking-[0.22em] uppercase border transition-colors ${
+            allActive
+              ? "bg-ink text-cream border-ink"
+              : "bg-cream text-ink-soft border-ink/30 hover:border-ink hover:text-ink"
+          }`}
+        >
+          All lines
+        </button>
+        {TIER_ORDER.map((tier) => {
+          const active = activeTiers.has(tier);
+          const bg =
+            tier === "express"
+              ? "bg-express"
+              : tier === "local"
+              ? "bg-local"
+              : "bg-suspended";
+          return (
+            <button
+              key={tier}
+              type="button"
+              onClick={() => toggleTier(tier)}
+              aria-pressed={active}
+              className={`pl-2 pr-3 py-1.5 inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.22em] uppercase border transition-all ${
+                active
+                  ? "bg-cream text-ink border-ink"
+                  : "bg-cream/60 text-ink-faint border-ink/15 hover:border-ink/40"
+              }`}
+            >
+              <span
+                className={`${bg} ${active ? "" : "opacity-30"} w-5 h-5 inline-flex items-center justify-center text-cream font-display font-black text-[12px]`}
+              >
+                {TIER_BADGE[tier]}
+              </span>
+              <span>{tier}</span>
+              <span className={active ? "text-ink-faint" : "text-ink-faint/60"}>
+                {tierCounts[tier]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {view === "schematic" ? (
-        <SchematicLayer cafes={cafes} onSelect={setSelected} />
+        <SchematicLayer
+          cafes={cafes}
+          activeTiers={activeTiers}
+          onSelect={setSelected}
+        />
       ) : (
-        <MapLeaflet cafes={cafes} onSelectStation={setSelected} focusOn={focus} />
+        <MapLeaflet
+          cafes={cafes}
+          onSelectStation={setSelected}
+          focusOn={focus}
+          activeTiers={activeTiers}
+        />
+      )}
+
+      {noneActive && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none z-[400]">
+          <p className="bg-cream border border-ink/80 px-4 py-2 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft shadow-[3px_4px_0_0_var(--color-ink)]">
+            All tiers hidden — click a chip to show stations
+          </p>
+        </div>
       )}
 
       {/* Locate panel — top-right of the map */}
