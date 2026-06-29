@@ -6,6 +6,7 @@
 // Loaded only on the client (Leaflet needs `window`) via next/dynamic.
 
 import { useEffect, useRef } from "react";
+import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import type { CafeStation, Tier } from "@/lib/types";
 import { TIER_COLOUR } from "@/lib/map-data";
 import "leaflet/dist/leaflet.css";
@@ -19,30 +20,42 @@ const TIER_ORDER: Tier[] = ["express", "local", "suspended"];
 interface Props {
   cafes: CafeStation[];
   onSelectStation: (cafe: CafeStation) => void;
+  /** When set, drops a "you are here" marker and pans the map to it. */
+  focusOn: { lat: number; lng: number; label: string } | null;
 }
 
-export default function MapLeaflet({ cafes, onSelectStation }: Props) {
+export default function MapLeaflet({ cafes, onSelectStation, focusOn }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const focusMarkerRef = useRef<LeafletMarker | null>(null);
+  // Stash the callback in a ref so the init effect can call the latest one
+  // without listing it as a dependency (otherwise we'd re-init the map on
+  // every parent render). Updated via useEffect to satisfy react-hooks rules.
+  const onSelectRef = useRef(onSelectStation);
+  useEffect(() => {
+    onSelectRef.current = onSelectStation;
+  }, [onSelectStation]);
 
+  // One-time map setup. cafes is the only data dependency.
   useEffect(() => {
     if (!containerRef.current) return;
     let cleanupCalled = false;
-    let map: import("leaflet").Map | null = null;
 
     (async () => {
       const L = (await import("leaflet")).default;
       if (cleanupCalled || !containerRef.current) return;
 
-      map = L.map(containerRef.current, {
+      const map = L.map(containerRef.current, {
         center: NAIROBI_CENTRE,
         zoom: INITIAL_ZOOM,
         zoomControl: true,
         attributionControl: true,
         scrollWheelZoom: true,
       });
+      mapRef.current = map;
 
-      // Carto Voyager tiles — warm cream-ish palette that sits well next to
-      // the print-poster aesthetic. Falls back to OSM if Carto is down.
+      // Carto Light tiles — warm cream-ish palette that sits well next to
+      // the print-poster aesthetic.
       L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
         {
@@ -72,7 +85,7 @@ export default function MapLeaflet({ cafes, onSelectStation }: Props) {
         ).addTo(map);
       }
 
-      // Station markers — tier-coloured circle markers with hover halos.
+      // Station markers — cream-fill, ink-stroke circle markers.
       for (const cafe of cafes) {
         const marker = L.circleMarker([cafe.lat, cafe.lng], {
           radius: 9,
@@ -96,18 +109,105 @@ export default function MapLeaflet({ cafes, onSelectStation }: Props) {
             className: "lattency-tooltip",
           },
         );
-        marker.on("click", () => onSelectStation(cafe));
+        marker.on("click", () => onSelectRef.current(cafe));
       }
     })();
 
     return () => {
       cleanupCalled = true;
-      if (map) {
-        map.remove();
-        map = null;
+      if (focusMarkerRef.current) {
+        focusMarkerRef.current.remove();
+        focusMarkerRef.current = null;
+      }
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
       }
     };
-  }, [cafes, onSelectStation]);
+  }, [cafes]);
+
+  // Reactive: handle focus marker / pan whenever focusOn changes.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const L = (await import("leaflet")).default;
+      if (cancelled) return;
+
+      // Remove previous focus marker if any.
+      if (focusMarkerRef.current) {
+        focusMarkerRef.current.remove();
+        focusMarkerRef.current = null;
+      }
+      if (!focusOn) return;
+
+      // Inverted palette so the focus marker is distinct from station roundels:
+      // ink interior, cream outline. Pulsing halo via a HTML divIcon overlay.
+      const halo = L.divIcon({
+        className: "lattency-focus-halo",
+        html: `<div class="halo-ring"></div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+      const haloMarker = L.marker([focusOn.lat, focusOn.lng], {
+        icon: halo,
+        interactive: false,
+        keyboard: false,
+      }).addTo(map);
+
+      const dot = L.circleMarker([focusOn.lat, focusOn.lng], {
+        radius: 8,
+        color: "#F4ECD8",
+        weight: 3,
+        fillColor: "#1A1612",
+        fillOpacity: 1,
+        opacity: 1,
+      }).addTo(map);
+      dot.bindTooltip(focusOn.label, {
+        direction: "top",
+        offset: [0, -10],
+        permanent: true,
+        opacity: 1,
+        className: "lattency-tooltip",
+      });
+
+      // Track both so cleanup removes them.
+      focusMarkerRef.current = dot as unknown as LeafletMarker;
+      // Stash the halo on the dot so we can remove it together.
+      (focusMarkerRef.current as unknown as { _halo: LeafletMarker })._halo = haloMarker;
+
+      // Pan / fit: if focusOn is near Nairobi (within ~30km of any café),
+      // fit bounds; otherwise just pan to the focus point at a sensible zoom.
+      const NEAR_KM = 30;
+      const nearest = cafes
+        .map((c) => ({ c, d: haversineKm(focusOn, { lat: c.lat, lng: c.lng }) }))
+        .sort((a, b) => a.d - b.d)[0];
+
+      if (nearest && nearest.d < NEAR_KM) {
+        const bounds = L.latLngBounds([
+          [focusOn.lat, focusOn.lng],
+          ...cafes.slice(0, 4).map((c) => [c.lat, c.lng] as [number, number]),
+        ]);
+        map.flyToBounds(bounds, { padding: [40, 40], duration: 0.8, maxZoom: 14 });
+      } else {
+        map.flyTo([focusOn.lat, focusOn.lng], 13, { duration: 0.8 });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [focusOn, cafes]);
+
+  // Cleanup the halo when focus marker is removed (covers cleanup ref above).
+  useEffect(() => {
+    return () => {
+      const marker = focusMarkerRef.current as unknown as
+        | (LeafletMarker & { _halo?: LeafletMarker })
+        | null;
+      if (marker?._halo) marker._halo.remove();
+    };
+  }, []);
 
   return (
     <div
@@ -116,4 +216,20 @@ export default function MapLeaflet({ cafes, onSelectStation }: Props) {
       style={{ background: "#F4ECD8" }}
     />
   );
+}
+
+function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }

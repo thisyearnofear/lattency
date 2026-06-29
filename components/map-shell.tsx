@@ -9,6 +9,8 @@
 //                polylines connecting same-tier stations west-to-east.
 //
 // Click any station — schematic or geographic — opens the CafeDetail drawer.
+// "Find me" locates the user; if they're far from Nairobi (judges anywhere
+// in the world), it offers four demo neighbourhoods to explore from.
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
@@ -23,6 +25,35 @@ import {
   splitName,
 } from "@/lib/map-data";
 import { CafeDetail } from "./cafe-detail";
+
+// Approximate centre of Nairobi for "how far away am I?" math.
+const NAIROBI_CBD = { lat: -1.2864, lng: 36.8172 };
+// If the geolocated position is further than this from Nairobi, we treat
+// it as "demo from afar" and offer neighbourhood quick-picks.
+const NEAR_NAIROBI_KM = 50;
+
+const DEMO_LOCATIONS: Array<{ id: string; name: string; lat: number; lng: number }> = [
+  { id: "westlands", name: "Westlands", lat: -1.262, lng: 36.806 },
+  { id: "kilimani", name: "Kilimani", lat: -1.293, lng: 36.7891 },
+  { id: "cbd", name: "CBD", lat: -1.285, lng: 36.8226 },
+  { id: "karen", name: "Karen", lat: -1.331, lng: 36.7102 },
+];
+
+function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
 
 // Leaflet pulls in window; ssr: false keeps it client-only.
 const MapLeaflet = dynamic(() => import("./map-leaflet"), {
@@ -208,17 +239,125 @@ function SchematicLayer({
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+type LocateStatus = "idle" | "pending" | "here" | "far" | "denied" | "unavailable";
+
 export function MapShell({ cafes }: { cafes: CafeStation[] }) {
   const [view, setView] = useState<ViewMode>("schematic");
   const [selected, setSelected] = useState<CafeStation | null>(null);
+  const [focus, setFocus] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  const [locStatus, setLocStatus] = useState<LocateStatus>("idle");
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
+
+  function ensureGeographic() {
+    if (view !== "geographic") setView("geographic");
+  }
+
+  function locateMe() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocStatus("unavailable");
+      return;
+    }
+    setLocStatus("pending");
+    ensureGeographic();
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const d = haversineKm(here, NAIROBI_CBD);
+        setDistanceKm(d);
+        if (d > NEAR_NAIROBI_KM) {
+          setLocStatus("far");
+          setFocus({ ...here, label: `You · ${Math.round(d).toLocaleString()} km away` });
+        } else {
+          setLocStatus("here");
+          setFocus({ ...here, label: "You are here" });
+        }
+      },
+      () => setLocStatus("denied"),
+      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 },
+    );
+  }
+
+  function jumpTo(neighbourhood: (typeof DEMO_LOCATIONS)[number]) {
+    ensureGeographic();
+    setFocus({
+      lat: neighbourhood.lat,
+      lng: neighbourhood.lng,
+      label: `Demo · ${neighbourhood.name}`,
+    });
+    setLocStatus("here");
+  }
+
+  // Whether to surface the neighbourhood demo quick-picks. Show them when:
+  //  - user is idle (haven't tried yet) — gentle prompt
+  //  - user is far from Nairobi — meaningful fallback
+  //  - permission denied / unavailable — only option
+  const showDemoPicks =
+    locStatus === "idle" || locStatus === "far" || locStatus === "denied" || locStatus === "unavailable";
+
+  const locateLabel: Record<LocateStatus, string> = {
+    idle: "Find me",
+    pending: "Locating…",
+    here: "Located",
+    far: "You're far · pick a spot",
+    denied: "Permission denied",
+    unavailable: "Geolocation unavailable",
+  };
 
   return (
     <div className="relative w-full">
       {view === "schematic" ? (
         <SchematicLayer cafes={cafes} onSelect={setSelected} />
       ) : (
-        <MapLeaflet cafes={cafes} onSelectStation={setSelected} />
+        <MapLeaflet cafes={cafes} onSelectStation={setSelected} focusOn={focus} />
       )}
+
+      {/* Locate panel — top-right of the map */}
+      <div className="absolute top-3 right-3 md:top-4 md:right-4 z-[500] pointer-events-auto max-w-[260px] md:max-w-[300px]">
+        <div className="bg-cream/95 border border-ink/80 shadow-[4px_5px_0_0_var(--color-ink)] font-mono text-[10px] tracking-[0.2em] uppercase">
+          <button
+            type="button"
+            onClick={locateMe}
+            disabled={locStatus === "pending"}
+            className="w-full px-3 py-2 flex items-center justify-between gap-3 bg-ink text-cream hover:bg-ink-soft disabled:opacity-60 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <span aria-hidden>◎</span>
+              {locateLabel[locStatus]}
+            </span>
+            {distanceKm !== null && locStatus !== "pending" && (
+              <span className="text-cream/70">
+                {distanceKm < 1
+                  ? "<1 km"
+                  : `${Math.round(distanceKm).toLocaleString()} km`}
+              </span>
+            )}
+          </button>
+
+          {showDemoPicks && (
+            <div className="px-3 py-2 border-t border-ink/20">
+              <p className="text-ink-faint mb-1.5 tracking-[0.18em]">
+                {locStatus === "far"
+                  ? "Demo from a Nairobi neighbourhood"
+                  : locStatus === "denied" || locStatus === "unavailable"
+                  ? "Pick a demo spot"
+                  : "Or jump in"}
+              </p>
+              <div className="grid grid-cols-2 gap-1">
+                {DEMO_LOCATIONS.map((n) => (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => jumpTo(n)}
+                    className="px-2 py-1.5 text-left text-ink-soft hover:text-ink hover:bg-cream-edge transition-colors border border-ink/15 normal-case tracking-normal font-mono text-[10px]"
+                  >
+                    {n.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* View toggle — bottom-left */}
       <div className="absolute bottom-4 left-4 z-[500] pointer-events-auto">

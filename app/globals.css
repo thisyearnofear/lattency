@@ -227,6 +227,39 @@ body {
   pointer-events: none;
 }
 
+/* Leaflet tooltip — match the cream/ink palette instead of the default white/black. */
+.leaflet-tooltip.lattency-tooltip {
+  background: var(--color-cream);
+  border: 1px solid var(--color-ink);
+  color: var(--color-ink);
+  box-shadow: 3px 4px 0 0 var(--color-ink);
+  padding: 8px 10px;
+  border-radius: 0;
+  white-space: nowrap;
+}
+.leaflet-tooltip.lattency-tooltip::before,
+.leaflet-tooltip-top.lattency-tooltip::before {
+  border-top-color: var(--color-ink);
+}
+
+/* Focus marker halo — pulses gently to draw the eye to "you are here". */
+.lattency-focus-halo {
+  background: transparent !important;
+  border: none !important;
+  pointer-events: none;
+}
+.lattency-focus-halo .halo-ring {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(26, 22, 18, 0.18);
+  animation: focus-halo 1.8s ease-out infinite;
+}
+@keyframes focus-halo {
+  0%   { transform: scale(0.4); opacity: 0.6; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .transit-svg .line-track,
   .transit-svg g.station,
@@ -236,6 +269,7 @@ body {
   .scroll-cue,
   .station-card,
   .cm-toggle-hint,
+  .lattency-focus-halo .halo-ring,
   .legend-line {
     animation: none;
     opacity: 1;
