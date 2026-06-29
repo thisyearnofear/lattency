@@ -25,6 +25,7 @@ import {
   waypointsForCity,
 } from "@/lib/map-data";
 import { CITIES } from "@/lib/cities";
+import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
 import { CafeDetail } from "./cafe-detail";
 
 // Anything farther than this from the active city's centre is treated as
@@ -236,6 +237,22 @@ function SchematicLayer({
               className="transition-transform duration-200 group-hover:scale-110"
               style={{ transformOrigin: "0 0", transformBox: "fill-box" }}
             />
+            {/* Stability ring — visible only when auto-test data exists.
+                Green = stable, amber = variable, red = unstable. */}
+            {(() => {
+              const s = assessStability(cafe.medianJitterMs, cafe.medianLossPct);
+              if (!s.hasData) return null;
+              return (
+                <circle
+                  r={16}
+                  fill="none"
+                  stroke={STABILITY_COLOUR[s.stability]}
+                  strokeWidth={2}
+                  opacity={0.7}
+                  style={{ pointerEvents: "none" }}
+                />
+              );
+            })()}
             <NameLabel name={cafe.name} x={0} y={30} />
           </g>
         );

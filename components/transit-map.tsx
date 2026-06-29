@@ -1,4 +1,5 @@
 import type { CafeStation, Neighbourhood, Tier } from "@/lib/types";
+import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
 
 const VIEW_W = 1440;
 const VIEW_H = 720;
@@ -295,6 +296,23 @@ export function TransitMap({ cafes }: { cafes: CafeStation[] }) {
               stroke={stroke}
               strokeWidth={3}
             />
+
+            {/* Stability ring — visible only when auto-test data exists */}
+            {(() => {
+              const s = assessStability(cafe.medianJitterMs, cafe.medianLossPct);
+              if (!s.hasData) return null;
+              return (
+                <circle
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={16}
+                  fill="none"
+                  stroke={STABILITY_COLOUR[s.stability]}
+                  strokeWidth={2}
+                  opacity={0.7}
+                />
+              );
+            })()}
 
             {/* Café name below */}
             <NameLabel name={cafe.name} x={pos.x} y={pos.y + 30} />

@@ -13,6 +13,7 @@ import type {
 } from "leaflet";
 import type { CafeStation, Tier } from "@/lib/types";
 import { TIER_COLOUR } from "@/lib/map-data";
+import { assessStability, STABILITY_COLOUR_HEX } from "@/lib/stability";
 import "leaflet/dist/leaflet.css";
 
 const TIER_ORDER: Tier[] = ["express", "local", "suspended"];
@@ -120,9 +121,14 @@ export default function MapLeaflet({
 
         const tierLabel = cafe.tier[0].toUpperCase() + cafe.tier.slice(1);
         const downMbps = Math.round(cafe.medianDownMbps);
+        const stabilityInfo = assessStability(cafe.medianJitterMs, cafe.medianLossPct);
+        const signalLine = stabilityInfo.hasData
+          ? `<div style="font-family: var(--font-mono, ui-monospace); font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: ${STABILITY_COLOUR_HEX[stabilityInfo.stability]}; margin-top: 2px;">● ${stabilityInfo.label} · ${cafe.medianJitterMs.toFixed(1)}ms jitter</div>`
+          : "";
         marker.bindTooltip(
           `<div style="font-family: var(--font-display, system-ui); font-weight: 800; text-transform: uppercase; font-size: 13px; letter-spacing: 0.04em; color: #1A1612;">${cafe.name}</div>
            <div style="font-family: var(--font-mono, ui-monospace); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: ${TIER_COLOUR[cafe.tier]}; margin-top: 2px;">${tierLabel} · ${downMbps} Mbps</div>
+           ${signalLine}
            <div style="font-family: var(--font-serif, serif); font-style: italic; font-size: 11px; color: #8A7F6B; margin-top: 2px;">${cafe.vibe || cafe.neighbourhood}</div>`,
           {
             direction: "top",
@@ -133,6 +139,22 @@ export default function MapLeaflet({
         );
         marker.on("click", () => onSelectRef.current(cafe));
         tierLayersRef.current[cafe.tier].push(marker);
+
+        // Stability ring — a second, larger circleMarker with no fill,
+        // coloured by the stability rating. Only rendered when auto-test
+        // data exists (jitter > 0 or loss > 0).
+        const stability = assessStability(cafe.medianJitterMs, cafe.medianLossPct);
+        if (stability.hasData) {
+          const ring = L.circleMarker([cafe.lat, cafe.lng], {
+            radius: 13,
+            color: STABILITY_COLOUR_HEX[stability.stability],
+            weight: 2,
+            opacity: 0.7,
+            fillOpacity: 0,
+            interactive: false,
+          }).addTo(map);
+          tierLayersRef.current[cafe.tier].push(ring);
+        }
       }
     })();
 

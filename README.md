@@ -84,6 +84,7 @@ app/
 ├── sf/page.tsx               # San Francisco home — same shell, scoped to city='sf'
 ├── tour/page.tsx             # The cinematic experience (scroll-driven, 800vh)
 ├── cafes/[slug]/page.tsx     # Per-café standalone page (SSG across both cities, OG metadata)
+├── cafes/[slug]/opengraph-image.tsx # Per-café OG image (1200×630, tier badge + stats + signal quality)
 ├── api/cafes/near            # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
 ├── api/cafes/[id]            # GET /api/cafes/:id (detail + time-bucket distribution)
 ├── api/measurements          # POST /api/measurements (insert + rate-limit + outlier flag + refresh MV)
@@ -347,12 +348,19 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | `GET /api/speedtest/whereami` — Vercel edge region for transparency | done  |
 | "Measured against [edge]" displayed in speed test result state | done  |
 
+**Growth + map visibility (v8):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| Per-café OG image generator at `/cafes/[slug]/opengraph-image` — tier badge, stats, signal quality | done  |
+| Stability ring on map markers (SVG schematic + Leaflet geographic + transit map) | done  |
+| Signal quality in Leaflet tooltips | done  |
+
 **Beyond the hackathon:**
 
 | Step                                       | State |
 | ------------------------------------------ | ----- |
 | Schema migration to real multi-city Aurora (city column + per-city seed) | pending |
-| `/cafes/[slug]` Open Graph image generator per café (currently text metadata only) | pending |
 | Real measurements from a community-sourced public dataset | pending |
 | Exclude flagged outliers from materialized view median (needs real traffic to calibrate) | pending |
 | Composite "workability score" (bandwidth × stability) — needs user research | pending |

@@ -78,3 +78,11 @@ export const STABILITY_COLOUR: Record<Stability, string> = {
   variable: "var(--color-local)",
   unstable: "var(--color-suspended)",
 };
+
+// Hex equivalents for contexts where CSS variables don't resolve (Leaflet,
+// satori/OG images). Must stay in sync with STABILITY_COLOUR above.
+export const STABILITY_COLOUR_HEX: Record<Stability, string> = {
+  stable: "#006D45",
+  variable: "#C77F00",
+  unstable: "#B23A48",
+};
