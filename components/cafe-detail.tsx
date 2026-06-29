@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CafeDetail, CafeStation, Tier, TimeBucket } from "@/lib/types";
+import { slugify } from "@/lib/slug";
 import { MeasurementForm } from "./measurement-form";
 
 const TIER_COLOUR: Record<Tier, string> = {
@@ -251,14 +252,22 @@ export function CafeDetail({
               >
                 {TIER_LABEL[d.tier]}
               </span>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="font-mono text-[11px] tracking-[0.2em] uppercase text-ink-soft hover:text-ink"
-              >
-                Close ✕
-              </button>
+              <div className="flex items-center gap-3">
+                <a
+                  href={`/cafes/${slugify(d.name)}`}
+                  className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1"
+                >
+                  Open page <span aria-hidden>↗</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="font-mono text-[11px] tracking-[0.2em] uppercase text-ink-soft hover:text-ink"
+                >
+                  Close ✕
+                </button>
+              </div>
             </div>
 
             <h2 className="font-display font-black uppercase leading-[0.92] text-4xl md:text-5xl tracking-[-0.02em] text-ink mt-4">

@@ -260,3 +260,16 @@ export async function getCafeById(id: string): Promise<CafeDetail | null> {
 
   return { ...station, distribution };
 }
+
+/**
+ * Resolves a slug like "about-thyme" to a full CafeDetail by name match.
+ * Slugs are derived from names (see lib/slug.ts) so there's nothing to store.
+ */
+import { slugify } from "./slug";
+
+export async function getCafeBySlug(slug: string): Promise<CafeDetail | null> {
+  const cafes = await getCafes();
+  const station = cafes.find((c) => slugify(c.name) === slug);
+  if (!station) return null;
+  return getCafeById(station.id);
+}
