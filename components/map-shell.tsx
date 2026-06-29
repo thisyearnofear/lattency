@@ -546,6 +546,7 @@ export function MapShell({
 
       {showContribution && (
         <CafeContributionForm
+          currentCity={city}
           onClose={() => setShowContribution(false)}
           onSuccess={(slug) => {
             setShowContribution(false);

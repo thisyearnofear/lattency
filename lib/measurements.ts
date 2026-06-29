@@ -6,7 +6,7 @@
 // Extracted from app/api/measurements/route.ts to avoid duplicating the
 // insert + provenance logic across two endpoints.
 
-import { query } from "./db";
+import { query, type Executor } from "./db";
 import { isOutlierReading } from "./rate-limit";
 import type { MeasurementInput, TestMethod, TimeBucket } from "./types";
 
@@ -62,18 +62,24 @@ export function validateMeasurement(body: MeasurementInput): string | null {
  * Does NOT do rate-limiting — the caller is responsible for that.
  * Does NOT refresh the materialized view — the caller does that
  * (once, after any additional inserts in the same transaction).
+ *
+ * Pass `exec` to participate in a surrounding `withTransaction` block; omit
+ * it for the simple one-shot insert path used by POST /api/measurements.
+ * The outlier check intentionally uses the pool (committed state) because
+ * the MV it reads doesn't include the in-flight insert anyway.
  */
 export async function insertMeasurement(
   body: MeasurementInput,
   ipHash: string | null,
   deviceType: string | null,
+  exec: Executor = query,
 ): Promise<string> {
   const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
   const timeBucket = deriveTimeBucket(measuredAt);
   const testMethod = resolveTestMethod(body);
   const outlier = await isOutlierReading(body.cafeId, body.downMbps);
 
-  const insert = await query<{ id: string }>(
+  const insert = await exec<{ id: string }>(
     `
     INSERT INTO measurements
       (cafe_id, down_mbps, up_mbps, latency_ms, jitter_ms, loss_pct,

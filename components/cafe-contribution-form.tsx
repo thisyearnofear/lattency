@@ -18,6 +18,7 @@ import {
   SEATING_LABELS,
   MILK_LABELS,
 } from "@/lib/cafe-metadata";
+import { CITIES } from "@/lib/cities";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
 
@@ -37,31 +38,123 @@ interface FormState {
   photo: string | null;
 }
 
-const initialState: FormState = {
-  lat: null,
-  lng: null,
-  name: "",
-  neighbourhood: "",
-  city: "",
-  vibe: "",
-  priceTier: "",
-  milkOptions: [],
-  powerOutlets: false,
-  seating: "",
-  wifiNetwork: "",
-  measurement: null,
-  photo: null,
-};
+// Short alphanumeric suffix that keeps demo submissions from colliding on
+// slug — same café name twice in a row would otherwise share `/cafes/demo-cafe`.
+function randomSuffix(): string {
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (let i = 0; i < 3; i++) {
+    s += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return s;
+}
+
+// Generates a base64 SVG placeholder card so the demo path doesn't ask
+// judges to find a real photo. Same poster aesthetic as the rest of the
+// site so the new café page still looks composed.
+function buildDemoPhoto(name: string, neighbourhood: string): string {
+  const safeName = name.replace(/[<&>]/g, "");
+  const safeHood = neighbourhood.replace(/[<&>]/g, "");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+    <rect width="800" height="600" fill="#F4ECD8"/>
+    <rect x="36" y="36" width="728" height="528" fill="none" stroke="#1A1612" stroke-width="3"/>
+    <g transform="translate(400 230)">
+      <path d="M-70 -40 Q0 -100 70 -40" stroke="#006D45" stroke-width="9" fill="none" stroke-linecap="round"/>
+      <path d="M-40 -10 Q0 -50 40 -10" stroke="#006D45" stroke-width="9" fill="none" stroke-linecap="round"/>
+      <circle cx="0" cy="22" r="6" fill="#006D45"/>
+      <path d="M-60 40 H60 L52 105 Q50 118 38 118 H-38 Q-50 118 -52 105 Z" fill="#1A1612"/>
+      <path d="M60 55 Q92 55 92 80 Q92 105 60 105" stroke="#1A1612" stroke-width="9" fill="none" stroke-linecap="round"/>
+    </g>
+    <text x="400" y="430" font-family="serif" font-size="56" font-weight="900" text-anchor="middle" fill="#1A1612" letter-spacing="-1">${safeName}</text>
+    <text x="400" y="470" font-family="monospace" font-size="14" text-anchor="middle" fill="#1A1612" letter-spacing="3">${safeHood.toUpperCase()} · DEMO CAFÉ</text>
+    <text x="400" y="540" font-family="monospace" font-size="11" text-anchor="middle" fill="#5F5750" letter-spacing="3">LATTENCY · MAPPED VIA THE CONTRIBUTION FORM</text>
+  </svg>`;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+}
+
+// Build a complete form state from a curated demo template, anchored to
+// the city the form was opened in so the new café appears on the right
+// map. Coordinates jitter slightly around a neighbourhood centre to keep
+// repeat demos from stacking pins. Everything except the speed test is
+// filled — judges run a real test, see real numbers, and submit.
+function buildDemoPrefill(currentCity: string): FormState {
+  const cityConfig = CITIES[currentCity] ?? CITIES["nairobi"];
+  const hoods = cityConfig.demoLocations;
+  const hood = hoods[Math.floor(Math.random() * hoods.length)];
+  // ~500m jitter
+  const lat = hood.lat + (Math.random() - 0.5) * 0.008;
+  const lng = hood.lng + (Math.random() - 0.5) * 0.008;
+  const namePool = [
+    "Pop-up Pour",
+    "Hackathon Espresso",
+    "Demo Roasters",
+    "Sample Brew Co",
+    "Edge Café",
+    "Pilot Pour-Over",
+  ];
+  const vibePool = [
+    "demo lane regular",
+    "judge's quick stop",
+    "freshly mapped today",
+    "first-light filter",
+  ];
+  const milkSets: string[][] = [["dairy", "oat"], ["dairy", "oat", "almond"], ["dairy"]];
+  const priceTiers = ["budget", "mid"];
+  const seatings = ["tables", "mixed", "bar"];
+
+  const name = `${namePool[Math.floor(Math.random() * namePool.length)]} · ${hood.name} #${randomSuffix()}`;
+
+  return {
+    lat,
+    lng,
+    name,
+    neighbourhood: hood.name,
+    city: cityConfig.id,
+    vibe: vibePool[Math.floor(Math.random() * vibePool.length)],
+    priceTier: priceTiers[Math.floor(Math.random() * priceTiers.length)],
+    milkOptions: milkSets[Math.floor(Math.random() * milkSets.length)],
+    powerOutlets: Math.random() > 0.2,
+    seating: seatings[Math.floor(Math.random() * seatings.length)],
+    wifiNetwork: `${cityConfig.id}_guest`,
+    measurement: null,
+    photo: buildDemoPhoto(name, hood.name),
+  };
+}
+
+function initialState(city: string): FormState {
+  return {
+    lat: null,
+    lng: null,
+    name: "",
+    neighbourhood: "",
+    // Pre-fill from page context so contributions land in the city the user
+    // is currently looking at, instead of all defaulting to Nairobi. Users
+    // can still edit if they're claiming a brand-new city.
+    city,
+    vibe: "",
+    priceTier: "",
+    milkOptions: [],
+    powerOutlets: false,
+    seating: "",
+    wifiNetwork: "",
+    measurement: null,
+    photo: null,
+  };
+}
 
 export function CafeContributionForm({
   onClose,
   onSuccess,
+  currentCity = "nairobi",
 }: {
   onClose: () => void;
   onSuccess: (slug: string) => void;
+  /** Lowercase city id matching the page the form was opened from. Used
+   *  to pre-fill `form.city` so contributions inherit the active city. */
+  currentCity?: string;
 }) {
   const [step, setStep] = useState<Step>("location");
-  const [form, setForm] = useState<FormState>(initialState);
+  const [form, setForm] = useState<FormState>(() => initialState(currentCity));
   const [errorMsg, setErrorMsg] = useState("");
   const [testProgress, setTestProgress] = useState<SpeedTestProgress | null>(null);
   const [testState, setTestState] = useState<"idle" | "running" | "done" | "error">("idle");
@@ -78,6 +171,14 @@ export function CafeContributionForm({
         ? prev.milkOptions.filter((m) => m !== milk)
         : [...prev.milkOptions, milk],
     }));
+  }
+
+  // Demo path: fill every step except the speed test, jump straight to it.
+  // Lets a judge see the end-to-end submission flow in two clicks (run test +
+  // submit) without having to sit in a real café.
+  function loadDemoPrefill() {
+    setForm(buildDemoPrefill(currentCity));
+    setStep("speedtest");
   }
 
   // Step 1: Geolocation
@@ -239,7 +340,7 @@ export function CafeContributionForm({
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
                 Map a café you&rsquo;re sitting in right now. We&rsquo;ll use your
                 location to place it on the transit map, then run a speed test
-                and snap a photo for verification.
+                and add a photo.
               </p>
               <button
                 type="button"
@@ -252,6 +353,22 @@ export function CafeContributionForm({
                 Your exact coordinates are never stored — only the café&rsquo;s
                 position, which you&rsquo;ll confirm on the next step.
               </p>
+
+              <div className="relative pt-4 mt-2 border-t border-cream-deep">
+                <p className="stamp mb-2">Don&rsquo;t feel like leaving the house?</p>
+                <button
+                  type="button"
+                  onClick={loadDemoPrefill}
+                  className="w-full py-3 border border-ink/40 font-mono text-xs tracking-[0.22em] uppercase text-ink-soft hover:bg-ink hover:text-cream hover:border-ink transition-colors"
+                >
+                  Try with sample data →
+                </button>
+                <p className="font-mono text-[10px] text-ink-faint mt-2 leading-snug">
+                  Pre-fills a demo café in <span className="text-ink">{CITIES[currentCity]?.name ?? "this city"}</span>.
+                  You still run a real speed test from your browser — that&rsquo;s
+                  what makes the new café appear on the map.
+                </p>
+              </div>
             </div>
           )}
 
@@ -279,10 +396,13 @@ export function CafeContributionForm({
                 <input
                   type="text"
                   value={form.city}
-                  onChange={(e) => update("city", e.target.value)}
-                  placeholder="e.g. Nairobi (auto-filled from your location)"
+                  onChange={(e) => update("city", e.target.value.toLowerCase())}
+                  placeholder="e.g. nairobi"
                   className="w-full px-3 py-2 border border-ink/30 bg-cream text-ink focus:outline-none focus:border-ink"
                 />
+                <p className="font-mono text-[9px] tracking-[0.16em] uppercase text-ink-faint mt-1">
+                  pre-filled from the map you opened · edit only to map a new city
+                </p>
               </Field>
               <Field label="Vibe (optional)">
                 <input
@@ -412,9 +532,11 @@ export function CafeContributionForm({
           {step === "speedtest" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
-                Run a speed test from where you&rsquo;re sitting. This is the
-                café&rsquo;s first measurement — it won&rsquo;t appear on the
-                map without one.
+                Run a speed test from where you&rsquo;re sitting. This is
+                what makes the listing trustworthy — anyone can claim a
+                café exists, but a real round-trip to the edge can&rsquo;t
+                be faked from a fake IP. The café doesn&rsquo;t appear on
+                the map without this reading.
               </p>
 
               {testState === "idle" && (
@@ -486,9 +608,10 @@ export function CafeContributionForm({
           {step === "photo" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
-                Snap a photo of your coffee, your receipt, or the café counter.
-                This is your proof of presence — it makes the contribution
-                trustworthy.
+                Add a café photo — your coffee, the counter, the laptop view.
+                It rides at the top of the café&rsquo;s page and gives the
+                map a face. The speed test you just ran is the actual trust
+                signal; the photo is the&nbsp;personality.
               </p>
 
               <input
@@ -505,7 +628,7 @@ export function CafeContributionForm({
                   {/* eslint-disable-next-line @next/next/no-img-element -- Base64 preview, not a Next.js image */}
                   <img
                     src={form.photo}
-                    alt="Café proof"
+                    alt="Café photo"
                     className="w-full max-h-64 object-cover border border-ink/30"
                   />
                   <button

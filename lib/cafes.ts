@@ -63,7 +63,9 @@ interface CafeRow {
   power_outlets: boolean | null;
   seating: string | null;
   wifi_network: string | null;
-  photo_url: string | null;
+  /** Optional because the LIST_COLUMNS query intentionally omits this
+   *  field. Detail queries always include it. */
+  photo_url?: string | null;
   median_down_mbps: string | number;
   median_up_mbps: string | number;
   median_latency_ms: string | number;
@@ -95,7 +97,10 @@ function rowToStation(r: CafeRow): CafeStation {
     medianJitterMs: Number(r.median_jitter_ms),
     medianLossPct: Number(r.median_loss_pct),
     measurementCount: Number(r.measurement_count),
-    latestPhotoUrl: r.latest_photo_url ?? r.photo_url,
+    // List queries drop cs.photo_url for bandwidth; detail queries keep it.
+    // Either way the contributor photo is only meaningful on detail pages,
+    // and the list view's `latestPhotoUrl` is the external measurement URL.
+    latestPhotoUrl: r.latest_photo_url ?? r.photo_url ?? null,
     vibe: r.vibe ?? "",
     vibeTags: VIBE_TAGS_BY_NAME.get(r.name) ?? [],
     city: r.city ?? "nairobi",
@@ -121,8 +126,11 @@ interface GetCafesOptions {
   all?: boolean;
 }
 
-// Shared column list for all cafe_speed_stats queries — keeps the SELECT
-// in sync with the CafeRow interface and the MV definition.
+// Shared column list, used by the single-café detail query. Includes
+// `cs.photo_url`, which can be a ~50KB base64 data URL for user-contributed
+// cafés. The list query (getCafes) intentionally omits this column and
+// re-uses LIST_COLUMNS below — a homepage with 24 cafés would otherwise
+// ship ~1.2MB of base64 just for thumbnails the card view never displays.
 const CAFE_COLUMNS = `
   cs.cafe_id AS id,
   cs.name,
@@ -138,6 +146,33 @@ const CAFE_COLUMNS = `
   cs.seating,
   cs.wifi_network,
   cs.photo_url,
+  cs.median_down_mbps,
+  cs.median_up_mbps,
+  cs.median_latency_ms,
+  cs.median_jitter_ms,
+  cs.median_loss_pct,
+  cs.measurement_count,
+  lp.photo_url AS latest_photo_url
+`;
+
+// Thinned column list for the list view — drops `cs.photo_url` to keep
+// homepage payloads bounded. Cards render `latestPhotoUrl` (an external
+// URL from the latest measurement); when none exists, they fall back to
+// the initials placeholder, not the contributor's full photo.
+const LIST_COLUMNS = `
+  cs.cafe_id AS id,
+  cs.name,
+  cs.neighbourhood,
+  cs.lat,
+  cs.lng,
+  cs.vibe,
+  cs.tier,
+  cs.city,
+  cs.price_tier,
+  cs.milk_options,
+  cs.power_outlets,
+  cs.seating,
+  cs.wifi_network,
   cs.median_down_mbps,
   cs.median_up_mbps,
   cs.median_latency_ms,
@@ -204,7 +239,7 @@ export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[
     : "";
 
   const sql = `
-    SELECT ${CAFE_COLUMNS}
+    SELECT ${LIST_COLUMNS}
     FROM cafe_speed_stats cs
     ${joinClause}
     ${LATEST_PHOTO_JOIN}

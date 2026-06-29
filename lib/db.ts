@@ -43,3 +43,38 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
 ): Promise<QueryResult<T>> {
   return pool.query<T>(text, params as unknown[] | undefined);
 }
+
+/** A `query`-compatible function bound to a single transactional client.
+ *  Passed into `withTransaction(fn)` so multiple inserts share one BEGIN/COMMIT. */
+export type Executor = typeof query;
+
+/**
+ * Runs the callback inside a database transaction. The callback receives an
+ * `Executor` whose calls go through the same connection as the surrounding
+ * BEGIN/COMMIT, so partial work rolls back if anything throws.
+ *
+ * Note: `REFRESH MATERIALIZED VIEW CONCURRENTLY` cannot run inside a
+ * transaction — call `refreshStatsView()` AFTER the transaction returns.
+ */
+export async function withTransaction<T>(
+  fn: (exec: Executor) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const exec: Executor = (text, params) =>
+      client.query(text, params as unknown[] | undefined);
+    const result = await fn(exec);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* if rollback fails the client is dead anyway — release will dispose it */
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { query } from "@/lib/db";
+import { withTransaction } from "@/lib/db";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import { validateCafeMetadata } from "@/lib/cafe-metadata";
 import {
@@ -67,69 +67,77 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Derive city: use the provided city, or default to 'nairobi' for backwards
+  // Derive city: use the provided city (lowercased so "Nairobi" / "nairobi"
+  // collapse to the same bucket), or default to 'nairobi' for backwards
   // compat. In a production system this would reverse-geocode from lat/lng.
-  const city = body.city?.trim() || "nairobi";
+  const city = body.city?.trim().toLowerCase() || "nairobi";
 
-  // Insert the café
+  // Insert café + first measurement in one transaction. If either fails,
+  // both roll back — no orphaned café rows when a recording is being made
+  // and a flaky network blips. The MV refresh runs AFTER commit because
+  // REFRESH ... CONCURRENTLY cannot live inside a transaction.
+  const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
   let cafeId: string;
+  let measurementId: string;
   try {
-    const cafeInsert = await query<{ id: string }>(
-      `
-      INSERT INTO cafes
-        (name, neighbourhood, lat, lng, location, vibe, city,
-         price_tier, milk_options, power_outlets, seating, wifi_network,
-         photo_url, created_by_ip_hash)
-      VALUES ($1, $2, $3, $4,
-        ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography,
-        $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING id
-      `,
-      [
-        body.name.trim(),
-        body.neighbourhood.trim(),
-        body.lat,
-        body.lng,
-        body.vibe?.trim() || null,
-        city,
-        metadata.priceTier ?? null,
-        metadata.milkOptions ?? null,
-        metadata.powerOutlets ?? null,
-        metadata.seating ?? null,
-        metadata.wifiNetwork ?? null,
-        body.photo,
+    ({ cafeId, measurementId } = await withTransaction(async (tx) => {
+      const cafeInsert = await tx<{ id: string }>(
+        `
+        INSERT INTO cafes
+          (name, neighbourhood, lat, lng, location, vibe, city,
+           price_tier, milk_options, power_outlets, seating, wifi_network,
+           photo_url, created_by_ip_hash)
+        VALUES ($1, $2, $3, $4,
+          ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography,
+          $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING id
+        `,
+        [
+          body.name.trim(),
+          body.neighbourhood.trim(),
+          body.lat,
+          body.lng,
+          body.vibe?.trim() || null,
+          city,
+          metadata.priceTier ?? null,
+          metadata.milkOptions ?? null,
+          metadata.powerOutlets ?? null,
+          metadata.seating ?? null,
+          metadata.wifiNetwork ?? null,
+          body.photo,
+          ipHash,
+        ],
+      );
+      const newCafeId = cafeInsert.rows[0].id;
+      const newMeasurementId = await insertMeasurement(
+        { ...body.measurement, cafeId: newCafeId },
         ipHash,
-      ],
-    );
-    cafeId = cafeInsert.rows[0].id;
+        deviceType,
+        tx,
+      );
+      return { cafeId: newCafeId, measurementId: newMeasurementId };
+    }));
   } catch (err) {
     const msg = (err as Error).message;
     if (msg.includes("check_price_tier"))
       return badRequest("invalid price_tier");
     if (msg.includes("check_seating"))
       return badRequest("invalid seating type");
-    throw err;
-  }
-
-  // Insert the first measurement (reuses the shared insert logic)
-  const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
-  const measurementWithCafe = { ...body.measurement, cafeId };
-  let measurementId: string;
-  try {
-    measurementId = await insertMeasurement(measurementWithCafe, ipHash, deviceType);
-  } catch (err) {
-    // If the measurement fails after the café was created, the café still
-    // exists but won't appear on the map (no measurement = no MV row).
-    // Log loudly — this should be rare.
-    console.error(`[lattency] café ${cafeId} created but measurement failed:`, err);
+    console.error("[lattency] POST /api/cafes failed (rolled back):", err);
     return Response.json(
-      { error: "café created but measurement failed — please submit a reading via the form" },
+      { error: "couldn't create café — please try again" },
       { status: 500 },
     );
   }
 
-  // Refresh the materialized view so the new café appears immediately
-  await refreshStatsView();
+  // Refresh the materialized view so the new café appears immediately.
+  // Errors here don't roll back the café — they just delay map visibility
+  // until the next refresh; surface a soft warning instead of a 500.
+  try {
+    await refreshStatsView();
+  } catch (err) {
+    console.warn("[lattency] MV refresh after café creation failed:", err);
+  }
 
   const slug = slugify(body.name);
 

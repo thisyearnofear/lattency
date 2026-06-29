@@ -111,7 +111,8 @@ export interface CafeStation {
    *  seeded cafés and early contributions may not include it. */
   metadata?: CafeMetadata;
   /** Photo of the café or the contributor's coffee — Base64 data URL.
-   *  Serves as proof-of-presence verification. */
+   *  Gives the café page a face. The mandatory speed test is the actual
+   *  trust mechanism; the photo is presentation. */
   photoUrl?: string | null;
 }
 

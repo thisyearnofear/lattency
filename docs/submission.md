@@ -132,9 +132,9 @@ During the RDS Proxy attempt we added `SecretsManagerReadWrite` and `IAMFullAcce
 
 `AmazonRDSFullAccess` and `AmazonEC2FullAccess` can stay (they're what `scripts/provision-aurora.sh` relies on if you ever re-run it) or be detached if you're cleaning up entirely.
 
-## Post-submission product work (v6–v7)
+## Post-submission product work (v6–v9)
 
-After the hackathon deadline, three phases of work transformed lattency from "type three numbers from another tool" into a self-contained measurement platform with trust and integrity guarantees.
+After the hackathon deadline, five phases of work transformed lattency from "type three numbers from another tool" into a self-contained measurement platform with trust, integrity, and open contribution.
 
 ### Phase 1: In-browser speed test (v6)
 
@@ -169,3 +169,28 @@ After the hackathon deadline, three phases of work transformed lattency from "ty
 **Outlier detection:** Readings >5× or <0.2× the café's existing median (when ≥3 measurements exist) are flagged `is_outlier = true` but still accepted. Never rejects — a genuine speed change (café upgraded their fibre) would be a false positive. The flag is stored for future analysis; the MV does not yet exclude outliers (that's a product decision needing real traffic data to calibrate).
 
 **Edge transparency:** `GET /api/speedtest/whereami` returns the Vercel edge region from the `x-vercel-id` header. The speed test result state displays "Measured against: iad1" so users know which edge they tested against — important context for interpreting the numbers.
+
+### Phase 4: Growth + map visibility (v8)
+
+**Per-café OG images:** Each `/cafes/[slug]` page now generates its own 1200×630 OG image at `/cafes/[slug]/opengraph-image` — tier badge, café name, median speed numbers, signal quality. Shareable on Twitter / LinkedIn / Slack with a thumbnail that reads at a glance.
+
+**Stability rings on map markers:** The schematic SVG, Leaflet geographic, and cinematic transit map all gained a stability ring around each station (green / amber / red), letting the bandwidth + stability dimensions live on the same glyph. Leaflet popovers also surface the signal-quality bars in the tooltip.
+
+### Phase 5: Open contribution platform (v9)
+
+**The shift:** From "12 seeded Nairobi cafés + 12 reputation-tier SF cafés" to "anyone can map a café anywhere." Migration 0006 adds `city`, coffee metadata (price tier, milk options, power outlets, seating, wifi network), `photo_url`, and `created_by_ip_hash` to the `cafes` table. Existing rows backfilled with `city='nairobi'`.
+
+**`POST /api/cafes`** creates a café + its first measurement inside a single Postgres transaction — `withTransaction(exec => ...)` in `lib/db.ts` returns an `Executor` bound to one connection so both inserts share a `BEGIN/COMMIT`. If the measurement fails, the café row rolls back too. `REFRESH MATERIALIZED VIEW CONCURRENTLY` runs after commit (it can't live inside a transaction).
+
+**The trust mechanism** is the mandatory speed test, not the photo. Anyone can claim a café exists, but a real round-trip to a Vercel edge can't be faked from a fake IP. The photo gives the new café page a face; the speed test makes the listing trustworthy. (This framing was clarified in the form copy during the v9 polish pass.)
+
+**`CafeContributionForm`** is a 5-step modal: location → café details → coffee metadata → speed test → photo → submit. The `city` field pre-fills from the page context (Nairobi from `/`, SF from `/sf`) and lowercases server-side so `"Nairobi"` and `"nairobi"` collapse to one bucket.
+
+**Demo affordance** — a "Try with sample data →" button at step 1 fills name, neighbourhood, city, vibe, all metadata, jittered coordinates around a real neighbourhood centre, and a generated SVG photo card in the site's poster aesthetic. The user still runs a real speed test from their browser, then submits. Lets a judge see the end-to-end submission flow in two clicks instead of having to sit in a real café.
+
+**Coffee identity polish** (shipped alongside the contribution platform):
+- **Vibe chips** — a compact mono chip row (`outlets++`, `oat-milk`, `pour-over`, `fibre`, `garden`, `quiet`, …) under every station card and detail page. DB-backed Nairobi cafés enrich via a name lookup so chips appear whether Aurora is hot or cold.
+- **"Last brewed here" ticker** — the last 5 measurements per café, newest-first, with relative timestamps ("4m ago", "3h ago"). DB query + deterministic mock synth. `useSyncExternalStore` ticks every 30s for a live feel without cascading-render warnings.
+- **Brand mark** — a coffee-cup + wifi-arcs glyph used in top-nav, the masthead Edition stamp, and the favicon. Single React component (`brand-mark.tsx`) whose paths match `app/icon.svg`.
+
+**Payload trim:** The `cafe_speed_stats` list query now uses a thinned `LIST_COLUMNS` that drops `cs.photo_url` (which can hold a ~50 KB base64 data URL). Detail queries still SELECT it. A 24-café homepage no longer ships ~1.2 MB of base64 for thumbnails the card view never displays — the contributor photo only loads on the per-café page where it actually shines.

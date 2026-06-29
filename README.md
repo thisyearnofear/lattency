@@ -85,8 +85,9 @@ app/
 ├── tour/page.tsx             # The cinematic experience (scroll-driven, 800vh)
 ├── cafes/[slug]/page.tsx     # Per-café standalone page (SSG across both cities, OG metadata)
 ├── cafes/[slug]/opengraph-image.tsx # Per-café OG image (1200×630, tier badge + stats + signal quality)
+├── api/cafes                 # POST /api/cafes (create café + first measurement in one transaction)
 ├── api/cafes/near            # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
-├── api/cafes/[id]            # GET /api/cafes/:id (detail + time-bucket distribution)
+├── api/cafes/[id]            # GET /api/cafes/:id (detail + time-bucket distribution + recent readings)
 ├── api/measurements          # POST /api/measurements (insert + rate-limit + outlier flag + refresh MV)
 ├── api/speedtest/upload      # POST /api/speedtest/upload (consume + discard body, for upload phase)
 ├── api/speedtest/whereami    # GET /api/speedtest/whereami (Vercel edge region for transparency)
@@ -94,30 +95,37 @@ app/
 └── icon.svg                  # Favicon — minimal three-line metro mark
 
 components/
-├── top-nav.tsx               # Sticky nav: LATTENCY · CitySwitcher · Map · Watch the story
+├── top-nav.tsx               # Sticky nav: BrandMark · LATTENCY · CitySwitcher · Map · Watch the story
+├── brand-mark.tsx            # Coffee-cup + wifi-arcs glyph — used in top-nav and masthead, paths match icon.svg
 ├── city-switcher.tsx         # Nairobi (live) + 5 "coming soon" cities — multi-city ambition
-├── map-shell.tsx             # Product-grade map: SVG schematic ↔ Leaflet geographic toggle
+├── map-shell.tsx             # Product-grade map: SVG schematic ↔ Leaflet geographic toggle, hosts the "+ Map a café" CTA
 ├── map-leaflet.tsx           # Leaflet wrapper — CARTO Light tiles, tier markers, focus pin
 ├── cinematic-map.tsx         # GSAP scroll-driven SVG map (used on /tour only)
-├── masthead.tsx              # Hero block with steam-wisp coffee identity (on /tour)
+├── masthead.tsx              # Hero block with steam-wisp coffee identity (on /tour); carries the BrandMark on the edition stamp
 ├── legend.tsx                # Three lines of service (roast vocabulary + bean glyph)
-├── station-directory.tsx     # Interactive list: geolocation finder, tier filter, clickable cards + signal quality
-├── cafe-detail.tsx           # Slide-in modal: distribution chart + stats + signal quality + form + share link
+├── station-directory.tsx     # Interactive list: geolocation finder, tier filter, clickable cards + vibe chips + signal quality
+├── cafe-detail.tsx           # Slide-in modal: distribution chart + stats + signal quality + vibe chips + last-brewed ticker + form
 ├── cafe-page.tsx             # Full-page version of CafeDetail for /cafes/[slug]
+├── cafe-contribution-form.tsx # 5-step modal: location → details → metadata → speed test → photo → submit; has a "Try with sample data" demo path
+├── cafe-metadata-display.tsx # Renders coffee metadata (price / milk / outlets / seating / wifi) as chips (cards) or labeled rows (detail)
+├── vibe-chips.tsx            # Compact mono chips that ride under the editorial vibe line (`outlets++`, `oat-milk`, `pour-over`, …)
+├── recent-readings.tsx       # "Last brewed here" ticker — last 5 readings with relative timestamps, useSyncExternalStore tick
 ├── measurement-form.tsx      # One-click in-browser speed test + manual entry fallback, optimistic UI
 ├── signal-quality.tsx        # Shared signal-quality indicator (jitter/loss bars + stability label)
 └── copy-share-link.tsx       # "Share link" button (writes window.location to clipboard)
 
 lib/
-├── db.ts                     # pg.Pool singleton, serverless-safe
-├── cafes.ts                  # getCafes({city}), getCafeById(id), getCafeBySlug(slug) — mock fallback per city
+├── db.ts                     # pg.Pool singleton + withTransaction(exec) helper for multi-statement atomic writes
+├── cafes.ts                  # getCafes({city}) + getCafeById(id) + getCafeBySlug(slug); LIST_COLUMNS drops cs.photo_url so list payloads stay bounded
 ├── cities.ts                 # City registry (centre, zoom, bounds, demo neighbourhoods) — one entry per supported city
 ├── slug.ts                   # slugify() — deterministic URL slugs derived from names
-├── types.ts                  # CafeStation, CafeDetail, MeasurementReading, MeasurementInput, Tier, TestMethod, TimeBucket
+├── types.ts                  # CafeStation (incl. vibeTags + metadata + photoUrl), CafeDetail (incl. recent[]), CafeMetadata, CafeCreationInput, MeasurementInput, Tier, TestMethod, TimeBucket, CityId
 ├── speedtest.ts              # In-browser speed test: streaming download + HEAD ping/jitter/loss + chunked upload
 ├── stability.ts              # assessStability(jitter, loss) → stability rating (stable/variable/unstable)
-├── rate-limit.ts             # IP hashing + checkRateLimit (per IP+cafe, 10min window) + isOutlierReading
-├── mock-cafes.ts             # Bundled snapshot — Nairobi (Aurora fallback) + SF (mock-only) = 24 cafés
+├── rate-limit.ts             # IP hashing + scoped checkRateLimit (measurements: 10min/IP+cafe · cafes: 60min/IP) + isOutlierReading
+├── measurements.ts           # Shared insert path used by both POST /api/measurements and POST /api/cafes; accepts an Executor so it can join an outer transaction
+├── cafe-metadata.ts          # Single source of truth for the coffee-metadata vocabulary (price / milk / seating) + validateCafeMetadata + formatMetadata + metadataChips
+├── mock-cafes.ts             # Bundled snapshot — Nairobi (Aurora fallback) + SF (mock-only) = 24 cafés, each carries vibeTags for the chip row
 ├── map-data.ts               # Shared geometry: tier paths, hood polygons, world cities, computeWaypoints() auto-layout
 └── world-path.ts             # Natural Earth land silhouette for the global finale
 
@@ -126,7 +134,8 @@ migrations/
 ├── 0002_schema.sql               # cafes, measurements, cafe_speed_stats MV
 ├── 0003_cafe_vibe.sql            # add vibe column, recreate MV
 ├── 0004_measurement_provenance.sql  # jitter/loss + test_method/target_server/device_type/download_*; recreate MV
-└── 0005_rate_limit_outlier.sql   # contributor_ip_hash + is_outlier + rate-limit index
+├── 0005_rate_limit_outlier.sql   # contributor_ip_hash + is_outlier + rate-limit index
+└── 0006_cafe_metadata.sql        # city + price_tier + milk_options + power_outlets + seating + wifi_network + photo_url + created_by_ip_hash; recreate MV
 
 scripts/
 ├── provision-aurora.sh       # AWS CLI Aurora bootstrap
@@ -182,7 +191,47 @@ curl 'http://localhost:3000/api/cafes/near?lat=-1.290&lng=36.790&radius=3000'
 
 ### `GET /api/cafes/:id`
 
-Returns the same shape plus `distribution: { timeBucket, medianDownMbps, sampleSize }[]` ordered morning → afternoon → evening.
+Returns the same shape plus:
+
+- `distribution: { timeBucket, medianDownMbps, sampleSize }[]` ordered morning → afternoon → evening
+- `recent: { measuredAt, downMbps }[]` — the last 5 measurements, newest-first, surfaced as the **Last brewed here** ticker on the drawer + detail page
+
+### `POST /api/cafes`
+
+Creates a new café + its first measurement in a single Postgres transaction (via `withTransaction` in `lib/db.ts`), then refreshes the materialized view after commit. The mandatory speed test is the trust mechanism — a café doesn't appear on the map until it has a real round-trip reading from a real edge.
+
+```json
+{
+  "name": "Pop-up Pour",
+  "neighbourhood": "Westlands",
+  "city": "nairobi",
+  "lat": -1.262,
+  "lng": 36.806,
+  "vibe": "demo lane regular",
+  "metadata": {
+    "priceTier": "mid",
+    "milkOptions": ["dairy", "oat"],
+    "powerOutlets": true,
+    "seating": "tables",
+    "wifiNetwork": "nairobi_guest"
+  },
+  "photo": "data:image/jpeg;base64,…",
+  "measurement": {
+    "downMbps": 62.5,
+    "upMbps": 11.2,
+    "latencyMs": 28,
+    "jitterMs": 3.5,
+    "lossPct": 0,
+    "downloadBytes": 10485760,
+    "downloadDurationMs": 1156,
+    "targetServer": "iad1::abc123"
+  }
+}
+```
+
+Returns `{ cafeId, slug, measurementId, city }` on success. If the measurement insert fails, the café INSERT is rolled back — no orphaned rows. `city` is lowercased server-side so `"Nairobi"` and `"nairobi"` collapse to the same bucket.
+
+**Rate-limiting:** One café per IP per 60-minute window (separate scope from measurements). `429` when rate-limited.
 
 ### `POST /api/measurements`
 
@@ -373,12 +422,36 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | Generalized `checkRateLimit` with scope parameter (measurements + cafés) | done  |
 | `getCafeBySlug` searches all cities (DB + mock fallback) | done  |
 
+**Coffee identity polish (v9 — chips, ticker, brand mark):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| Vibe-chip vocabulary (`outlets++`, `oat-milk`, `pour-over`, `fibre`, `garden`, `view`, `quiet`, `buzzy`, `brunch`, `pastry`, `espresso`, `central`, `mall`, `late-night`, `classic`) backfilled across all 24 mock cafés | done  |
+| `<VibeChips/>` rendered on every station card, drawer, and `/cafes/[slug]` page; DB rows enrich via name lookup so chips appear whether Aurora is hot or cold | done  |
+| `CafeDetail.recent` — last 5 measurements per café returned by `GET /api/cafes/:id` and synthesized deterministically by the mock fallback | done  |
+| `<RecentReadings/>` "Last brewed here" ticker — `useSyncExternalStore` ticks every 30s; SSR renders HH:MM, hydration swaps to "4m ago" | done  |
+| `<BrandMark/>` glyph (coffee cup + wifi arcs) — used in top-nav, masthead Edition stamp, and the favicon at `app/icon.svg` | done  |
+
+**Contribution polish (v9 — submission-ready):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| City pre-fills from the page context (currentCity prop) — submissions on `/sf` land in SF, not Nairobi | done  |
+| Server lowercases `city` so `"Nairobi"` and `"nairobi"` collapse to the same bucket | done  |
+| Photo reframed: "café photo / personality" instead of "proof of presence" — the speed test is the actual trust signal | done  |
+| `POST /api/cafes` wrapped in a transaction via `withTransaction(exec => …)` — café INSERT rolls back if the measurement fails | done  |
+| `withTransaction` + `Executor` type added to `lib/db.ts`; `insertMeasurement` accepts an optional `exec` so it can participate in an outer transaction | done  |
+| "Try with sample data →" affordance on the contribution form — pre-fills name, neighbourhood, city, vibe, metadata, jittered coordinates, and a generated SVG photo card; jumps straight to the speed-test step | done  |
+| `cafe_speed_stats` list query split into `LIST_COLUMNS` (drops `cs.photo_url`) and `CAFE_COLUMNS` (keeps it) — a 24-café homepage no longer ships ~1.2 MB of base64 for thumbnails the cards never display | done  |
+
 **Beyond the hackathon:**
 
 | Step                                       | State |
 | ------------------------------------------ | ----- |
 | Reverse-geocode city name from coordinates (currently user-entered) | pending |
 | Vercel Blob for photo storage (currently Base64 in Postgres) | pending |
+| Rate-limit preflight on the contribution form so users learn about the 429 before running the speed test | pending |
+| `REFRESH MATERIALIZED VIEW CONCURRENTLY` debounce/coalesce for the contribution-heavy steady state | pending |
 | Real measurements from a community-sourced public dataset | pending |
 | Exclude flagged outliers from materialized view median (needs real traffic to calibrate) | pending |
 | Composite "workability score" (bandwidth × stability) — needs user research | pending |
