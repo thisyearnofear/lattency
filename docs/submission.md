@@ -89,12 +89,39 @@ Add `#H0Hackathon` per the official rules so it counts.
 - [x] `POST /api/measurements` round-trips against prod (verified — Brew Bistro flipped suspended → express on five POSTs, then reseeded back to suspended)
 - [x] AWS Console screenshots saved at `public/screenshots/RDS{1,2,3}.png`
 - [x] OG image renders at https://lattency.vercel.app/opengraph-image (1200×630 PNG, masthead aesthetic)
-- [ ] Architecture diagram either rendered as PNG (mermaid.live → paste the block from README) or screenshot of the README rendered on GitHub
-- [ ] Vercel Team ID copied from Vercel Settings → General
-- [ ] Demo video recorded against `docs/demo-video.md` (in-browser contribute flow, not curl), edited under 3 minutes, uploaded to YouTube unlisted
-- [ ] Aurora warmed before recording (visit https://lattency.vercel.app once 30s before pressing record)
-- [ ] Brew Bistro Kilimani still shows **suspended** in the directory before recording (if not, `pnpm seed` locally and wait 60s)
+- [x] Architecture diagram rendered as PNG (`public/screenshots/mermaid.png`)
+- [x] Vercel Team ID copied from Vercel Settings → General
+- [x] Demo video recorded, edited under 3 minutes, uploaded to YouTube
+- [x] Aurora warmed before recording
 - [ ] Bonus content posted (LinkedIn / dev.to / blog) with #H0Hackathon, if going for the bonus
+
+## Post-submission: v9.3 deploy (pre-deadline alignment pass)
+
+Submitted the v9.2 package, then shipped v9.3 before the deadline to align the live site, repo, and submission text. All required submission items were already in place; v9.3 adds depth that the judges will see when they visit the live URL and browse the repo.
+
+**Deployed:** commit `97be426` (v9.3 + Hobby cron fix), live at https://lattency.vercel.app/
+
+**Verified live after deploy:**
+
+| Route | Status | Notes |
+|-------|--------|-------|
+| `/` | 200 | Homepage with map + station directory |
+| `/tour` | 200 | Cinematic scroll experience |
+| `/partners` | 200 | Business model preview + bounties board |
+| `/sf` | 200 | San Francisco multi-city |
+| `/me` | 307 → `/auth/signin` | Auth-gated contributor dashboard (correct redirect) |
+| `/auth/signin` | 200 | Magic-link sign-in form |
+| `/auth/verify` | 200 | "Check your email" confirmation |
+| `/api/cafes/near` | 200 | Read path API |
+| `/api/warm` | 401 | Aurora warmer — correctly gated by `CRON_SECRET` |
+| `/api/auth/session` | 200 (`null`) | Auth.js session endpoint |
+| `/opengraph-image` | 200 | Dynamic OG image |
+
+**Env vars set on Vercel:** `AUTH_SECRET`, `CRON_SECRET`, `AUTH_RESEND_KEY`, `AUTH_FROM_EMAIL`
+
+**Migrations applied to live Aurora:** 0001–0009 (0007 sponsorships+bounties, 0008 outlier-aware median, 0009 Auth.js tables + contributor attribution)
+
+**Cron note:** `vercel.json` has no cron entry — Vercel Hobby only allows once-daily crons, and the `*/5 6-22` schedule would have failed deployment. The `/api/warm` endpoint is kept; ISR revalidate + visitor traffic keep Aurora warm. Cron can be re-enabled on Vercel Pro.
 
 ---
 
