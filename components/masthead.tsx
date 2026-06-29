@@ -57,12 +57,14 @@ export function Masthead() {
 
         <div className="col-span-12 lg:col-span-4 lg:pl-8 lg:border-l lg:border-cream-deep flex flex-col justify-end gap-4">
           <p className="font-mono text-[13px] leading-relaxed text-ink-soft">
-            Twelve cafés. Three lines. Speed measurements crowdsourced from
-            anyone with a connection — turned into the only metro map of
-            Nairobi where the stations don&rsquo;t move but the lines do.
+            Every café is a station. The three lines aren&rsquo;t streets —
+            they&rsquo;re <span className="text-express">speed tiers</span>:
+            Express, Local, Suspended. Scroll to ride each line, then flip to{" "}
+            <span className="text-ink font-medium">Geographic</span> to drop the
+            same stations onto the real city.
           </p>
           <p className="font-mono text-[11px] tracking-[0.18em] uppercase text-ink-faint scroll-cue">
-            ↓ scroll for the stations index
+            ↓ scroll to ride the lines
           </p>
         </div>
       </div>

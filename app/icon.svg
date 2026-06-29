@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="6" fill="#F4ECD8"/>
+  <!-- Wifi arcs rising from the cup — doubles as steam + signal (latte + latency) -->
+  <path d="M9 13.5 Q16 6.5 23 13.5" stroke="#006D45" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <path d="M12 16 Q16 11.5 20 16" stroke="#006D45" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <circle cx="16" cy="18.5" r="1.4" fill="#006D45"/>
+  <!-- Coffee cup -->
+  <path d="M10 20.5 H22 L21 27.2 Q20.9 28.4 19.7 28.4 H12.3 Q11.1 28.4 11 27.2 Z" fill="#1A1612"/>
+  <path d="M22 22 Q25.4 22 25.4 24.4 Q25.4 26.8 22 26.8" stroke="#1A1612" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+</svg>

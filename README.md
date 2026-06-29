@@ -40,6 +40,8 @@ flowchart LR
 
 **Write path:** `POST /api/measurements` inserts a row, derives `time_bucket` from the timestamp in `Africa/Nairobi`, and `REFRESH MATERIALIZED VIEW CONCURRENTLY cafe_speed_stats` so the next read reflects it (the unique index on `cafe_id` makes CONCURRENTLY work).
 
+**Fallback path:** If Aurora is unreachable or cold-starting (15–30s), `lib/cafes.ts` degrades gracefully to a bundled Nairobi snapshot (`lib/mock-cafes.ts`) so the page never white-screens. The mock includes haversine distance for "near me" queries, so the full interactive experience works even without a live database.
+
 ---
 
 ## Quick start
@@ -56,7 +58,7 @@ pnpm install
 bash scripts/provision-aurora.sh   # ~6–8 min, idempotent, writes DATABASE_URL to .env.local
 pnpm migrate                       # applies migrations/0001..0003
 pnpm seed                          # 12 Nairobi cafés, 48 measurements
-pnpm dev                           # http://localhost:3000
+pnpm dev                           # random high port (see AGENTS.md)
 ```
 
 `scripts/provision-aurora.sh` creates the cluster, opens port 5432 only to your current public IP, and generates a 32-char hex password. Re-run after roaming to refresh the IP rule.
@@ -85,9 +87,11 @@ app/
 
 components/
 ├── cinematic-map.tsx     # GSAP scroll-driven SVG map (client)
-├── masthead.tsx          # Hero block
-├── legend.tsx            # Three lines of service
-└── station-index.tsx     # 12-card grid with photos + vibes
+├── masthead.tsx          # Hero block with steam-wisp coffee identity
+├── legend.tsx            # Three lines of service (roast vocabulary + bean glyph)
+├── station-directory.tsx # Interactive directory: geolocation finder, tier filter, clickable cards
+├── cafe-detail.tsx       # Detail drawer: time-bucket distribution + metadata
+└── measurement-form.tsx  # Optimistic-UI speed measurement submission
 
 lib/
 ├── db.ts                 # pg.Pool singleton, serverless-safe
@@ -221,6 +225,12 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | 3. Write path API (`/api/measurements`)    | done  |
 | Cinematic frontend (GSAP)                  | done  |
 | Deployment to Vercel                       | done  |
+| Mock fallback (no-DB graceful degradation) | done  |
+| Interactive station directory + detail drawer | done  |
+| Measurement submission (optimistic UI)     | done  |
+| Coffee identity (roast vocabulary, bean glyph, ring stain, steam wisps) | done |
+| Schematic ↔ geographic view toggle         | done  |
+| Real Natural Earth world map finale        | done  |
 | 4. Browser-driven speed test contributor   | pending |
 | Vercel × AWS Marketplace integration       | post-submission |
 

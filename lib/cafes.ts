@@ -1,5 +1,47 @@
+import type { QueryResult } from "pg";
 import { query } from "./db";
+import { MOCK_CAFES } from "./mock-cafes";
 import type { CafeDetail, CafeStation, Neighbourhood, Tier, TimeBucket } from "./types";
+
+// ── Demo-safety fallback ──────────────────────────────────────────────────────
+// Aurora Serverless v2 auto-pauses at 0 ACU and the first cold connection can
+// take 15-30s (see lib/db.ts) — or fail outright if the IP allowlist is stale.
+// For a public hackathon link and a recorded demo, a white-screen is fatal, so
+// every read degrades gracefully to the bundled Nairobi snapshot. The snapshot
+// is shaped identically to the live rows, so the UI is byte-for-byte the same.
+// We log loudly so a real outage is still observable in Vercel logs.
+
+function warnFallback(scope: string, err: unknown): void {
+  const reason = err instanceof Error ? err.message : String(err);
+  console.warn(`[lattency] ${scope}: serving bundled snapshot (Aurora unavailable: ${reason})`);
+}
+
+// Haversine distance in metres — lets the geo filter work against the snapshot
+// when Aurora is unreachable, mirroring ST_DWithin / ST_Distance ordering.
+function distanceMetres(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function fallbackCafes(opts: GetCafesOptions): CafeStation[] {
+  const { lat, lng, radiusM } = opts;
+  if (lat !== undefined && lng !== undefined && radiusM !== undefined) {
+    const origin = { lat, lng };
+    return MOCK_CAFES.map((c) => ({ c, d: distanceMetres(origin, c) }))
+      .filter(({ d }) => d <= radiusM)
+      .sort((a, b) => a.d - b.d)
+      .map(({ c }) => c);
+  }
+  return [...MOCK_CAFES].sort((a, b) => a.name.localeCompare(b.name));
+}
 
 // Raw row shape from cafe_speed_stats + latest-photo lateral join.
 interface CafeRow {
@@ -110,8 +152,16 @@ export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[
     `;
 
   const params = geoFiltered ? [lat, lng, radiusM] : [];
-  const result = await query<CafeRow>(sql, params);
-  return result.rows.map(rowToStation);
+  try {
+    const result = await query<CafeRow>(sql, params);
+    // An empty result usually means an un-seeded cluster in a fresh env; the
+    // demo should still show the network, so treat empty as a fallback too.
+    if (result.rows.length === 0) return fallbackCafes(opts);
+    return result.rows.map(rowToStation);
+  } catch (err) {
+    warnFallback("getCafes", err);
+    return fallbackCafes(opts);
+  }
 }
 
 interface DistributionRow {
@@ -120,11 +170,34 @@ interface DistributionRow {
   sample_size: string | number;
 }
 
+// Synthesizes a believable morning/afternoon/evening curve from a single
+// median, used when Aurora is unreachable. Afternoons sag (everyone's online),
+// mornings are fastest — the same shape the seed data produces.
+function fallbackDetail(id: string): CafeDetail | null {
+  const station = MOCK_CAFES.find((c) => c.id === id);
+  if (!station) return null;
+  const base = station.medianDownMbps;
+  const shape: Array<{ timeBucket: TimeBucket; factor: number }> = [
+    { timeBucket: "morning", factor: 1.12 },
+    { timeBucket: "afternoon", factor: 0.82 },
+    { timeBucket: "evening", factor: 1.02 },
+  ];
+  const distribution = shape.map(({ timeBucket, factor }) => ({
+    timeBucket,
+    medianDownMbps: Math.max(1, Math.round(base * factor * 10) / 10),
+    sampleSize: Math.max(1, Math.round(station.measurementCount / 3)),
+  }));
+  return { ...station, distribution };
+}
+
 /**
  * Single café detail with per–time-bucket distribution.
  */
 export async function getCafeById(id: string): Promise<CafeDetail | null> {
-  const [statsResult, distResult] = await Promise.all([
+  let statsResult: QueryResult<CafeRow>;
+  let distResult: QueryResult<DistributionRow>;
+  try {
+    [statsResult, distResult] = await Promise.all([
     query<CafeRow>(
       `
       SELECT
@@ -169,10 +242,14 @@ export async function getCafeById(id: string): Promise<CafeDetail | null> {
       `,
       [id],
     ),
-  ]);
+    ]);
+  } catch (err) {
+    warnFallback("getCafeById", err);
+    return fallbackDetail(id);
+  }
 
   const stationRow = statsResult.rows[0];
-  if (!stationRow) return null;
+  if (!stationRow) return fallbackDetail(id);
   const station = rowToStation(stationRow);
 
   const distribution = distResult.rows.map((r) => ({

@@ -5,6 +5,7 @@ type Entry = {
   letter: string;
   name: string;
   threshold: string;
+  roast: string;
   mood: string;
   isDashed?: boolean;
 };
@@ -15,6 +16,7 @@ const ENTRIES: Entry[] = [
     letter: "X",
     name: "Express",
     threshold: "≥ 50 Mbps",
+    roast: "dark roast",
     mood: "fast forward",
   },
   {
@@ -22,6 +24,7 @@ const ENTRIES: Entry[] = [
     letter: "L",
     name: "Local",
     threshold: "10 – 49 Mbps",
+    roast: "medium roast",
     mood: "the everyday network",
   },
   {
@@ -29,10 +32,35 @@ const ENTRIES: Entry[] = [
     letter: "S",
     name: "Suspended",
     threshold: "< 10 Mbps",
+    roast: "decaf",
     mood: "service intermittent",
     isDashed: true,
   },
 ];
+
+// A small coffee-bean glyph — the project's quiet coffee signal, used as a
+// bullet beside the roast label.
+function CoffeeBean({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <ellipse
+        cx={12}
+        cy={12}
+        rx={6.5}
+        ry={9.5}
+        transform="rotate(28 12 12)"
+        fill="currentColor"
+      />
+      <path
+        d="M12 3.5 C 9 8, 15 16, 12 20.5"
+        fill="none"
+        stroke="var(--color-cream)"
+        strokeWidth={1.4}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 const TIER_BG: Record<Tier, string> = {
   express: "bg-express",
@@ -44,6 +72,11 @@ const TIER_STROKE: Record<Tier, string> = {
   local: "stroke-local",
   suspended: "stroke-suspended",
 };
+const TIER_TEXT: Record<Tier, string> = {
+  express: "text-express",
+  local: "text-local",
+  suspended: "text-suspended",
+};
 
 export function Legend() {
   return (
@@ -51,7 +84,9 @@ export function Legend() {
       className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 mt-6 pt-6 border-t border-ink/80"
       aria-label="Map legend — three lines of service"
     >
-      <h2 className="stamp md:col-span-3">Lines of service</h2>
+      <h2 className="stamp md:col-span-3 coffee-ring inline-block">
+        Lines of service
+      </h2>
 
       {ENTRIES.map((e) => (
         <article
@@ -87,6 +122,10 @@ export function Legend() {
             </h3>
             <p className="font-mono text-[11px] tracking-[0.15em] uppercase text-ink-soft mt-1">
               {e.threshold}
+            </p>
+            <p className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.15em] uppercase text-ink-faint mt-1.5">
+              <CoffeeBean className={`w-3 h-3 ${TIER_TEXT[e.tier]}`} />
+              {e.roast}
             </p>
             <p className="font-serif italic text-base text-ink-faint mt-1">
               {e.mood}

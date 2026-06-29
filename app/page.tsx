@@ -2,7 +2,7 @@ import { getCafes } from "@/lib/cafes";
 import { Masthead } from "@/components/masthead";
 import { CinematicMap } from "@/components/cinematic-map";
 import { Legend } from "@/components/legend";
-import { StationIndex } from "@/components/station-index";
+import { StationDirectory } from "@/components/station-directory";
 
 // Re-fetched at most once per minute. The materialized view is refreshed
 // after every POST /api/measurements, so reads stay close to live without
@@ -24,7 +24,7 @@ export default async function Home() {
 
       <main className="mx-auto max-w-[1440px] px-6 md:px-12 pb-24">
         <Legend />
-        <StationIndex cafes={cafes} />
+        <StationDirectory cafes={cafes} />
 
         {/* Global ambition tease — every metro system in the world is on the table */}
         <section className="mt-24 pt-10 border-t border-ink/80">

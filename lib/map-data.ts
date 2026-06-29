@@ -152,41 +152,51 @@ export type WorldCity = {
   id: string;
   name: string;
   country: string;
-  // Normalized 0-1 position on the world stage (lon/lat → t).
+  // Projected pixel position on the 1440×720 world stage (see projectWorld).
   x: number;
   y: number;
   // Number of "stations" — purely for visual density of the dot.
   stations: number;
   lit: boolean; // Nairobi is lit at the start; others light up in the finale.
+  // Optional label placement overrides to avoid collisions in dense clusters
+  // (e.g. the Nairobi / Kampala / Kigali knot in East Africa).
+  lx?: number;
+  ly?: number;
+  anchor?: "start" | "middle" | "end";
 };
 
-// A stylized continent outline as a single path d-attribute, drawn in the
-// finale background to give the constellation geographic context.
-export const WORLD_OUTLINE_D =
-  "M 180 200 C 220 170 280 165 320 180 C 360 195 380 230 390 270 C 400 310 380 350 350 380 C 310 410 250 415 210 395 C 170 375 150 330 155 285 C 158 250 165 220 180 200 Z " +
-  "M 430 180 C 470 165 530 170 570 195 C 600 215 615 250 610 290 C 605 330 575 360 535 365 C 490 370 450 350 430 315 C 415 285 415 245 430 180 Z " +
-  "M 640 220 C 680 200 750 205 790 235 C 820 260 830 300 815 335 C 795 370 750 385 705 375 C 660 365 635 335 630 295 C 628 265 632 240 640 220 Z " +
-  "M 870 250 C 910 235 970 240 1010 265 C 1040 285 1050 315 1035 345 C 1015 375 970 385 925 375 C 885 365 865 340 862 305 C 861 285 865 265 870 250 Z " +
-  "M 1070 200 C 1120 185 1200 190 1250 220 C 1290 245 1310 285 1295 325 C 1275 365 1225 385 1170 380 C 1115 375 1075 350 1065 310 C 1060 280 1065 250 1070 200 Z";
+// Real-world land silhouette (Natural Earth, equirectangular) — see
+// lib/world-path.ts. The finale draws this so the global ambition lands on
+// recognizable geography rather than abstract shapes.
+export { WORLD_LAND_D as WORLD_OUTLINE_D } from "./world-path";
 
-// Cities positioned on the same 1440×720 stage. Coordinates are hand-placed
-// to sit on top of the stylized continent outline above.
+// Equirectangular projection onto the full 1440×720 stage. Used for the world
+// finale so a city's pixel position is its true position on the globe.
+export function projectWorld(lat: number, lng: number): { x: number; y: number } {
+  return {
+    x: ((lng + 180) / 360) * VIEW_W,
+    y: ((90 - lat) / 180) * VIEW_H,
+  };
+}
+
+// Cities placed by their real lat/lng via projectWorld — so Nairobi sits on
+// East Africa, Tokyo on Japan, New York on the US eastern seaboard, etc.
 export const WORLD_CITIES: WorldCity[] = [
-  // Nairobi — the origin, already lit.
-  { id: "nairobi", name: "Nairobi", country: "Kenya", x: 820, y: 360, stations: 12, lit: true },
+  // Nairobi — the origin, already lit. Label sits to the right of the knot.
+  { id: "nairobi", name: "Nairobi", country: "Kenya", x: 867.3, y: 365.1, stations: 12, lit: true, lx: 14, ly: 4, anchor: "start" },
   // African capitals — the "next stops" from the page tail, made literal.
-  { id: "lagos", name: "Lagos", country: "Nigeria", x: 470, y: 330, stations: 0, lit: false },
-  { id: "accra", name: "Accra", country: "Ghana", x: 380, y: 340, stations: 0, lit: false },
-  { id: "kampala", name: "Kampala", country: "Uganda", x: 770, y: 340, stations: 0, lit: false },
-  { id: "kigali", name: "Kigali", country: "Rwanda", x: 760, y: 380, stations: 0, lit: false },
-  { id: "capetown", name: "Cape Town", country: "South Africa", x: 540, y: 460, stations: 0, lit: false },
+  { id: "lagos", name: "Lagos", country: "Nigeria", x: 733.6, y: 334.2, stations: 0, lit: false, lx: 0, ly: -12, anchor: "middle" },
+  { id: "accra", name: "Accra", country: "Ghana", x: 719.2, y: 337.6, stations: 0, lit: false, lx: -10, ly: 8, anchor: "end" },
+  { id: "kampala", name: "Kampala", country: "Uganda", x: 850.3, y: 358.8, stations: 0, lit: false, lx: -12, ly: -8, anchor: "end" },
+  { id: "kigali", name: "Kigali", country: "Rwanda", x: 840.2, y: 367.8, stations: 0, lit: false, lx: -12, ly: 16, anchor: "end" },
+  { id: "capetown", name: "Cape Town", country: "South Africa", x: 793.7, y: 495.7, stations: 0, lit: false },
   // A few global peers for the "twelve thousand" ambition.
-  { id: "berlin", name: "Berlin", country: "Germany", x: 690, y: 215, stations: 0, lit: false },
-  { id: "tokyo", name: "Tokyo", country: "Japan", x: 1230, y: 245, stations: 0, lit: false },
-  { id: "nyc", name: "New York", country: "USA", x: 320, y: 230, stations: 0, lit: false },
-  { id: "saopaulo", name: "São Paulo", country: "Brazil", x: 380, y: 410, stations: 0, lit: false },
-  { id: "mumbai", name: "Mumbai", country: "India", x: 950, y: 290, stations: 0, lit: false },
-  { id: "singapore", name: "Singapore", country: "Singapore", x: 1080, y: 330, stations: 0, lit: false },
+  { id: "berlin", name: "Berlin", country: "Germany", x: 773.6, y: 149.9, stations: 0, lit: false },
+  { id: "tokyo", name: "Tokyo", country: "Japan", x: 1278.6, y: 217.3, stations: 0, lit: false },
+  { id: "nyc", name: "New York", country: "USA", x: 424.0, y: 197.2, stations: 0, lit: false },
+  { id: "saopaulo", name: "São Paulo", country: "Brazil", x: 533.5, y: 454.2, stations: 0, lit: false },
+  { id: "mumbai", name: "Mumbai", country: "India", x: 1011.5, y: 283.7, stations: 0, lit: false },
+  { id: "singapore", name: "Singapore", country: "Singapore", x: 1135.3, y: 354.6, stations: 0, lit: false },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

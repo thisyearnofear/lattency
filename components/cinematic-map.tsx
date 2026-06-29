@@ -275,8 +275,21 @@ function ViewToggle({
   disabled: boolean;
 }) {
   return (
-    <div className="absolute bottom-8 left-6 md:left-10 z-20 pointer-events-auto">
-      <div className="flex items-center gap-1 bg-cream/95 border border-ink/80 p-1 font-mono text-[10px] tracking-[0.2em] uppercase">
+    <div className="absolute bottom-8 left-6 md:left-10 z-20 pointer-events-auto max-w-[260px]">
+      {/* Contextual caption — spells out what the metaphor toggle does, so the
+          "lines are speed, not streets" idea never needs explaining twice. */}
+      <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-soft mb-1.5 leading-snug">
+        {view === "schematic" ? (
+          <>
+            <span className="text-ink">Schematic</span> · lines are speed tiers
+          </>
+        ) : (
+          <>
+            <span className="text-ink">Geographic</span> · true café locations
+          </>
+        )}
+      </p>
+      <div className="cm-toggle-hint inline-flex items-center gap-1 bg-cream/95 border border-ink/80 p-1 font-mono text-[10px] tracking-[0.2em] uppercase">
         <button
           type="button"
           disabled={disabled}
@@ -351,10 +364,13 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
   // The path source switches with the view mode.
   const tierPath = (t: Tier) =>
     view === "geographic" ? geo.paths[t] : TIER_PATH[t];
+  // Schematic positions are keyed by café name. If a name is unknown (a future
+  // city, a renamed café), fall back to the geographic projection so the
+  // station still lands somewhere sensible instead of vanishing.
   const stationPos = (c: CafeStation) =>
     view === "geographic"
       ? (geo.positions.get(c.id) ?? STATION_WAYPOINT[c.name])
-      : STATION_WAYPOINT[c.name];
+      : (STATION_WAYPOINT[c.name] ?? geo.positions.get(c.id));
 
   useGSAP(
     () => {
@@ -760,6 +776,9 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
         .to(".cm-station", { opacity: 0.15, scale: 0.4, duration: 0.4 }, "finale")
         .to(".cm-parallax-far", { opacity: 0.1, duration: 0.4 }, "finale")
         .to(".cm-parallax-mid", { opacity: 0.15, duration: 0.4 }, "finale")
+        // City-scale chrome (compass + 2 KM scale + edition stamps) makes no
+        // sense over a world map — fade it as the globe takes over.
+        .to(".cm-city-chrome", { opacity: 0, duration: 0.35 }, "finale")
         // Zoom the POV way out and recenter.
         .to(
           ".cm-pov",
@@ -922,15 +941,51 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
                 height={VIEW_H}
                 fill="url(#cm-world-ocean)"
               />
-              {/* Stylized continent outlines */}
+
+              {/* Graticule — faint equirectangular lat/long grid, like an
+                  atlas plate, so the globe reads as a real map. */}
+              <g className="cm-world-graticule" opacity={0.18}>
+                {[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150].map((lng) => {
+                  const x = ((lng + 180) / 360) * VIEW_W;
+                  return (
+                    <line
+                      key={`mer-${lng}`}
+                      x1={x}
+                      y1={0}
+                      x2={x}
+                      y2={VIEW_H}
+                      stroke="var(--color-ink-soft)"
+                      strokeWidth={lng === 0 ? 0.8 : 0.4}
+                    />
+                  );
+                })}
+                {[-60, -30, 0, 30, 60].map((lat) => {
+                  const y = ((90 - lat) / 180) * VIEW_H;
+                  return (
+                    <line
+                      key={`par-${lat}`}
+                      x1={0}
+                      y1={y}
+                      x2={VIEW_W}
+                      y2={y}
+                      stroke="var(--color-ink-soft)"
+                      strokeWidth={lat === 0 ? 0.8 : 0.4}
+                      strokeDasharray={lat === 0 ? undefined : "2 6"}
+                    />
+                  );
+                })}
+              </g>
+
+              {/* Real-world land silhouette (Natural Earth, equirectangular). */}
               <path
                 className="cm-world-outline"
                 d={WORLD_OUTLINE_D}
                 fill="var(--color-cream-edge)"
-                fillOpacity={0.3}
+                fillOpacity={0.5}
                 stroke="var(--color-ink-soft)"
-                strokeWidth={1}
-                strokeOpacity={0.3}
+                strokeWidth={0.8}
+                strokeOpacity={0.45}
+                strokeLinejoin="round"
               />
 
               {/* Arcs from Nairobi to each city */}
@@ -972,9 +1027,9 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
                     fill="var(--color-cream)"
                   />
                   <text
-                    x={0}
-                    y={city.lit ? -14 : -10}
-                    textAnchor="middle"
+                    x={city.lx ?? 0}
+                    y={city.ly ?? (city.lit ? -14 : -10)}
+                    textAnchor={city.anchor ?? "middle"}
                     fontFamily="var(--font-mono)"
                     fontSize={city.lit ? 11 : 9}
                     fontWeight={city.lit ? 600 : 400}
@@ -985,9 +1040,9 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
                   </text>
                   {city.lit && (
                     <text
-                      x={0}
-                      y={20}
-                      textAnchor="middle"
+                      x={city.lx ?? 0}
+                      y={(city.ly ?? -14) + 14}
+                      textAnchor={city.anchor ?? "middle"}
                       fontFamily="var(--font-serif)"
                       fontStyle="italic"
                       fontSize={9}
@@ -1203,7 +1258,10 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
               style={{ opacity: 0.15, pointerEvents: "none" }}
             />
 
-            {/* ── Static chrome (compass, scale, stamps) ─────────────── */}
+            {/* ── City-scale chrome (compass, scale, stamps) ─────────── */}
+            {/* A 2 KM scale bar is meaningless over a world map, so this whole
+                group fades out as the finale zooms to the globe. */}
+            <g className="cm-city-chrome">
             <g transform={`translate(${VIEW_W - 90} ${VIEW_H - 130})`}>
               <circle
                 r={28}
@@ -1351,6 +1409,7 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
             >
               printed from live measurements
             </text>
+            </g>
           </svg>
         </div>
 
