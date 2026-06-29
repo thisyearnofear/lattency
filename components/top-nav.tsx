@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CitySwitcher } from "./city-switcher";
 
 /**
  * Thin sticky nav surfaced on both / (the app) and /tour (the cinematic).
@@ -12,12 +13,18 @@ export function TopNav({ current }: { current: "app" | "tour" }) {
       aria-label="Primary"
     >
       <div className="mx-auto max-w-[1440px] px-6 md:px-12 h-14 flex items-center justify-between gap-6">
-        <Link
-          href="/"
-          className="font-display font-black uppercase text-[22px] leading-none tracking-[-0.02em] text-ink"
-        >
-          Lattency
-        </Link>
+        <div className="flex items-center gap-5 md:gap-8">
+          <Link
+            href="/"
+            className="font-display font-black uppercase text-[22px] leading-none tracking-[-0.02em] text-ink"
+          >
+            Lattency
+          </Link>
+          <span aria-hidden className="text-ink-faint hidden md:inline">·</span>
+          <div className="hidden md:block">
+            <CitySwitcher />
+          </div>
+        </div>
 
         <div className="flex items-center gap-5 md:gap-8 font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase">
           <Link
