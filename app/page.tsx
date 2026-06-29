@@ -1,7 +1,7 @@
+import Link from "next/link";
 import { getCafes } from "@/lib/cafes";
-import { Masthead } from "@/components/masthead";
-import { CinematicMap } from "@/components/cinematic-map";
-import { Legend } from "@/components/legend";
+import { TopNav } from "@/components/top-nav";
+import { MapShell } from "@/components/map-shell";
 import { StationDirectory } from "@/components/station-directory";
 
 // Re-fetched at most once per minute. The materialized view is refreshed
@@ -14,48 +14,63 @@ export default async function Home() {
 
   return (
     <>
-      <main className="mx-auto max-w-[1440px] px-6 md:px-12 pt-6 md:pt-10 pb-12">
-        <Masthead />
-      </main>
+      <TopNav current="app" />
 
-      {/* Cinematic map breaks out of the max-width container to fill the
-          viewport while pinned. Self-contains its own horizontal padding. */}
-      <CinematicMap cafes={cafes} />
-
-      <main className="mx-auto max-w-[1440px] px-6 md:px-12 pb-24">
-        <Legend />
-        <StationDirectory cafes={cafes} />
-
-        {/* Global ambition tease — every metro system in the world is on the table */}
-        <section className="mt-24 pt-10 border-t border-ink/80">
-          <p className="stamp">Next stops</p>
-          <div className="mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-3 font-display font-black uppercase tracking-[-0.01em] text-3xl md:text-5xl">
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Lagos</span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Cape Town</span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Accra</span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Kampala</span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Kigali</span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink-soft/40 transition-colors duration-200 hover:text-express cursor-default">your city</span>
+      {/* Utility-first home — no scroll-driven cinematic. The cinematic
+          experience lives at /tour for anyone who wants the long version. */}
+      <main className="mx-auto max-w-[1440px] px-6 md:px-12">
+        <section className="pt-8 md:pt-10 pb-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-3xl">
+              <p className="stamp">Nairobi · Live from PG_DB</p>
+              <h1
+                className="font-display font-black uppercase text-ink leading-[0.92] tracking-[-0.02em] mt-2"
+                style={{ fontSize: "clamp(40px, 7vw, 96px)" }}
+              >
+                Where can you work
+                <br />
+                in Nairobi today?
+              </h1>
+              <p className="font-serif italic text-ink-soft text-xl md:text-2xl mt-4 max-w-2xl">
+                Twelve cafés. Three lines. Live wifi speeds from anyone with
+                a connection — tap a station to see its measurements, drop a
+                reading of your own.
+              </p>
+            </div>
+            <Link
+              href="/tour"
+              className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5 pb-2"
+            >
+              Watch the story <span aria-hidden>→</span>
+            </Link>
           </div>
-          <p className="font-serif italic text-ink-faint text-base md:text-lg mt-4 max-w-3xl">
-            One engine. Three lines. Twelve stations today, twelve thousand soon.
-            Anywhere a café offers wifi, a station belongs on the map.
-          </p>
         </section>
 
-        <footer className="mt-16 pt-6 border-t border-ink/40 flex flex-wrap items-baseline justify-between gap-4">
+        {/* The map. Static (no scroll), interactive (click stations,
+            toggle schematic ↔ geographic). */}
+        <section className="mt-4 mb-10" aria-label="Café wifi network map">
+          <MapShell cafes={cafes} />
+        </section>
+
+        {/* The directory. Search/filter/geolocation across the same data. */}
+        <section className="pb-24">
+          <StationDirectory cafes={cafes} />
+        </section>
+
+        {/* Footer — the global ambition tail lives at /tour now. */}
+        <footer className="border-t border-ink/40 pt-6 pb-10 flex flex-wrap items-baseline justify-between gap-4 text-sm">
           <p className="stamp">
             Lattency · printed in Nairobi · {new Date().getFullYear()}
           </p>
-          <p className="font-serif italic text-ink-faint text-sm">
-            a hackathon submission · Vercel × AWS Databases
+          <p className="font-serif italic text-ink-faint">
+            built on Aurora PostgreSQL · deployed on Vercel
           </p>
-          <p className="stamp">Set in Big Shoulders &amp; IBM Plex Mono</p>
+          <Link
+            href="/tour"
+            className="stamp hover:text-ink transition-colors"
+          >
+            Watch the story →
+          </Link>
         </footer>
       </main>
     </>
