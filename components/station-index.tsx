@@ -21,7 +21,10 @@ function initials(name: string): string {
 function StationCard({ cafe, index }: { cafe: CafeStation; index: number }) {
   const ord = String(index + 1).padStart(2, "0");
   return (
-    <article className="group relative bg-cream border border-ink/15 hover:border-ink/60 transition-colors duration-300">
+    <article
+      className="station-card group relative bg-cream border border-ink/15 hover:border-ink/60 hover:-translate-y-1 hover:shadow-[6px_8px_0_0_var(--color-ink)] transition-[transform,border-color,box-shadow] duration-300"
+      style={{ animationDelay: `${Math.min(index * 90, 720)}ms` }}
+    >
       {/* Photo / diagrammatic fallback */}
       <div className="relative aspect-[5/3] overflow-hidden bg-cream-edge">
         {/* Fallback layer — visible when image is absent or fails to load.

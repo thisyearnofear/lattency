@@ -73,7 +73,9 @@ export function Legend() {
                 y1={7}
                 x2={220}
                 y2={7}
-                className={TIER_STROKE[e.tier]}
+                className={`${TIER_STROKE[e.tier]} ${
+                  e.isDashed ? "" : "legend-line"
+                }`}
                 strokeWidth={6}
                 strokeLinecap={e.isDashed ? "butt" : "round"}
                 strokeDasharray={e.isDashed ? "12 8" : undefined}

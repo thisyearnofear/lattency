@@ -30,17 +30,17 @@ export default async function Home() {
         <section className="mt-24 pt-10 border-t border-ink/80">
           <p className="stamp">Next stops</p>
           <div className="mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-3 font-display font-black uppercase tracking-[-0.01em] text-3xl md:text-5xl">
-            <span className="text-ink">Lagos</span>
+            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Lagos</span>
             <span className="text-ink-faint">·</span>
-            <span className="text-ink">Cape Town</span>
+            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Cape Town</span>
             <span className="text-ink-faint">·</span>
-            <span className="text-ink">Accra</span>
+            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Accra</span>
             <span className="text-ink-faint">·</span>
-            <span className="text-ink">Kampala</span>
+            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Kampala</span>
             <span className="text-ink-faint">·</span>
-            <span className="text-ink">Kigali</span>
+            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">Kigali</span>
             <span className="text-ink-faint">·</span>
-            <span className="text-ink-soft/40">your city</span>
+            <span className="text-ink-soft/40 transition-colors duration-200 hover:text-express cursor-default">your city</span>
           </div>
           <p className="font-serif italic text-ink-faint text-base md:text-lg mt-4 max-w-3xl">
             One engine. Three lines. Twelve stations today, twelve thousand soon.

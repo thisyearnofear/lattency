@@ -20,6 +20,7 @@ export function Masthead() {
           >
             <path
               d="M14 70 Q 8 56 14 44 T 14 22 Q 8 14 14 4"
+              className="steam-wisp"
               stroke="currentColor"
               strokeWidth={2}
               fill="none"
@@ -27,6 +28,7 @@ export function Masthead() {
             />
             <path
               d="M30 70 Q 36 54 30 40 T 30 18 Q 36 12 30 2"
+              className="steam-wisp"
               stroke="currentColor"
               strokeWidth={2}
               fill="none"
@@ -34,6 +36,7 @@ export function Masthead() {
             />
             <path
               d="M46 70 Q 40 58 46 46 T 46 26 Q 40 18 46 8"
+              className="steam-wisp"
               stroke="currentColor"
               strokeWidth={2}
               fill="none"
@@ -58,7 +61,7 @@ export function Masthead() {
             anyone with a connection — turned into the only metro map of
             Nairobi where the stations don&rsquo;t move but the lines do.
           </p>
-          <p className="font-mono text-[11px] tracking-[0.18em] uppercase text-ink-faint">
+          <p className="font-mono text-[11px] tracking-[0.18em] uppercase text-ink-faint scroll-cue">
             ↓ scroll for the stations index
           </p>
         </div>
