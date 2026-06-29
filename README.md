@@ -202,12 +202,12 @@ pnpm exec tsc --noEmit
 
 ## Deploy
 
-Aurora is provisioned. To ship to Vercel:
+Live at **https://lattency.vercel.app/**. To redeploy or fork:
 
 1. Connect the GitHub repo to a Vercel project.
 2. Add `DATABASE_URL` (the same value as in `.env.local`) to the Vercel project's environment variables.
-3. Open the Aurora security group to Vercel function egress. The simplest path is to allow `0.0.0.0/0` on port 5432 — Aurora requires TLS and the password is 32-char hex. The production-grade path is to put RDS Proxy in front (or use the Vercel × AWS Aurora marketplace integration).
-4. Deploy. The first request after idle wakes Serverless v2 in ~15–30s; subsequent requests are warm.
+3. Allow Vercel's dynamic egress IPs to reach Aurora on port 5432. For the hackathon we opened the SG to `0.0.0.0/0` — Aurora requires TLS and the password is 32-char hex. The production-grade path is the **Vercel × AWS Marketplace Aurora integration** (PrivateLink-backed). RDS Proxy in front of Aurora *won't* work for Vercel because the proxy is VPC-internal by design and not reachable from outside the VPC without PrivateLink/peering — we attempted this and tore it down, see `docs/submission.md` for the full architecture journey.
+4. Deploy. The first request after idle wakes Serverless v2 in ~15–30s; subsequent requests are warm. The home page is pre-rendered static with a 60-second revalidate, so most visitors are served from Vercel's edge cache and Aurora is hit at most once per minute.
 
 ---
 
@@ -219,9 +219,10 @@ Aurora is provisioned. To ship to Vercel:
 | 1. Schema + Nairobi seed                   | done  |
 | 2. Read path API (`/api/cafes/*`)          | done  |
 | 3. Write path API (`/api/measurements`)    | done  |
-| Cinematic frontend                         | in progress |
-| Deployment to Vercel                       | pending |
+| Cinematic frontend (GSAP)                  | done  |
+| Deployment to Vercel                       | done  |
 | 4. Browser-driven speed test contributor   | pending |
+| Vercel × AWS Marketplace integration       | post-submission |
 
 ---
 

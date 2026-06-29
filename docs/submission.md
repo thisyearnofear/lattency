@@ -93,7 +93,20 @@ Add `#H0Hackathon` per the official rules so it counts.
 
 ---
 
-## Post-submission: revert the open SG
+## Architecture journey + production roadmap
+
+The demo runs on Aurora PG Serverless v2 reached over TLS from Vercel functions, with port 5432 open to `0.0.0.0/0` to allow Vercel's dynamic egress IPs. This is the hackathon-pragmatic choice; below is the honest path to a production-grade network and what was attempted on the way.
+
+**Attempted: RDS Proxy in front of Aurora.** Built the full stack — dedicated proxy SG, Secrets Manager secret for the master credentials, IAM role with secret-read policy, RDS Proxy targeting the cluster. Discovered RDS Proxy is **VPC-internal by design** — the proxy endpoint resolves to private VPC IPs (172.31.x.x) and is unreachable from outside the VPC without VPC peering, PrivateLink, or a load balancer bridging public traffic in. RDS Proxy is built for in-VPC consumers (Lambda in the same VPC, EC2, ECS) — not for serverless platforms like Vercel that don't share the VPC. Resources have been torn down.
+
+**Production path forward (in order of investment):**
+1. **Vercel × AWS Marketplace Aurora integration.** The flagship integration this hackathon promotes — provisions Aurora through the Vercel dashboard with PrivateLink-backed networking. Vercel functions reach Aurora over private link; Aurora is never internet-listening. This is the right answer for a production launch.
+2. **Self-managed AWS PrivateLink.** Same architecture, more work — create a VPC endpoint service, expose RDS Proxy through it, set up the consumer endpoint on Vercel's side via partner setup.
+3. **NLB + RDS Proxy.** A public-facing Network Load Balancer fronts the proxy. Bridges the VPC-internal proxy to public traffic. Adds ~$16/mo NLB cost and TLS-termination considerations, but doable without re-provisioning.
+
+For this hackathon's scope, Path 1 would have meant re-provisioning Aurora through the Vercel dashboard hours before submission — too risky against a deadline. The open-SG path was the pragmatic choice, with the explicit plan to graduate to Marketplace integration when this becomes a real product.
+
+## Post-submission: revoke the open SG
 
 For the hackathon demo, port 5432 is open to `0.0.0.0/0` so Vercel can reach Aurora. After submission:
 
@@ -104,4 +117,12 @@ aws ec2 revoke-security-group-ingress \
   --security-group-rule-ids sgr-01cae09a4cf6ce3c1
 ```
 
-This removes the open rule. Lattency will stop working from Vercel — which is fine, since the submission is what matters. If you want to keep the demo alive long-term, put RDS Proxy in front (covered in the README deploy section).
+This removes the open rule. Lattency will stop working from Vercel — which is fine, since the submission is what matters. To keep the demo alive long-term, follow Path 1 above (Vercel × AWS Marketplace Aurora integration).
+
+## Post-submission: extra IAM permissions to revoke
+
+During the RDS Proxy attempt we added `SecretsManagerReadWrite` and `IAMFullAccess` to the `lattency-provisioning` IAM group. Neither is needed any longer:
+
+- AWS Console → IAM → User groups → `lattency-provisioning` → Permissions → detach both policies.
+
+`AmazonRDSFullAccess` and `AmazonEC2FullAccess` can stay (they're what `scripts/provision-aurora.sh` relies on if you ever re-run it) or be detached if you're cleaning up entirely.
