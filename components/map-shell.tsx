@@ -434,14 +434,11 @@ export function MapShell({
             </button>
           );
         })}
-        {/* Map a new café — the open contribution CTA */}
-        <button
-          type="button"
-          onClick={() => setShowContribution(true)}
-          className="ml-auto px-3 py-1.5 font-mono text-[10px] tracking-[0.22em] uppercase border border-express text-express hover:bg-express hover:text-cream transition-colors"
-        >
-          + Map a café
-        </button>
+        {/* The v9 "+ Map a café" CTA used to live here, but it collided with
+            the absolute-positioned locate panel in the map's top-right
+            corner. The v9.3 top-nav now carries the same action as a
+            sticky, always-visible primary button — keeping it twice
+            would just clutter the filter row and recreate the overlap. */}
       </div>
 
       {view === "schematic" ? (
