@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Demo video binaries — reproducible from scripts/demo/, not committed
+public/demo/lattency-demo.mp4
+public/demo/lattency-vo-only.wav
+public/demo/vo-clips/
