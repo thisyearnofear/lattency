@@ -23,13 +23,15 @@ If the project is on a personal account rather than a team, use **Account ID** f
 
 ## AWS Console screenshot (submission requirement)
 
-The submission form asks for a screenshot proving AWS Database usage. Use this exact view:
+Three screenshots are already in the repo at `public/screenshots/`:
 
-1. AWS Console → **RDS** → **Databases** → click `lattency-dev` (the cluster, not the instance).
-2. The Connectivity & security tab shows the endpoint `lattency-dev.cluster-c3oca2mka1ds.eu-north-1.rds.amazonaws.com` and confirms engine `aurora-postgresql 16.6` plus Serverless v2 scaling config (Min 0, Max 2 ACU).
-3. Take a full-window screenshot. Crop only enough to remove your browser chrome — leave the AWS Console URL bar visible so judges can see the genuine console.
+| File | Shows | When to use it |
+|---|---|---|
+| `RDS1.png` | Databases list with `lattency-dev` cluster + `lattency-dev-writer` instance, region indicator "Europe (Stockholm)", engine `Aurora PostgreSQL` | The primary submission upload — proves AWS Database usage end-to-end |
+| `RDS2.png` | `lattency-dev` cluster detail, Connectivity & security tab | Backup if the form asks for cluster configuration |
+| `RDS3.png` | Connection-step command + endpoint string | Optional — shows the actual `psql` connection invocation if the form asks for "how you connect" |
 
-If the cluster page won't load (Aurora may be auto-paused), refresh once — that wakes it. The page renders fine even with 0 ACUs.
+`RDS1.png` is the canonical one. URL bar visible, region indicator visible, two-row database table confirming the cluster + writer instance both in `eu-north-1`.
 
 ---
 
@@ -37,27 +39,27 @@ If the cluster page won't load (Aurora may be auto-paused), refresh once — tha
 
 If the form has one long-form field, use this:
 
-> **Lattency** is a crowdsourced metro map of café wifi speeds in Nairobi. Cafés are stations; the three lines are speed tiers — Express (≥50 Mbps), Local (10–49 Mbps), and Suspended (<10 Mbps). Contributors POST a speed measurement; the materialized view that tiers cafés refreshes concurrently, and the next reader sees the line update in real time.
+> **Lattency** is a crowdsourced metro map of café wifi speeds in Nairobi. Cafés are stations; the three lines are speed tiers — Express (≥50 Mbps), Local (10–49 Mbps), and Suspended (<10 Mbps). The whole experience is one scroll: a cinematic camera flies down each line in turn, then the map zooms out to a real Natural Earth world map to make the "one engine, every city" promise visual. Click any café to open a detail drawer with the speed distribution across morning / afternoon / evening; submit a measurement from the same drawer and the form previews which line your reading will land on **as you type**, then writes to Aurora and the next reader sees the new tier within seconds.
 >
-> The data spine runs on **Amazon Aurora PostgreSQL Serverless v2** with PostGIS, because the "cafés near me" API uses `ST_DWithin` for geographic radius queries — PostGIS support ruled out DynamoDB and Aurora DSQL. The Serverless v2 cluster scales to 0 ACUs when idle, costing near-zero between visits, and wakes in ~15-30s on the first read. A `cafe_speed_stats` materialized view pre-computes per-café medians and tier classification; `REFRESH MATERIALIZED VIEW CONCURRENTLY` runs after every measurement insert so reads stay close to live without locking the view.
+> The data spine runs on **Amazon Aurora PostgreSQL Serverless v2** with PostGIS — PostGIS rules out DynamoDB and Aurora DSQL because the "cafés near me" API uses `ST_DWithin` for radius queries. Serverless v2 scales to 0 ACUs when idle, costing near-zero between visits, and wakes in ~15-30s on the first read. A `cafe_speed_stats` materialized view pre-computes per-café medians and tier classification; `REFRESH MATERIALIZED VIEW CONCURRENTLY` runs after every measurement insert so reads stay close to live without locking the view.
 >
-> The frontend is **Next.js 16.3 on Vercel**, with a pinned 800vh scroll-driven cinematic SVG map built on GSAP (MotionPath + DrawSVG + ScrollTrigger + quickTo camera tracking). Six theatrical phases tour each line in turn, then a finale zooms out to a constellation of world cities — Lagos, Cape Town, Accra, Kampala, Kigali, plus global peers — to make the "one engine, every city" promise visual. The home page server-component reads from Aurora and is pre-rendered statically with a 60-second revalidate, so the page is fast at the edge and reads are batched.
+> The frontend is **Next.js 16.3 on Vercel** with a pinned 800vh scroll-driven cinematic SVG map built on GSAP (MotionPath + DrawSVG + ScrollTrigger + quickTo camera tracking). A schematic ↔ geographic view toggle morphs stations from their abstract grid positions to their real lat/lng coordinates on a stylized Nairobi neighbourhood map. The home page server-component reads from Aurora and is pre-rendered statically with a 60-second revalidate, so the page is fast at the edge and reads are batched. When Aurora is mid-cold-start or unreachable, the read path degrades gracefully to a bundled snapshot — the demo never white-screens.
 >
 > The same engine would map any city. Nairobi was the first board. The next twelve thousand are next.
 
 If the form has separate "what does it do" / "why" / "how" fields:
 
 **What does it do:**
-> Lattency turns crowdsourced café wifi measurements into a metro-map-style network for Nairobi. Cafés are stations, lines are speed tiers, and anyone with a connection can contribute a measurement that updates the map in real time.
+> Lattency turns crowdsourced café wifi measurements into a metro-map-style network for Nairobi. Cafés are stations, lines are speed tiers, and anyone can submit a reading — the form previews which line their measurement will land on as they type, then the materialized view refreshes and the next visitor sees the new tier.
 
 **Why did you build it:**
-> Finding a café with usable wifi in Nairobi is a guessing game that wastes hours every week. The metro-map metaphor turns scattered, anecdotal speed data into a recognizable transit network at a glance — and the schematic ↔ geographic view toggle shows the same engine could ship to any city the same day.
+> Finding a café with usable wifi in Nairobi is a guessing game that wastes hours every week. The metro-map metaphor turns scattered, anecdotal speed data into a recognizable transit network at a glance — and the schematic ↔ geographic view toggle plus the world-map finale show the same engine could ship to any city the same day.
 
 **Which AWS Database did you use and why:**
 > Amazon Aurora PostgreSQL Serverless v2 (engine 16.6, region eu-north-1). PostGIS is the deciding factor — `ST_DWithin` powers the "cafés near me" API endpoint, and that geospatial requirement ruled out Aurora DSQL and DynamoDB. Serverless v2 auto-pauses at 0 ACUs when idle (near-zero idle cost) and warms in ~15-30s, which suits a hackathon demo and would suit a real product launching city-by-city. A materialized view `cafe_speed_stats` pre-computes medians and tiers; `REFRESH MATERIALIZED VIEW CONCURRENTLY` keeps reads close to live without lock contention.
 
 **How is it built (technical):**
-> Next.js 16.3 (App Router, RSC) on Vercel; pg.Pool singleton cached on globalThis for serverless-safe connection reuse; Aurora PG Serverless v2 in eu-north-1; TLS-required connection; GSAP 3.15 with MotionPathPlugin + DrawSVGPlugin + ScrollTrigger for the cinematic; CSS-only micro-interactions for the rest. The home page is pre-rendered static with a 60-second revalidate so reads are batched and the edge serves the cached page to most visitors.
+> Next.js 16.3 (App Router, RSC) on Vercel; pg.Pool singleton cached on globalThis for serverless-safe connection reuse; Aurora PG Serverless v2 in eu-north-1; TLS-required connection; GSAP 3.15 with MotionPathPlugin + DrawSVGPlugin + ScrollTrigger for the cinematic; CSS-only micro-interactions for the rest. The home page is pre-rendered static with a 60-second revalidate so reads are batched and the edge serves the cached page to most visitors. Read path includes a bundled-snapshot fallback (`lib/mock-cafes.ts`) so the page never white-screens during Aurora cold-starts or planned outages.
 
 ---
 
@@ -69,7 +71,7 @@ A short post you can adapt for LinkedIn or dev.to to claim the "publish a piece 
 >
 > The data spine runs on Aurora PostgreSQL Serverless v2 with PostGIS. The "cafés near me" API uses ST_DWithin for spatial queries. A materialized view tiers each café by median speed; REFRESH CONCURRENTLY keeps reads live without locking the view. Aurora scales to 0 ACUs when idle, so a hackathon demo costs near-nothing to run.
 >
-> The cinematic is the differentiator. Pinned 800vh scroll, six phases, GSAP driving a "camera" along Bezier tier paths. The finale zooms out to a constellation of world cities to make the "one engine, every city" promise visual.
+> The differentiator is the experience. Pinned 800vh scroll, six phases, GSAP driving a "camera" along Bezier tier paths. The finale zooms out to a real Natural Earth world map and lights up cities from Lagos to Tokyo. Click any café to open a detail with the speed distribution across morning/afternoon/evening and a form that previews which tier your reading will land on **as you type** — submit it, watch the tier flip in real time.
 >
 > Repo: https://github.com/thisyearnofear/lattency
 > Live: https://lattency.vercel.app/
@@ -82,13 +84,16 @@ Add `#H0Hackathon` per the official rules so it counts.
 
 ## Pre-flight checklist before you hit submit
 
-- [ ] Lattency loads at https://lattency.vercel.app/ without errors
-- [ ] `/api/cafes/near` returns 12 cafés (curl confirms it)
-- [ ] AWS Console screenshot captured, console URL visible
-- [ ] Architecture diagram either rendered as PNG (mermaid.live → paste the block) or screenshot of the README rendered on GitHub
+- [x] Lattency loads at https://lattency.vercel.app/ without errors
+- [x] `/api/cafes/near` returns 12 cafés, tier mix 4 express / 6 local / 2 suspended
+- [x] `POST /api/measurements` round-trips against prod (verified — Brew Bistro flipped suspended → express on five POSTs, then reseeded back to suspended)
+- [x] AWS Console screenshots saved at `public/screenshots/RDS{1,2,3}.png`
+- [x] OG image renders at https://lattency.vercel.app/opengraph-image (1200×630 PNG, masthead aesthetic)
+- [ ] Architecture diagram either rendered as PNG (mermaid.live → paste the block from README) or screenshot of the README rendered on GitHub
 - [ ] Vercel Team ID copied from Vercel Settings → General
-- [ ] Demo video recorded, edited under 3 minutes, uploaded to YouTube (unlisted is fine)
-- [ ] Aurora cluster is not currently mid-pause when video records — visit the live URL once to warm it before recording
+- [ ] Demo video recorded against `docs/demo-video.md` (in-browser contribute flow, not curl), edited under 3 minutes, uploaded to YouTube unlisted
+- [ ] Aurora warmed before recording (visit https://lattency.vercel.app once 30s before pressing record)
+- [ ] Brew Bistro Kilimani still shows **suspended** in the directory before recording (if not, `pnpm seed` locally and wait 60s)
 - [ ] Bonus content posted (LinkedIn / dev.to / blog) with #H0Hackathon, if going for the bonus
 
 ---

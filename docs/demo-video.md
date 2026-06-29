@@ -12,6 +12,12 @@ Recommended tools:
 - A second monitor or window for the script
 - Browser at **1440×900**, dev tools closed, address bar showing the production Vercel URL
 
+**Pre-flight (5 minutes before you press record):**
+- Visit https://lattency.vercel.app once to wake Aurora Serverless v2 from auto-pause (first cold connection is 15-30s; you don't want a hang on tape)
+- Confirm the directory shows Brew Bistro Kilimani as **suspended** — if it shows express, someone already POSTed (run `pnpm seed` locally to reset, then wait 60s for the home page revalidate)
+- Close any browser extension overlays (wallet popups, password-manager prompts)
+- Hide the bookmarks bar so the masthead has more vertical room
+
 ---
 
 ## 0:00 — 0:15 · The hook
@@ -43,75 +49,100 @@ This is your strongest 40 seconds. Don't rush. Let the route card show the activ
 
 ---
 
-## 0:55 — 1:35 · Contribute a measurement, watch the tier flip
+## 0:55 — 1:00 · The finale, the global ambition
 
-**On screen:** Open a terminal beside the browser. Run the curl POST. Browser refreshes. The same café — pick **Brew Bistro Kilimani** — flips from suspended (red, dashed) to express (green, solid).
+**On screen:** Continue scrolling. The map zooms out to a real Natural Earth world map. Nairobi pulses green over East Africa. Arcs draw out to Lagos, Cape Town, Accra, Kampala, Kigali, then Berlin, Tokyo, NYC, São Paulo, Mumbai, Singapore — each city sitting on its real geography.
 
 **Say:**
-> "Anyone can contribute a measurement. Here, I'm POSTing five fast measurements to Brew Bistro Kilimani — a café that's currently in the suspended tier."
+> "The schematic isn't Nairobi-specific. The same engine could map any city's wifi the same way. Lagos. Cape Town. Yours."
 
-(run the curl loop)
-
-**On screen:** The five 201s land. Refresh the page.
-
-> "The next read pulls from a materialized view that just refreshed. Brew Bistro is now on the express line."
-
-(scroll to Brew Bistro's card in the stations index — the tier chip is now green)
-
-**Commands to have ready in the terminal:**
-```bash
-ID=$(curl -s https://<your-vercel-url>/api/cafes/near | jq -r '.cafes[] | select(.name=="Brew Bistro Kilimani") | .id')
-for i in 1 2 3 4 5; do
-  curl -X POST https://<your-vercel-url>/api/measurements \
-    -H "Content-Type: application/json" \
-    -d "{\"cafeId\":\"$ID\",\"downMbps\":100,\"upMbps\":25,\"latencyMs\":10}"
-  echo
-done
-```
-
-(Pre-stage these in a shell script so you can run it with one keystroke.)
+Let the constellation finish lighting up before you cut. This is your "world map" moment — short but memorable.
 
 ---
 
-## 1:35 — 2:15 · The finale, the global ambition
+## 1:00 — 1:45 · Contribute a measurement, watch the tier flip live
 
-**On screen:** Continue scrolling. The map zooms out. Nairobi pulses green. Arcs draw out to Lagos, Cape Town, Accra, Kampala, Kigali, then Berlin, Tokyo, NYC, São Paulo, Mumbai, Singapore. The chyron reads "ONE ENGINE, EVERY CITY".
+**No terminal.** The contribute flow is now fully in-browser. Don't show curl — it's slower and less impressive.
+
+**On screen:** Scroll past the cinematic into the **"Find your line"** station directory. Click **Brew Bistro Kilimani** (the suspended station — currently red, dashed).
 
 **Say:**
-> "The schematic isn't Nairobi-specific. The same engine — Aurora PostgreSQL, PostGIS for the geography, a materialized view that tiers cafés as measurements arrive — could map any city's wifi the same way. Lagos. Cape Town. Yours."
+> "Anyone with a connection can contribute a measurement. Brew Bistro Kilimani is on the suspended line — under ten megabits."
 
-Let the constellation finish lighting up before you cut.
+**On screen:** Detail panel opens. Pause on the time-of-day chart (morning / afternoon / evening bars, all under 10 Mbps with the dashed Express threshold reference line above).
+
+> "Here's the speed distribution across the day. The dashed line at fifty megabits is the express threshold."
+
+**On screen:** Click into the **"Contribute a reading"** form. Type `100` in Down, `25` in Up, `10` in Ping — slowly enough that the camera catches the live tier-preview badge flipping from nothing to **"→ EXPRESS line"** in green.
+
+> "As I type, the form tells me which line my reading lands on. A hundred megabits would put Brew Bistro on the Express line."
+
+**On screen:** Click **"Log this reading"**. The success state appears ("Reading logged · your measurement is now part of Brew Bistro's line").
+
+> "That POST goes to Aurora. The materialized view refreshes concurrently. The next read sees the new tier."
+
+**On screen:** Close the detail. The directory card for Brew Bistro now reads **EXPRESS** in green (the modal refetches on the way out; if not, scroll, then scroll back, the card is now express).
+
+> "The same data, one second later, on a different line."
 
 ---
 
-## 2:15 — 3:00 · The stack (this is the AWS judge slot)
+## 1:45 — 2:30 · Schematic ↔ Geographic (the engine reveal)
 
-**On screen:** Switch to the README on GitHub OR a clean architecture diagram (extract the Mermaid block as a PNG — see `docs/architecture-diagram.md`).
+**On screen:** Scroll back up into the cinematic. Click the **Geographic** toggle in the bottom-left of the map.
 
 **Say:**
-> "Under the hood: Next.js sixteen on Vercel, GSAP for the scroll-driven SVG, and Aurora PostgreSQL Serverless v2 in eu-north-1. We picked Aurora over Aurora DSQL and DynamoDB because we needed PostGIS — `ST_DWithin` powers the 'cafés near me' API."
+> "The same twelve cafés, plotted on their real lat-long coordinates. This is what the engine actually knows about them — geography, served by PostGIS."
 
-**On screen:** Cut briefly to AWS Console showing the Aurora cluster (this is the submission requirement). Then cut to the Vercel project dashboard.
+**On screen:** Let the morph play out. Stations slide from their schematic grid positions into their real Westlands / Kilimani / CBD / Karen clusters. The four neighbourhood polygons fade in beneath.
 
-> "Serverless v2 scales to zero ACUs when idle — the demo costs almost nothing to run. The materialized view refreshes concurrently on every measurement, so reads are always close to live."
+> "Cafés near me? That's a `ST_DWithin` call. Two hundred metres of Postgres geography against an Aurora cluster that scales to zero ACUs when idle."
 
-> "Twelve stations today. The next twelve thousand are next. Lattency."
+Toggle back to Schematic so the next section's transition is clean.
 
-End on the masthead held for a beat.
+---
+
+## 2:30 — 3:00 · The stack (this is the AWS judge slot)
+
+**On screen:** Cut to the AWS Console showing the Aurora cluster (this is the submission requirement — `public/screenshots/RDS1.png` is the reference). Then cut briefly to the Vercel project dashboard.
+
+**Say:**
+> "Amazon Aurora PostgreSQL Serverless v2 in eu-north-1. We picked Aurora over Aurora DSQL and DynamoDB because we needed PostGIS — `ST_DWithin` for spatial queries. A materialized view tiers each café by median measurement; CONCURRENTLY refreshes mean reads stay live. Aurora scales to zero ACUs when nobody's watching, so a hackathon demo costs almost nothing to run."
+
+> "Frontend is Next.js sixteen on Vercel. The home page pre-renders static with a sixty-second revalidate — most visitors are served from Vercel's edge cache, and Aurora gets hit at most once per minute."
+
+> "Twelve stations today. The next twelve thousand are next."
+
+End on the LATTENCY masthead held for a beat. Cut.
 
 ---
 
 ## Production tips
 
-- **Practice the scroll pacing.** The cinematic is 800vh — at a normal scroll speed you'll cover it in ~25 seconds. Practice landing each chyron beat (express/local/suspended/finale) on the corresponding voice-over line.
+- **Practice the scroll pacing.** The cinematic is 800vh — at a normal scroll speed you'll cover it in ~25 seconds. Practice landing each chyron beat (express / local / suspended / finale) on the corresponding voice-over line.
+- **Practice the form interaction once.** The tier-preview badge needs to be visible long enough for the camera to catch it — type the three numbers deliberately, not at full speed.
 - **Mute mouse-click sounds.** OBS → Settings → Audio → suppress.
-- **Make the terminal big enough to read on mobile.** Increase font size, dark background.
-- **Pre-stage the `.sh` script for the POST loop.** Pasting commands live looks amateur and eats seconds.
-- **Don't show dev tools, .env files, or your AWS credentials at any point.** Sanitise everything visible.
+- **Hide bookmarks bar and dev tools.** Maximise the address bar's visibility so the `lattency.vercel.app` URL is on screen during key moments.
+- **Don't show .env files, your AWS credentials, your IAM console, or anything with secrets.** Sanitise everything visible.
 - **Record at 1080p, upload to YouTube as unlisted.** Submission asks for a YouTube link — unlisted is fine.
+- **Reseed after recording** if you POSTed during the demo: `pnpm seed` locally restores Brew Bistro to its suspended baseline.
 
 ## What you DON'T need to show
 
 - The seed file. The seed is a developer convenience; judges care about the live product.
 - The pre-commit hook. Engineering hygiene matters, but it's not a Best Design or Most Original argument.
-- Code beyond the architecture frame in the closing 45 seconds. Code-on-screen for >5s loses general-audience judges.
+- Code beyond the architecture frame in the closing 30 seconds. Code-on-screen for >5s loses general-audience judges.
+- Terminal windows. The old curl-loop POST has been replaced by the in-browser contribute flow — no terminal needs to appear in this video.
+
+## If you have extra time (sub-3-min variants)
+
+**90-second cut** for social media or LinkedIn:
+- 0:00–0:10 hook (masthead)
+- 0:10–0:35 scroll the cinematic (skim faster)
+- 0:35–0:55 contribute + tier flip
+- 0:55–1:10 finale (world map)
+- 1:10–1:30 stack ("Aurora PG Serverless v2 + PostGIS + Vercel · one engine, every city")
+
+**Tightening to 2:30** if you want margin under the 3-min cap:
+- Cut the schematic/geographic toggle reveal (1:45–2:30) and roll its message into the stack beat
+- Or trim the contribute section by skipping the time-of-day chart pause

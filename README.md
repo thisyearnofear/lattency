@@ -83,6 +83,8 @@ app/
 ├── api/cafes/near        # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
 ├── api/cafes/[id]        # GET /api/cafes/:id (detail + time-bucket distribution)
 ├── api/measurements      # POST /api/measurements (insert + refresh MV)
+├── opengraph-image.tsx   # Dynamic OG image (1200×630, masthead aesthetic)
+├── icon.svg              # Favicon — minimal three-line metro mark
 └── page.tsx              # Server component composing the home
 
 components/
@@ -90,14 +92,16 @@ components/
 ├── masthead.tsx          # Hero block with steam-wisp coffee identity
 ├── legend.tsx            # Three lines of service (roast vocabulary + bean glyph)
 ├── station-directory.tsx # Interactive directory: geolocation finder, tier filter, clickable cards
-├── cafe-detail.tsx       # Detail drawer: time-bucket distribution + metadata
-└── measurement-form.tsx  # Optimistic-UI speed measurement submission
+├── cafe-detail.tsx       # Detail drawer: time-bucket distribution chart + metadata
+└── measurement-form.tsx  # Optimistic-UI speed measurement submission with live tier preview
 
 lib/
 ├── db.ts                 # pg.Pool singleton, serverless-safe
-├── cafes.ts              # getCafes(opts), getCafeById(id)
+├── cafes.ts              # getCafes(opts), getCafeById(id) — with mock fallback
 ├── types.ts              # CafeStation, CafeDetail, Tier, TimeBucket
-└── mock-cafes.ts         # Mock data matching the API contract
+├── mock-cafes.ts         # Bundled Nairobi snapshot — API contract + fallback source
+├── map-data.ts           # Shared geometry: tier paths, hood polygons, world cities
+└── world-path.ts         # Natural Earth land silhouette for the global finale
 
 migrations/
 ├── 0001_extensions.sql   # postgis, uuid-ossp
