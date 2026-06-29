@@ -85,6 +85,7 @@ app/
 ├── tour/page.tsx             # The cinematic experience (scroll-driven, 800vh)
 ├── cafes/[slug]/page.tsx     # Per-café standalone page (SSG across both cities, OG metadata)
 ├── cafes/[slug]/opengraph-image.tsx # Per-café OG image (1200×630, tier badge + stats + signal quality)
+├── partners/page.tsx         # /partners — two-sided monetization pitch + open bounties board
 ├── api/cafes                 # POST /api/cafes (create café + first measurement in one transaction)
 ├── api/cafes/near            # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
 ├── api/cafes/[id]            # GET /api/cafes/:id (detail + time-bucket distribution + recent readings)
@@ -110,6 +111,8 @@ components/
 ├── cafe-metadata-display.tsx # Renders coffee metadata (price / milk / outlets / seating / wifi) as chips (cards) or labeled rows (detail)
 ├── vibe-chips.tsx            # Compact mono chips that ride under the editorial vibe line (`outlets++`, `oat-milk`, `pour-over`, …)
 ├── recent-readings.tsx       # "Last brewed here" ticker — last 5 readings with relative timestamps, useSyncExternalStore tick
+├── sponsor-badge.tsx         # "Powered by [Sponsor]" badge surfaced on sponsored café tiles + detail pages; links to /partners
+├── bounties-board.tsx        # Coffee Bounties — monetization preview on homepage + /partners (pre-funded incentives for verified contributions)
 ├── measurement-form.tsx      # One-click in-browser speed test + manual entry fallback, optimistic UI
 ├── signal-quality.tsx        # Shared signal-quality indicator (jitter/loss bars + stability label)
 └── copy-share-link.tsx       # "Share link" button (writes window.location to clipboard)
@@ -126,6 +129,8 @@ lib/
 ├── measurements.ts           # Shared insert path used by both POST /api/measurements and POST /api/cafes; accepts an Executor so it can join an outer transaction
 ├── cafe-metadata.ts          # Single source of truth for the coffee-metadata vocabulary (price / milk / seating) + validateCafeMetadata + formatMetadata + metadataChips
 ├── mock-cafes.ts             # Bundled snapshot — Nairobi (Aurora fallback) + SF (mock-only) = 24 cafés, each carries vibeTags for the chip row
+├── sponsors.ts               # Sponsored-tile lookup keyed by café name; demo of the ISP sponsorship model from /partners
+├── bounties.ts               # Demo dataset for the Coffee Bounties board — mixed ISP / café / community sponsors
 ├── map-data.ts               # Shared geometry: tier paths, hood polygons, world cities, computeWaypoints() auto-layout
 └── world-path.ts             # Natural Earth land silhouette for the global finale
 
@@ -444,10 +449,22 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | "Try with sample data →" affordance on the contribution form — pre-fills name, neighbourhood, city, vibe, metadata, jittered coordinates, and a generated SVG photo card; jumps straight to the speed-test step | done  |
 | `cafe_speed_stats` list query split into `LIST_COLUMNS` (drops `cs.photo_url`) and `CAFE_COLUMNS` (keeps it) — a 24-café homepage no longer ships ~1.2 MB of base64 for thumbnails the cards never display | done  |
 
+**Business model preview (v9.2 — monetization):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| `/partners` page — three-sided pitch (ISPs / café owners / contributors) in the East African transit poster aesthetic | done  |
+| Coffee Bounties board — sponsors pre-fund a payout for a specific contribution target (first café in Lavington, 3 oat-milk cafés in Kilimani, 10th verified test at Savanna, …); surfaced on `/`, `/sf`, and `/partners` | done (preview) |
+| `<SponsorBadge/>` on sponsored café tiles — concrete example: Connect Coffee Roasters powered by Safaricom Fibre, Mazarine powered by Sonic.net | done  |
+| `lib/bounties.ts` + `lib/sponsors.ts` — single source of truth for the demo datasets, keyed by café name so the lookup works against both DB rows and the mock fallback | done  |
+
 **Beyond the hackathon:**
 
 | Step                                       | State |
 | ------------------------------------------ | ----- |
+| Real bounty payout rail (M-Pesa for Nairobi, Stripe Connect elsewhere) — Bounties currently UI-only | pending |
+| `sponsorships` + `bounties` tables (joined on `cafe_id`) — currently keyed by café name in TS modules | pending |
+| Verification protocol — second-reading corroboration before bounty release | pending |
 | Reverse-geocode city name from coordinates (currently user-entered) | pending |
 | Vercel Blob for photo storage (currently Base64 in Postgres) | pending |
 | Rate-limit preflight on the contribution form so users learn about the 429 before running the speed test | pending |

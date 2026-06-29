@@ -194,3 +194,19 @@ After the hackathon deadline, five phases of work transformed lattency from "typ
 - **Brand mark** — a coffee-cup + wifi-arcs glyph used in top-nav, the masthead Edition stamp, and the favicon. Single React component (`brand-mark.tsx`) whose paths match `app/icon.svg`.
 
 **Payload trim:** The `cafe_speed_stats` list query now uses a thinned `LIST_COLUMNS` that drops `cs.photo_url` (which can hold a ~50 KB base64 data URL). Detail queries still SELECT it. A 24-café homepage no longer ships ~1.2 MB of base64 for thumbnails the card view never displays — the contributor photo only loads on the per-café page where it actually shines.
+
+### Phase 6: Business model preview (v9.2)
+
+**The two-sided marketplace.** A transit map of café wifi is genuinely useful to consumers but the revenue question is "who pays?" Three answers, all live in the UI today:
+
+1. **ISPs sponsor speed badges in the neighbourhoods they serve.** Every visitor to the city's map sees that the ISP's network is what makes those cafés express-tier. Concrete demo: *Connect Coffee Roasters* (Westlands, express) carries a *Powered by Safaricom Fibre* badge; *Mazarine Coffee* (FiDi, express) carries a *Powered by Sonic.net* badge. Both link to `/partners` for the model.
+2. **Café owners stake bounties for the Nth verified speed test at their café** — the contributor gets the coffee, the café gets the visit, the wifi gets the proof. Free verified badge on the tier they earn through measurements.
+3. **Contributors earn coffee by running tests.** Every verified reading is a small data point an ISP or a café owner is willing to pay for. Today the payout is a coffee on the house at the café; the M-Pesa / Stripe payout rail ships with the first ISP partner.
+
+**Coffee Bounties board.** Visible on `/`, `/sf`, and `/partners`. Six representative bounties spanning ISP-funded ("3 oat-milk cafés in Kilimani" by Safaricom), café-funded ("be the 10th verified speed test at Savanna Coffee Lounge"), and community-funded ("first verified café in Lavington" by `@workmunyao`). Each card carries the sponsor type, the goal, the bounty value in coffees (☕), and a progress bar against the target.
+
+**Why this isn't vapourware.** The trust layer is already shipped: speed test rounds-trip through a Vercel edge region the server records and returns; outlier readings are flagged in Aurora the moment they land; rate-limiting is scoped per IP per café per 10 minutes. The first sponsored bounty payout would gate on a clean outlier flag plus a second corroborating reading — both mechanics already exist in `lib/rate-limit.ts` and `lib/measurements.ts`.
+
+**`/partners` page** is the pitch: three audience blocks (ISP / café owner / contributor), each with its own value prop, pricing teaser, and contact email, plus an in-page anchor down to the live bounty board. Built in the same East African transit poster aesthetic as the rest of the site so the monetization narrative reads as continuous with the product.
+
+**Files added:** `app/partners/page.tsx`, `components/bounties-board.tsx`, `components/sponsor-badge.tsx`, `lib/bounties.ts`, `lib/sponsors.ts`. Single source of truth for the demo data; lookups are keyed by café name so they work against both Aurora-backed rows and the mock fallback without touching the schema.

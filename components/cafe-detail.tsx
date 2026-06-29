@@ -8,6 +8,7 @@ import { SignalQuality } from "./signal-quality";
 import { VibeChips } from "./vibe-chips";
 import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
+import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -295,7 +296,13 @@ export function CafeDetail({
                 <VibeChips tags={d.vibeTags} />
               </div>
             )}
-            <div className="flex items-baseline justify-between gap-3 mt-1">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <SponsorBadge cafeName={d.name} />
+            </div>
+            <div className="mt-1.5">
+              <SponsorTagline cafeName={d.name} />
+            </div>
+            <div className="flex items-baseline justify-between gap-3 mt-3">
               <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-soft">
                 {TIER_ROAST[d.tier]}
               </p>

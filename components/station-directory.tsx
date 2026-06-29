@@ -6,6 +6,7 @@ import { CITIES } from "@/lib/cities";
 import { CafeDetail } from "./cafe-detail";
 import { SignalQuality } from "./signal-quality";
 import { VibeChips } from "./vibe-chips";
+import { SponsorBadge } from "./sponsor-badge";
 import { CafeMetadataChips } from "./cafe-metadata-display";
 
 const TIER_BG: Record<Tier, string> = {
@@ -114,6 +115,7 @@ function StationCard({
         </div>
 
         <VibeChips tags={cafe.vibeTags} dense />
+        <SponsorBadge cafeName={cafe.name} compact asLink={false} />
         <CafeMetadataChips cafe={cafe} />
 
         <div className="pt-3 border-t border-cream-deep grid grid-cols-3 gap-2 font-mono text-[11px] text-ink-soft">

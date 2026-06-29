@@ -5,6 +5,7 @@ import { CITIES } from "@/lib/cities";
 import { TopNav } from "@/components/top-nav";
 import { MapShell } from "@/components/map-shell";
 import { StationDirectory } from "@/components/station-directory";
+import { BountiesBoard } from "@/components/bounties-board";
 
 export const revalidate = 60;
 
@@ -54,8 +55,12 @@ export default async function SFHome() {
           <MapShell cafes={cafes} city="sf" />
         </section>
 
-        <section className="pb-24">
+        <section>
           <StationDirectory cafes={cafes} city="sf" />
+        </section>
+
+        <section className="pb-24">
+          <BountiesBoard />
         </section>
 
         <footer className="border-t border-ink/40 pt-6 pb-10 flex flex-wrap items-baseline justify-between gap-4 text-sm">

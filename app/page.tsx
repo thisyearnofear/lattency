@@ -3,6 +3,7 @@ import { getCafes } from "@/lib/cafes";
 import { TopNav } from "@/components/top-nav";
 import { MapShell } from "@/components/map-shell";
 import { StationDirectory } from "@/components/station-directory";
+import { BountiesBoard } from "@/components/bounties-board";
 
 // Re-fetched at most once per minute. The materialized view is refreshed
 // after every POST /api/measurements, so reads stay close to live without
@@ -53,8 +54,13 @@ export default async function Home() {
         </section>
 
         {/* The directory. Search/filter/geolocation across the same data. */}
-        <section className="pb-24">
+        <section>
           <StationDirectory cafes={cafes} />
+        </section>
+
+        {/* Monetization preview — the buymeacoffee-style bounty board. */}
+        <section className="pb-24">
+          <BountiesBoard />
         </section>
 
         {/* Footer — the global ambition tail lives at /tour now. */}
