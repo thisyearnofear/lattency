@@ -93,7 +93,7 @@ Add `#H0Hackathon` per the official rules so it counts.
 - [x] Vercel Team ID copied from Vercel Settings → General
 - [x] Demo video recorded, edited under 3 minutes, uploaded to YouTube
 - [x] Aurora warmed before recording
-- [ ] Bonus content posted (LinkedIn / dev.to / blog) with #H0Hackathon, if going for the bonus
+- [x] Bonus content posted — https://dev.to/papajams/i-turned-cafe-wifi-speeds-into-a-metro-map-on-aurora-serverless-v2-vercel-55f (#H0Hackathon, hackathon disclosure included)
 
 ## Post-submission: v9.3 deploy (pre-deadline alignment pass)
 
