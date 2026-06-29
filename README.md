@@ -80,9 +80,10 @@ pnpm dev                           # random high port (see AGENTS.md)
 
 ```
 app/
-├── page.tsx                  # Utility-first home: hero + MapShell + StationDirectory
+├── page.tsx                  # Utility-first Nairobi home: hero + MapShell + StationDirectory
+├── sf/page.tsx               # San Francisco home — same shell, scoped to city='sf'
 ├── tour/page.tsx             # The cinematic experience (scroll-driven, 800vh)
-├── cafes/[slug]/page.tsx     # Per-café standalone page (SSG, OG metadata)
+├── cafes/[slug]/page.tsx     # Per-café standalone page (SSG across both cities, OG metadata)
 ├── api/cafes/near            # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
 ├── api/cafes/[id]            # GET /api/cafes/:id (detail + time-bucket distribution)
 ├── api/measurements          # POST /api/measurements (insert + refresh MV)
@@ -105,11 +106,12 @@ components/
 
 lib/
 ├── db.ts                     # pg.Pool singleton, serverless-safe
-├── cafes.ts                  # getCafes(opts), getCafeById(id), getCafeBySlug(slug) — with mock fallback
+├── cafes.ts                  # getCafes({city}), getCafeById(id), getCafeBySlug(slug) — mock fallback per city
+├── cities.ts                 # City registry (centre, zoom, bounds, demo neighbourhoods) — one entry per supported city
 ├── slug.ts                   # slugify() — deterministic URL slugs derived from names
-├── types.ts                  # CafeStation, CafeDetail, Tier, TimeBucket
-├── mock-cafes.ts             # Bundled Nairobi snapshot — API contract + fallback source
-├── map-data.ts               # Shared geometry: tier paths, hood polygons, world cities
+├── types.ts                  # CafeStation (with .city), CafeDetail, CityId, Tier, TimeBucket
+├── mock-cafes.ts             # Bundled snapshot — Nairobi (Aurora fallback) + SF (mock-only) = 24 cafés
+├── map-data.ts               # Shared geometry: tier paths, hood polygons, world cities, computeWaypoints() auto-layout
 └── world-path.ts             # Natural Earth land silhouette for the global finale
 
 migrations/
@@ -257,16 +259,41 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | `/tour` → houses the cinematic experience | done  |
 | Real Leaflet basemap under geographic mode (CARTO Light tiles) | done  |
 | Judge-aware geolocation (far → demo neighbourhoods) | done  |
-| Multi-city switcher (Nairobi live · 5 coming soon) | done  |
-| Sharable per-café pages at `/cafes/[slug]` | done  |
-| Speed-tier filters on the map              | pending |
-| Auto-layout for a second city (`/lagos`)   | pending |
+| Multi-city switcher in the nav             | done  |
+| Sharable per-café pages at `/cafes/[slug]` (per-page OG metadata) | done  |
+| Speed-tier filters on the map (chip toggles, both views) | done  |
+
+**Multi-city engine (v4):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| `CityId` + `city` field on every café row  | done  |
+| `lib/cities.ts` registry (centre, zoom, bounds, demo neighbourhoods) | done  |
+| `getCafes({ city })` filter — SF served from mock fallback | done  |
+| Auto-layout algorithm: extract Bezier anchors, sort by lng, distribute | done  |
+| `/sf` route — 12 real San Francisco cafés (Sightglass, Ritual, Mazarine, Saint Frank, …, The Mill, Andytown) | done  |
+| MapShell / MapLeaflet / StationDirectory / TopNav all accept a `city` prop | done  |
+| Five additional cities signalled "coming soon" in the switcher (Lagos, Cape Town, Accra, Kampala, Kigali) | done  |
+
+**Product integrity + mobile polish (v5):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| SF cafés flagged `measurementCount: 0` — "Tier estimated · be the first to log a reading" UI | done  |
+| Empty-distribution handling — chart shows "no data" honestly when count = 0 | done  |
+| "Tier wrong? log a reading ↓" affordance on detail (modal + full page) | done  |
+| Cross-city slug resolution (`getCafeBySlug` iterates known cities; 24 paths pre-rendered) | done  |
+| Mobile-responsive tier chips (badge + count only below 640px) | done  |
+| Mobile-responsive locate panel (190px width, demo picks auto-show on far/denied) | done  |
 
 **Beyond the hackathon:**
 
 | Step                                       | State |
 | ------------------------------------------ | ----- |
-| Browser-driven speed test contributor (auto-measure) | pending |
+| Schema migration to real multi-city Aurora (city column + per-city seed) | pending |
+| `/cafes/[slug]` Open Graph image generator per café (currently text metadata only) | pending |
+| Real measurements from a community-sourced public dataset | pending |
+| Browser-driven speed test contributor (auto-measure from the page) | pending |
 | Vercel × AWS Marketplace integration       | pending |
 
 ---
