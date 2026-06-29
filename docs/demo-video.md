@@ -146,3 +146,86 @@ End on the LATTENCY masthead held for a beat. Cut.
 **Tightening to 2:30** if you want margin under the 3-min cap:
 - Cut the schematic/geographic toggle reveal (1:45–2:30) and roll its message into the stack beat
 - Or trim the contribute section by skipping the time-of-day chart pause
+
+---
+
+## Post-submission re-record variant (v9 + v9.1 + v9.2)
+
+The original storyboard pre-dates the open-contribution platform, the demo prefill, and the business-model preview. If you re-record after submission, this variant swaps the curl-era contribute beat for a 90-second sequence that lands all three:
+
+**Pre-flight delta:**
+- Wake Aurora once via https://lattency.vercel.app/ (same as before)
+- Hover the **+ Map a café** button in the map toolbar so it's primed when you cut to it
+- Have `https://lattency.vercel.app/partners` ready in a second tab
+
+### 0:55 — 1:55 · The open contribution flow (replaces the old contribute beat)
+
+**On screen:** Scroll past the cinematic to the map. Hover the **+ Map a café** button in the map toolbar so the cursor is visible. Click.
+
+**Say:**
+> "Lattency isn't just a map of twelve cafés. Anyone can add a new one."
+
+**On screen:** The 5-step contribution modal opens on the location step. Skip "Share my location" and click **"Try with sample data →"**.
+
+> "I'll skip the geolocation for the recording — same flow, deterministic data — and jump straight to the bit that actually matters: the speed test."
+
+**On screen:** The modal jumps to step 4 (Speed test). Click **"Run speed test"**. The live ping → download → upload gauge plays for ~12 seconds. Don't rush this — the live numbers are the most legible proof in the entire video that this is a real working product.
+
+> "This isn't a form field. The browser is actually running a download against a Vercel edge, an upload against an API route, and HEAD requests for jitter and loss. The server records which edge served the test. You can't fake the round-trip from a fake IP — that's why the speed test is the trust mechanism, not the photo."
+
+**On screen:** Speed test completes. Click **Continue**. The photo step shows a pre-generated SVG card. Click **Submit**.
+
+> "Sample data fills the name, the metadata, the neighbourhood, and a generated photo card. In production the contributor adds their own. The submission runs as a single Postgres transaction — café row plus the first measurement — and the materialized view refreshes the moment it commits."
+
+**On screen:** Brief loading state, then the modal closes and the router pushes to `/cafes/<slug>`. The new café's detail page renders: tier badge, vibe chips, "Last brewed here" ticker showing your reading at the top, the distribution chart populated.
+
+> "And we're now on the new café's page. The reading I just ran is at the top of the ticker. The tier was computed by the materialized view between the submit and the redirect."
+
+### 1:55 — 2:25 · The monetization model
+
+**On screen:** Hit the back button to return to the homepage. Scroll past the directory to the **Coffee bounties** section.
+
+**Say:**
+> "The product makes money two ways."
+
+**On screen:** Pan slowly across the bounty cards. Linger on the Safaricom Fibre bounty for "3 oat-milk cafés in Kilimani" and the Savanna Coffee Lounge bounty for "be the 10th verified speed test."
+
+> "ISPs sponsor speed badges in the neighbourhoods they serve — Safaricom Fibre showing up wherever their fibre is what's making cafés express-tier. Café owners stake bounties for the Nth verified speed test at their place — contributor gets the coffee, café gets the visit, the wifi gets the proof. Each card on the homepage is a real demonstration of one of those flows."
+
+**On screen:** Scroll up to one of the cards that shows a sponsored badge — Connect Coffee Roasters (Westlands, express). Click into it.
+
+> "Here's the badge in context — Connect Coffee Roasters, Westlands, express tier, *Powered by Safaricom Fibre*. The detail page links the badge to the partners page where the model is priced."
+
+**On screen:** Click the sponsored badge. The `/partners` page loads.
+
+> "Three audiences, three pitches, one trust layer. The outlier flagging and the rate-limiting that gate bounty payouts are the same mechanics that already shipped for measurement integrity."
+
+### 2:25 — 3:00 · The stack
+
+Same as the original storyboard — Aurora console screenshot, "PostGIS + materialized view + scales-to-zero," Vercel project dashboard, close on the LATTENCY masthead.
+
+**Updated stack copy:**
+> "Amazon Aurora PostgreSQL Serverless v2 in eu-north-1. PostGIS for the cafés-near-me queries, materialized view for the per-café medians and tier classification, `REFRESH CONCURRENTLY` so reads stay live without locking, and a transactional café creation that rolls back on partial failure. Six migrations from `0001_extensions.sql` to `0006_cafe_metadata.sql` — the schema evolved with the product, not before it."
+
+> "Frontend is Next.js 16.3 on Vercel. The home page pre-renders static with a sixty-second revalidate. Contribution endpoint runs as a function. Aurora scales to zero ACUs between visits."
+
+> "Twelve seeded stations. Anyone in the world can map the thirteenth. The next twelve thousand are next."
+
+---
+
+## Bonus content (optional `#H0Hackathon` post)
+
+If you want to claim the publish-a-piece-of-content bonus, here's a tighter LinkedIn / dev.to draft tuned for the v9 polish:
+
+> Built **Lattency** for the Vercel × AWS Databases hackathon — a crowdsourced metro map of café wifi that turned into a two-sided marketplace.
+>
+> The data spine runs on Aurora PostgreSQL Serverless v2 + PostGIS. `ST_DWithin` powers the cafés-near-me query; a materialized view tiers each café by median measurement and refreshes concurrently after every contribution. Aurora scales to zero ACUs when idle, so a hackathon demo costs near-zero between visits.
+>
+> The trust mechanic is a real in-browser speed test that round-trips through a Vercel edge the server records and returns. Adding a new café is a single transaction: café row + first measurement + MV refresh. Contribution rate-limited per IP per hour; outlier readings flagged in Aurora the moment they land. Same mechanics gate the bounty payouts.
+>
+> The shipping surprise: the same map can be sold three ways. ISPs sponsor verified speed badges in the neighbourhoods they serve. Café owners stake bounties for the Nth verified speed test at their place. Contributors earn coffee for filling the map. `/partners` lays out the model end-to-end.
+>
+> Repo: https://github.com/thisyearnofear/lattency
+> Live: https://lattency.vercel.app/
+>
+> I built this for the H0 hackathon. #H0Hackathon
