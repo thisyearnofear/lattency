@@ -8,7 +8,7 @@
 // implementation would back this with a `bounties` table and a Stripe or
 // M-Pesa hold/release flow.
 
-import { BOUNTIES, sponsorBadgeStyle, bountyKindLabel, type Bounty } from "@/lib/bounties";
+import { getBounties, sponsorBadgeStyle, bountyKindLabel, type Bounty } from "@/lib/bounties";
 
 function CoffeeRow({ amount }: { amount: number }) {
   const cups = Math.max(1, Math.ceil(amount / 5));
@@ -100,23 +100,33 @@ function BountyCard({ bounty }: { bounty: Bounty }) {
   );
 }
 
-export function BountiesBoard({ limit }: { limit?: number }) {
-  const items = limit ? BOUNTIES.slice(0, limit) : BOUNTIES;
+export async function BountiesBoard({ limit }: { limit?: number }) {
+  const all = await getBounties();
+  const items = limit ? all.slice(0, limit) : all;
   return (
     <section
       aria-label="Open coffee bounties"
       className="mt-24 pt-10 border-t border-ink/80"
     >
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-3">
         <div>
           <p className="stamp">Section III · monetization preview</p>
           <h2 className="font-display font-black uppercase text-5xl md:text-6xl tracking-[-0.02em] text-ink mt-1">
             Coffee bounties
           </h2>
+          {/* One-liner that explains the mechanic before the cards do. */}
+          <p className="font-mono text-[11px] md:text-[12px] tracking-[0.22em] uppercase text-ink-soft mt-3">
+            Sponsors pre-pay a coffee.
+            <span className="text-ink-faint mx-1.5">·</span>
+            Contributors run a speed test.
+            <span className="text-ink-faint mx-1.5">·</span>
+            The map fills in.
+          </p>
           <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-3 max-w-2xl">
-            Sponsors pre-fund a coffee for the next verified contribution.
             ISPs target their service areas; café owners reward their regulars;
-            community members backfill gaps in the map.
+            community members backfill gaps in the map. Six representative
+            bounties below — same mechanics that already gate contribution
+            integrity will gate the payouts.
           </p>
         </div>
         <a
@@ -127,11 +137,56 @@ export function BountiesBoard({ limit }: { limit?: number }) {
         </a>
       </div>
 
-      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {items.map((b) => (
-          <BountyCard key={b.id} bounty={b} />
+      {/* Three-step mini-explainer reinforcing the one-liner above. */}
+      <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+        {[
+          { n: "01", verb: "Stake", body: "An ISP, café owner, or community member pre-pays a small bounty for a specific target — first café in Lavington, 3 oat-milk spots in Kilimani, 10th verified test at Savanna." },
+          { n: "02", verb: "Run", body: "A contributor walks into a café, runs a real in-browser speed test, fills in the coffee metadata, snaps a photo. The reading lands in Aurora the moment it commits." },
+          { n: "03", verb: "Verify + pay", body: "Outlier-flagged or solo readings wait for a second corroborating test. Once verified, the bounty pays out — today a coffee on the house, soon a balance via M-Pesa or Stripe." },
+        ].map((step) => (
+          <li
+            key={step.n}
+            className="border border-ink/15 bg-cream-edge/40 p-4"
+          >
+            <div className="flex items-baseline gap-3">
+              <span className="font-display font-black text-3xl text-express leading-none">
+                {step.n}
+              </span>
+              <span className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink">
+                {step.verb}
+              </span>
+            </div>
+            <p className="font-serif text-ink-soft text-sm mt-2 leading-snug">
+              {step.body}
+            </p>
+          </li>
         ))}
-      </ul>
+      </ol>
+
+      {items.length === 0 ? (
+        <div className="border border-dashed border-ink/30 bg-cream-edge/40 p-10 text-center">
+          <p className="font-display font-black uppercase text-3xl tracking-[-0.01em] text-ink">
+            No open bounties yet.
+          </p>
+          <p className="font-serif italic text-ink-soft text-lg mt-3 max-w-xl mx-auto">
+            Be the first to back the map. Stake a coffee for the next
+            verified café in a neighbourhood you care about, or sponsor a
+            tier-target across your service area.
+          </p>
+          <a
+            href="/partners"
+            className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-6"
+          >
+            Fund the first bounty <span aria-hidden>→</span>
+          </a>
+        </div>
+      ) : (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {items.map((b) => (
+            <BountyCard key={b.id} bounty={b} />
+          ))}
+        </ul>
+      )}
 
       <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint mt-5">
         Preview · payment + verification flow ships next · see{" "}

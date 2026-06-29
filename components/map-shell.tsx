@@ -12,8 +12,8 @@
 // "Find me" locates the user; if they're far from Nairobi (judges anywhere
 // in the world), it offers four demo neighbourhoods to explore from.
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
 import {
@@ -285,8 +285,27 @@ export function MapShell({
   const [activeTiers, setActiveTiers] = useState<Set<Tier>>(
     () => new Set(["express", "local", "suspended"]),
   );
-  const [showContribution, setShowContribution] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Open the contribution modal automatically when the page is reached via
+  // the top-nav "+ Map a café" CTA (?contribute=1). The open state is
+  // derived directly from the URL at render time so we avoid the
+  // cascading-render warning that synchronous setState in useEffect
+  // would trigger. The effect below cleans the URL once on mount.
+  const shouldAutoOpen = searchParams.get("contribute") === "1";
+  const [showContribution, setShowContribution] = useState(shouldAutoOpen);
+
+  useEffect(() => {
+    if (shouldAutoOpen) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("contribute");
+      window.history.replaceState({}, "", url.toString());
+    }
+    // shouldAutoOpen is read once on mount; we intentionally don't
+    // resubscribe if the URL changes mid-session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function toggleTier(tier: Tier) {
     setActiveTiers((prev) => {

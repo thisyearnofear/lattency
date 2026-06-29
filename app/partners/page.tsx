@@ -63,7 +63,7 @@ function PitchBlock({
 export default function PartnersPage() {
   return (
     <>
-      <TopNav current="app" />
+      <TopNav current="partners" />
 
       <main className="mx-auto max-w-[1200px] px-6 md:px-12 pt-8 pb-24">
         {/* Breadcrumb */}

@@ -65,6 +65,11 @@ export const MOCK_CAFES: CafeStation[] = [
     vibe: "the speed dealers",
     vibeTags: ["fibre", "pour-over", "quiet"],
     city: "nairobi",
+    sponsor: {
+      name: "Safaricom Fibre",
+      kind: "isp",
+      tagline: "Powered by 1 Gbps home fibre",
+    },
   },
   // Kilimani
   {
@@ -274,6 +279,11 @@ export const MOCK_CAFES: CafeStation[] = [
     vibe: "screen-time fortress",
     vibeTags: ["fibre", "outlets++", "quiet"],
     city: "sf",
+    sponsor: {
+      name: "Sonic.net",
+      kind: "isp",
+      tagline: "Powered by 10 Gbps symmetric fibre",
+    },
   },
   {
     id: "sf-3",

@@ -115,7 +115,7 @@ function StationCard({
         </div>
 
         <VibeChips tags={cafe.vibeTags} dense />
-        <SponsorBadge cafeName={cafe.name} compact asLink={false} />
+        <SponsorBadge sponsor={cafe.sponsor} compact asLink={false} />
         <CafeMetadataChips cafe={cafe} />
 
         <div className="pt-3 border-t border-cream-deep grid grid-cols-3 gap-2 font-mono text-[11px] text-ink-soft">
@@ -319,17 +319,47 @@ export function StationDirectory({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-10">
-        {visible.map(({ cafe, distance }, i) => (
-          <StationCard
-            key={cafe.id}
-            cafe={cafe}
-            index={i}
-            distance={distance}
-            onOpen={() => setSelected(cafe)}
-          />
-        ))}
-      </div>
+      {visible.length === 0 ? (
+        <div className="border border-dashed border-ink/30 bg-cream-edge/40 p-10 text-center">
+          <p className="font-display font-black uppercase text-3xl tracking-[-0.01em] text-ink">
+            No stations on this line yet.
+          </p>
+          <p className="font-serif italic text-ink-soft text-lg mt-3 max-w-xl mx-auto">
+            {filter === "express"
+              ? "No verified express-tier cafés in this view. Be the first to map one — your reading defines the line."
+              : filter === "suspended"
+                ? "Nothing flagged suspended here yet. That's a good sign, but if you've been somewhere slow, log a reading."
+                : "Loosen the tier filter, or map a new café below."}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+            <button
+              type="button"
+              onClick={() => setFilter("all")}
+              className="font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 border border-ink/40 text-ink-soft hover:border-ink hover:text-ink transition-colors"
+            >
+              Show all lines
+            </button>
+            <a
+              href={`${cityConfig.path}?contribute=1`}
+              className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors"
+            >
+              <span aria-hidden>+</span> Map a café
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-10">
+          {visible.map(({ cafe, distance }, i) => (
+            <StationCard
+              key={cafe.id}
+              cafe={cafe}
+              index={i}
+              distance={distance}
+              onOpen={() => setSelected(cafe)}
+            />
+          ))}
+        </div>
+      )}
 
       <CafeDetail station={selected} onClose={() => setSelected(null)} />
     </section>

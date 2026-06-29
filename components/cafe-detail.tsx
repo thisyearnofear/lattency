@@ -296,12 +296,16 @@ export function CafeDetail({
                 <VibeChips tags={d.vibeTags} />
               </div>
             )}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <SponsorBadge cafeName={d.name} />
-            </div>
-            <div className="mt-1.5">
-              <SponsorTagline cafeName={d.name} />
-            </div>
+            {d.sponsor && (
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <SponsorBadge sponsor={d.sponsor} />
+                </div>
+                <div className="mt-1.5">
+                  <SponsorTagline sponsor={d.sponsor} />
+                </div>
+              </>
+            )}
             <div className="flex items-baseline justify-between gap-3 mt-3">
               <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-soft">
                 {TIER_ROAST[d.tier]}
@@ -326,11 +330,6 @@ export function CafeDetail({
                 lossPct={d.medianLossPct}
               />
             </div>
-            {d.metadata && (
-              <div className="mt-4 pt-3 border-t border-ink/10">
-                <CafeMetadataRows cafe={d} />
-              </div>
-            )}
             {d.measurementCount > 0 ? (
               <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-faint mt-3">
                 {d.measurementCount} measurements on file
@@ -339,30 +338,179 @@ export function CafeDetail({
             ) : (
               <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-soft mt-3">
                 <span className="text-ink">Tier estimated</span> · no readings yet ·
-                <span className="ml-1 text-ink-faint">be the first below ↓</span>
+                <span className="ml-1 text-ink-faint">be the first under Contribute ↓</span>
               </p>
             )}
 
-            {d.recent.length > 0 && (
-              <div className="mt-7 pt-6 border-t border-ink/15">
-                <RecentReadings readings={d.recent} />
-              </div>
-            )}
-
-            <div className="mt-7 pt-6 border-t border-ink/15">
-              <Distribution detail={d} />
-            </div>
-
-            <div id="contribute-form" className="mt-7 pt-6 border-t border-ink/15">
-              <MeasurementForm
-                cafeId={d.id}
-                cafeName={d.name}
-                onContributed={onContributed}
-              />
-            </div>
+            {/* Tabbed sections — keeps the headline (tier + identity +
+                stats + signal quality) always visible while letting the
+                deeper data live below without fighting for space. */}
+            <DrawerTabs
+              defaultTab={d.recent.length > 0 ? "recent" : "contribute"}
+              tabs={[
+                {
+                  id: "recent",
+                  label: "Recent",
+                  count: d.recent.length || undefined,
+                  content:
+                    d.recent.length > 0 ? (
+                      <RecentReadings readings={d.recent} />
+                    ) : (
+                      <EmptyTab
+                        body="No readings on file yet. Log the first one — the tier and the ticker both update the moment your measurement commits."
+                        ctaLabel="Log a reading"
+                        targetTab="contribute"
+                      />
+                    ),
+                },
+                {
+                  id: "hours",
+                  label: "Hours",
+                  content: <Distribution detail={d} />,
+                },
+                {
+                  id: "contribute",
+                  label: "Contribute",
+                  primary: true,
+                  content: (
+                    <MeasurementForm
+                      cafeId={d.id}
+                      cafeName={d.name}
+                      onContributed={onContributed}
+                    />
+                  ),
+                },
+                {
+                  id: "about",
+                  label: "About",
+                  content:
+                    d.metadata &&
+                    (d.metadata.priceTier ||
+                      d.metadata.milkOptions?.length ||
+                      d.metadata.powerOutlets !== undefined ||
+                      d.metadata.seating ||
+                      d.metadata.wifiNetwork) ? (
+                      <CafeMetadataRows cafe={d} />
+                    ) : (
+                      <EmptyTab
+                        body="No coffee metadata on file yet — price tier, milk options, power outlets, seating. The contribution form collects these when you add a reading."
+                        ctaLabel="Add metadata"
+                        targetTab="contribute"
+                      />
+                    ),
+                },
+              ]}
+            />
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// --- Drawer tabs --------------------------------------------------------
+
+interface DrawerTab {
+  id: string;
+  label: string;
+  /** Optional badge count rendered next to the label. */
+  count?: number;
+  /** Highlights the tab as the recommended action. */
+  primary?: boolean;
+  content: React.ReactNode;
+}
+
+function DrawerTabs({
+  tabs,
+  defaultTab,
+}: {
+  tabs: DrawerTab[];
+  defaultTab: string;
+}) {
+  const [active, setActive] = useState<string>(defaultTab);
+  // Make sure the default tab is valid (the parent passes a value based on
+  // detail state, which may not match a tab id in edge cases).
+  const activeTab =
+    tabs.find((t) => t.id === active) ?? tabs.find((t) => t.id === defaultTab) ?? tabs[0];
+
+  return (
+    <div className="mt-7 pt-6 border-t border-ink/15">
+      <div
+        role="tablist"
+        aria-label="Café detail sections"
+        className="flex flex-wrap items-center gap-1 mb-5"
+      >
+        {tabs.map((t) => {
+          const isActive = t.id === activeTab.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`drawer-panel-${t.id}`}
+              id={`drawer-tab-${t.id}`}
+              onClick={() => setActive(t.id)}
+              className={[
+                "font-mono text-[10px] tracking-[0.2em] uppercase px-3 py-2 transition-colors",
+                isActive
+                  ? "bg-ink text-cream"
+                  : t.primary
+                    ? "border border-ink/40 text-ink hover:bg-ink/5"
+                    : "border border-transparent text-ink-soft hover:text-ink",
+              ].join(" ")}
+            >
+              {t.label}
+              {t.count !== undefined && (
+                <span
+                  className={`ml-1.5 ${isActive ? "text-cream/70" : "text-ink-faint"}`}
+                >
+                  {t.count}
+                </span>
+              )}
+              {t.primary && !isActive && (
+                <span aria-hidden className="ml-1.5 text-ink-faint">+</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        role="tabpanel"
+        id={`drawer-panel-${activeTab.id}`}
+        aria-labelledby={`drawer-tab-${activeTab.id}`}
+      >
+        {activeTab.content}
+      </div>
+    </div>
+  );
+}
+
+function EmptyTab({
+  body,
+  ctaLabel,
+  targetTab,
+}: {
+  body: string;
+  ctaLabel: string;
+  targetTab: string;
+}) {
+  return (
+    <div className="border border-dashed border-ink/25 bg-cream-edge/40 p-6 text-center">
+      <p className="font-serif italic text-ink-soft text-base leading-snug">
+        {body}
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          const trigger = document.getElementById(`drawer-tab-${targetTab}`);
+          trigger?.click();
+        }}
+        className="bg-ink text-cream font-mono text-[10px] tracking-[0.22em] uppercase px-4 py-2 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-4"
+      >
+        <span aria-hidden>+</span> {ctaLabel}
+      </button>
     </div>
   );
 }

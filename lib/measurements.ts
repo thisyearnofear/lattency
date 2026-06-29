@@ -73,6 +73,7 @@ export async function insertMeasurement(
   ipHash: string | null,
   deviceType: string | null,
   exec: Executor = query,
+  contributorUserId: string | null = null,
 ): Promise<string> {
   const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
   const timeBucket = deriveTimeBucket(measuredAt);
@@ -85,8 +86,8 @@ export async function insertMeasurement(
       (cafe_id, down_mbps, up_mbps, latency_ms, jitter_ms, loss_pct,
        measured_at, time_bucket, contributor_id, photo_url,
        test_method, target_server, device_type, download_bytes, download_duration_ms,
-       contributor_ip_hash, is_outlier)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       contributor_ip_hash, is_outlier, contributor_user_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
     RETURNING id
     `,
     [
@@ -107,6 +108,7 @@ export async function insertMeasurement(
       body.downloadDurationMs ?? null,
       ipHash,
       outlier,
+      contributorUserId,
     ],
   );
 
@@ -114,9 +116,40 @@ export async function insertMeasurement(
 }
 
 /**
- * Refresh the materialized view. Called after any measurement insert.
- * CONCURRENTLY works because cafe_speed_stats has a unique index.
+ * Refresh the materialized view. Called after any measurement / café
+ * insert. Within a serverless instance we throttle and coalesce so a
+ * burst of writes triggers at most one refresh per window — Postgres
+ * still serializes any genuinely concurrent attempts via the CONCURRENTLY
+ * lock, but the throttle avoids hammering the lock in the first place.
+ *
+ * Callers should pair this with `next/server`'s `after()` so the refresh
+ * runs after the HTTP response is sent (see app/api/cafes/route.ts).
  */
+const REFRESH_THROTTLE_MS = 15_000;
+let refreshInFlight: Promise<void> | null = null;
+let lastRefreshAt = 0;
+
 export async function refreshStatsView(): Promise<void> {
-  await query("REFRESH MATERIALIZED VIEW CONCURRENTLY cafe_speed_stats");
+  if (refreshInFlight) return refreshInFlight;
+  if (Date.now() - lastRefreshAt < REFRESH_THROTTLE_MS) return;
+
+  refreshInFlight = (async () => {
+    try {
+      await query("REFRESH MATERIALIZED VIEW CONCURRENTLY cafe_speed_stats");
+    } finally {
+      lastRefreshAt = Date.now();
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+/** Bypass the throttle — used by the scheduled warmer / debounce cron
+ *  when we want the refresh to definitely happen. */
+export async function refreshStatsViewNow(): Promise<void> {
+  try {
+    await query("REFRESH MATERIALIZED VIEW CONCURRENTLY cafe_speed_stats");
+  } finally {
+    lastRefreshAt = Date.now();
+  }
 }

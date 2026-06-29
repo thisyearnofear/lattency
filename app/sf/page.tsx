@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { getCafes } from "@/lib/cafes";
 import { CITIES } from "@/lib/cities";
@@ -36,11 +37,32 @@ export default async function SFHome() {
                 <br />
                 in San Francisco today?
               </h1>
-              <p className="font-serif italic text-ink-soft text-xl md:text-2xl mt-4 max-w-2xl">
+              <p className="font-mono text-[11px] md:text-[12px] tracking-[0.22em] uppercase text-ink-soft mt-5">
+                Contributors map.
+                <span className="text-ink-faint mx-1.5">·</span>
+                Sponsors fund coffees.
+                <span className="text-ink-faint mx-1.5">·</span>
+                You find the line you can actually work on.
+              </p>
+              <p className="font-serif italic text-ink-soft text-xl md:text-2xl mt-3 max-w-2xl">
                 Twelve real {city.name} cafés on the same three speed-tier
                 lines. Same engine that runs Nairobi — schematic positions
                 auto-derived from each café&rsquo;s longitude.
               </p>
+              <div className="flex flex-wrap items-center gap-4 mt-6">
+                <Link
+                  href="/sf?contribute=1"
+                  className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors"
+                >
+                  <span aria-hidden>+</span> Map a café in 60 seconds
+                </Link>
+                <Link
+                  href="/partners"
+                  className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
+                >
+                  How sponsors pay <span aria-hidden>→</span>
+                </Link>
+              </div>
             </div>
             <Link
               href="/"
@@ -52,7 +74,9 @@ export default async function SFHome() {
         </section>
 
         <section className="mt-4 mb-10" aria-label="Café wifi network map">
-          <MapShell cafes={cafes} city="sf" />
+          <Suspense fallback={null}>
+            <MapShell cafes={cafes} city="sf" />
+          </Suspense>
         </section>
 
         <section>

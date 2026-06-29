@@ -86,10 +86,18 @@ app/
 ├── cafes/[slug]/page.tsx     # Per-café standalone page (SSG across both cities, OG metadata)
 ├── cafes/[slug]/opengraph-image.tsx # Per-café OG image (1200×630, tier badge + stats + signal quality)
 ├── partners/page.tsx         # /partners — two-sided monetization pitch + open bounties board
+├── me/page.tsx               # /me — logged-in contributor dashboard (readings + cafés added)
+├── me/error.tsx              # Boundary for /me-only render failures
+├── auth/signin/page.tsx      # Magic-link sign-in form in the poster aesthetic
+├── auth/verify/page.tsx      # "Check your email" confirmation
+├── error.tsx                 # Route-level error boundary (recoverable, in-aesthetic)
+├── global-error.tsx          # Last-resort layout-failure boundary
+├── api/auth/[...nextauth]    # Auth.js v5 handler (signin/signout/callback/session/csrf/...)
 ├── api/cafes                 # POST /api/cafes (create café + first measurement in one transaction)
 ├── api/cafes/near            # GET /api/cafes/near?lat&lng&radius (ST_DWithin)
 ├── api/cafes/[id]            # GET /api/cafes/:id (detail + time-bucket distribution + recent readings)
 ├── api/measurements          # POST /api/measurements (insert + rate-limit + outlier flag + refresh MV)
+├── api/warm                  # GET /api/warm — Aurora warmer poked by Vercel cron every 5min
 ├── api/speedtest/upload      # POST /api/speedtest/upload (consume + discard body, for upload phase)
 ├── api/speedtest/whereami    # GET /api/speedtest/whereami (Vercel edge region for transparency)
 ├── opengraph-image.tsx       # Dynamic OG image (1200×630, masthead aesthetic)
@@ -107,40 +115,58 @@ components/
 ├── station-directory.tsx     # Interactive list: geolocation finder, tier filter, clickable cards + vibe chips + signal quality
 ├── cafe-detail.tsx           # Slide-in modal: distribution chart + stats + signal quality + vibe chips + last-brewed ticker + form
 ├── cafe-page.tsx             # Full-page version of CafeDetail for /cafes/[slug]
-├── cafe-contribution-form.tsx # 5-step modal: location → details → metadata → speed test → photo → submit; has a "Try with sample data" demo path
 ├── cafe-metadata-display.tsx # Renders coffee metadata (price / milk / outlets / seating / wifi) as chips (cards) or labeled rows (detail)
 ├── vibe-chips.tsx            # Compact mono chips that ride under the editorial vibe line (`outlets++`, `oat-milk`, `pour-over`, …)
 ├── recent-readings.tsx       # "Last brewed here" ticker — last 5 readings with relative timestamps, useSyncExternalStore tick
-├── sponsor-badge.tsx         # "Powered by [Sponsor]" badge surfaced on sponsored café tiles + detail pages; links to /partners
-├── bounties-board.tsx        # Coffee Bounties — monetization preview on homepage + /partners (pre-funded incentives for verified contributions)
+├── sponsor-badge.tsx         # "$ Sponsored · [Sponsor]" badge surfaced on sponsored café tiles + detail pages; receives Sponsor prop resolved server-side
+├── bounties-board.tsx        # Coffee Bounties — DB-backed (lib/bounties getBounties + mock fallback); on homepage + /partners
+├── auth-slot.tsx             # Client-side session indicator in the top nav — keeps the public pages statically prerenderable
+├── cafe-contribution-form.tsx # 5-step modal with step indicator, speed-test phase chips, demo prefill
 ├── measurement-form.tsx      # One-click in-browser speed test + manual entry fallback, optimistic UI
 ├── signal-quality.tsx        # Shared signal-quality indicator (jitter/loss bars + stability label)
 └── copy-share-link.tsx       # "Share link" button (writes window.location to clipboard)
 
 lib/
-├── db.ts                     # pg.Pool singleton + withTransaction(exec) helper for multi-statement atomic writes
-├── cafes.ts                  # getCafes({city}) + getCafeById(id) + getCafeBySlug(slug); LIST_COLUMNS drops cs.photo_url so list payloads stay bounded
+├── db.ts                     # pg.Pool singleton + withTransaction(exec) helper + Executor type for atomic multi-statement writes
+├── cafes.ts                  # getCafes({city}) + getCafeById(id) + getCafeBySlug(slug); LIST_COLUMNS drops cs.photo_url so list payloads stay bounded; joins active sponsorship via the MV
 ├── cities.ts                 # City registry (centre, zoom, bounds, demo neighbourhoods) — one entry per supported city
-├── slug.ts                   # slugify() — deterministic URL slugs derived from names
-├── types.ts                  # CafeStation (incl. vibeTags + metadata + photoUrl), CafeDetail (incl. recent[]), CafeMetadata, CafeCreationInput, MeasurementInput, Tier, TestMethod, TimeBucket, CityId
+├── slug.ts                   # slugify() — deterministic URL slugs, NFD-normalized so "Café Réveille" → "cafe-reveille"
+├── types.ts                  # CafeStation (incl. vibeTags + metadata + photoUrl + sponsor), CafeDetail (incl. recent[]), Sponsor, CafeMetadata, CafeCreationInput, MeasurementInput, Tier, TestMethod, TimeBucket, CityId
 ├── speedtest.ts              # In-browser speed test: streaming download + HEAD ping/jitter/loss + chunked upload
 ├── stability.ts              # assessStability(jitter, loss) → stability rating (stable/variable/unstable)
 ├── rate-limit.ts             # IP hashing + scoped checkRateLimit (measurements: 10min/IP+cafe · cafes: 60min/IP) + isOutlierReading
-├── measurements.ts           # Shared insert path used by both POST /api/measurements and POST /api/cafes; accepts an Executor so it can join an outer transaction
+├── measurements.ts           # Shared insert path used by both POST /api/measurements and POST /api/cafes; accepts an Executor so it joins outer transactions; refreshStatsView() is throttled + coalesced
 ├── cafe-metadata.ts          # Single source of truth for the coffee-metadata vocabulary (price / milk / seating) + validateCafeMetadata + formatMetadata + metadataChips
-├── mock-cafes.ts             # Bundled snapshot — Nairobi (Aurora fallback) + SF (mock-only) = 24 cafés, each carries vibeTags for the chip row
-├── sponsors.ts               # Sponsored-tile lookup keyed by café name; demo of the ISP sponsorship model from /partners
-├── bounties.ts               # Demo dataset for the Coffee Bounties board — mixed ISP / café / community sponsors
+├── mock-cafes.ts             # Bundled snapshot — Nairobi (Aurora fallback) + SF (mock-only) = 24 cafés, each carries vibeTags + (optionally) sponsor
+├── sponsors.ts               # Sponsor type re-export — lookup happens server-side via the cafe_speed_stats join
+├── bounties.ts               # DB-backed getBounties() against migration 0007 with mock fallback when Aurora is cold
+├── contributions.ts          # Per-user lookups for /me — joins measurements + cafes by contributor_user_id
+├── fetch-retry.ts            # postWithRetry() — single 2s-backoff retry for transient network failures on write endpoints
+├── log.ts                    # JSON-line structured logger with optional request id (x-vercel-id); dev mode pretty-prints
 ├── map-data.ts               # Shared geometry: tier paths, hood polygons, world cities, computeWaypoints() auto-layout
 └── world-path.ts             # Natural Earth land silhouette for the global finale
 
+auth.ts                       # Auth.js v5 config: PostgresAdapter + Resend magic-link provider; dev placeholder secret; degraded-mode email-via-console when AUTH_RESEND_KEY is unset
+auth.d.ts                     # Module augmentation so session.user.id is typed across the app
+
+tests/                        # vitest smoke suite — pure-function coverage for rate-limit / measurements / metadata / slug / stability
+├── rate-limit.test.ts
+├── measurements.test.ts
+├── cafe-metadata.test.ts
+├── slug.test.ts
+├── stability.test.ts
+└── setup.ts                  # Injects placeholder DATABASE_URL so lib/db.ts doesn't throw on module load during tests
+
 migrations/
-├── 0001_extensions.sql           # postgis, uuid-ossp
-├── 0002_schema.sql               # cafes, measurements, cafe_speed_stats MV
-├── 0003_cafe_vibe.sql            # add vibe column, recreate MV
-├── 0004_measurement_provenance.sql  # jitter/loss + test_method/target_server/device_type/download_*; recreate MV
-├── 0005_rate_limit_outlier.sql   # contributor_ip_hash + is_outlier + rate-limit index
-└── 0006_cafe_metadata.sql        # city + price_tier + milk_options + power_outlets + seating + wifi_network + photo_url + created_by_ip_hash; recreate MV
+├── 0001_extensions.sql                 # postgis, uuid-ossp
+├── 0002_schema.sql                     # cafes, measurements, cafe_speed_stats MV
+├── 0003_cafe_vibe.sql                  # add vibe column, recreate MV
+├── 0004_measurement_provenance.sql     # jitter/loss + test_method/target_server/device_type/download_*; recreate MV
+├── 0005_rate_limit_outlier.sql         # contributor_ip_hash + is_outlier + rate-limit index
+├── 0006_cafe_metadata.sql              # city + price_tier + milk_options + power_outlets + seating + wifi_network + photo_url + created_by_ip_hash; recreate MV
+├── 0007_sponsorships_bounties.sql      # sponsorships + bounties tables; recreate MV to include active sponsor in the LEFT JOIN
+├── 0008_outlier_aware_median.sql       # MV recreation — median calculation excludes is_outlier=true rows when a café has ≥3 readings
+└── 0009_auth.sql                       # Auth.js v5 tables (users / accounts / sessions / verification_token) + contributor_user_id on measurements + created_by_user_id on cafes
 
 scripts/
 ├── provision-aurora.sh       # AWS CLI Aurora bootstrap
@@ -277,6 +303,25 @@ Consumes and discards the request body. Used by the in-browser speed test's uplo
 ```
 
 Returns the Vercel edge region serving the request, parsed from the `x-vercel-id` header. Used for transparency — the UI can display "Measured against: iad1" so users know which edge their speed test targeted.
+
+### `GET /api/warm`
+
+Poked by Vercel cron (see `vercel.json`, schedule `*/5 6-22 * * *`) to keep Aurora Serverless v2 warm during business hours. Issues a tiny `SELECT COUNT(*) FROM cafe_speed_stats` against the materialized view the homepage reads, so the next user request doesn't pay the 15–30s cold-start tax.
+
+Authenticated via the `Authorization: Bearer $CRON_SECRET` header (Vercel cron sets this automatically once `CRON_SECRET` is configured in the project env). Without `CRON_SECRET` set, the endpoint accepts all callers — fine for dev, lock down in production.
+
+```json
+{ "ok": true, "cafeStatsCount": 12, "elapsedMs": 1670 }
+```
+
+### `GET|POST /api/auth/[...nextauth]`
+
+Auth.js v5 handler — magic-link sign-in via Resend, sessions in Aurora via `@auth/pg-adapter`. Exposes the standard set of auth endpoints (signin / signout / callback / session / csrf / providers / verify-request). The shared config lives in `auth.ts`; server components read the session via `auth()`. Client surfaces (the top-nav slot) fetch `/api/auth/session` so the page itself stays statically prerenderable.
+
+Required env vars:
+- `AUTH_SECRET` — random hex string for cookie signing; auto-falls-back to a dev placeholder out of production
+- `AUTH_RESEND_KEY` — Resend API key; when unset the magic link is logged to the server console (useful in dev)
+- `AUTH_FROM_EMAIL` — optional; defaults to `Lattency <no-reply@lattency.app>`
 
 ---
 
@@ -458,19 +503,45 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | `<SponsorBadge/>` on sponsored café tiles — concrete example: Connect Coffee Roasters powered by Safaricom Fibre, Mazarine powered by Sonic.net | done  |
 | `lib/bounties.ts` + `lib/sponsors.ts` — single source of truth for the demo datasets, keyed by café name so the lookup works against both DB rows and the mock fallback | done  |
 
+**Pre-users production hardening (v9.3 — 9/10 across the board):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| **Intuitiveness** | |
+| Top-nav restructure — added Partners, Sign-in/Me slot, primary "+ Map a café" CTA; `?contribute=1` deep-link from any sub-route opens the contribution modal | done |
+| Homepage hero rewrite — three-sided model headline (contributors / sponsors / users) above the editorial sub-line; primary CTA above the fold | done |
+| Bounty board intro — one-liner above the cards ("Sponsors pre-pay a coffee · Contributors run a speed test · The map fills in") + a three-step explainer (Stake → Run → Verify + pay) | done |
+| Empty-state nudges on the directory + bounties + /me page | done |
+| **UI/UX polish** | |
+| Detail-drawer restructure — always-visible headline + tabbed sections (Recent · Hours · Contribute · About) so the dense card feels paginated | done |
+| Contribution form step indicator — 5-dot progress bar in the header + "almost there" microcopy on the last step | done |
+| Speed-test running view — phase chips (Ping / Download / Upload) + live readout + skeleton tiles for the four result stats | done |
+| Sponsor badge recolored — ink-on-cream with `$ sponsored` prefix, no longer competing with the express-tier green | done |
+| **Architecture** | |
+| Migration 0007 — sponsorships + bounties tables; lib/bounties.ts becomes DB-backed (getBounties async) with mock fallback; sponsor data flows through cafe_speed_stats via active-sponsorship LEFT JOIN | done |
+| Migration 0008 — outlier-aware median in cafe_speed_stats (excludes is_outlier=true when ≥3 readings) | done |
+| MV refresh debounce + `after()` — REFRESH CONCURRENTLY runs after the HTTP response, within-instance throttle of 15s, Postgres serializes the rest | done |
+| Migration 0009 + Auth.js v5 + Resend magic-link — users / accounts / sessions / verification_token tables, contributor_user_id + created_by_user_id on writable tables, degraded console-log mode when AUTH_RESEND_KEY unset | done |
+| `/me` contributor dashboard — readings + cafés-added joined by user_id; auth-gated with sign-in redirect | done |
+| vitest smoke suite — 44 tests across rate-limit / measurements / cafe-metadata / slug / stability | done |
+| slugify() upgraded — NFD-normalizes so accented café names ("Café Réveille") slug cleanly | done |
+| **Reliability** | |
+| Aurora warmer — `GET /api/warm` poked by Vercel cron every 5min during business hours (cron expression `*/5 6-22 * * *`); authenticated via `CRON_SECRET` header | done |
+| Structured JSON-line logging with request id (x-vercel-id); console-pretty in dev | done |
+| Error boundaries — `app/error.tsx`, `app/global-error.tsx`, per-route boundaries on `/cafes/[slug]` + `/me` | done |
+| Contribution POST retry — single 2s-backoff retry for transient 502/503/504 + network failures, applied to both contribution + measurement forms | done |
+| Public pages stay statically prerenderable — auth resolved via client-side `<AuthSlot/>` instead of a top-of-nav `await auth()` that would have forced /, /sf, /partners, /tour, /cafes/[slug] to be dynamic | done |
+
 **Beyond the hackathon:**
 
 | Step                                       | State |
 | ------------------------------------------ | ----- |
 | Real bounty payout rail (M-Pesa for Nairobi, Stripe Connect elsewhere) — Bounties currently UI-only | pending |
-| `sponsorships` + `bounties` tables (joined on `cafe_id`) — currently keyed by café name in TS modules | pending |
 | Verification protocol — second-reading corroboration before bounty release | pending |
 | Reverse-geocode city name from coordinates (currently user-entered) | pending |
 | Vercel Blob for photo storage (currently Base64 in Postgres) | pending |
 | Rate-limit preflight on the contribution form so users learn about the 429 before running the speed test | pending |
-| `REFRESH MATERIALIZED VIEW CONCURRENTLY` debounce/coalesce for the contribution-heavy steady state | pending |
 | Real measurements from a community-sourced public dataset | pending |
-| Exclude flagged outliers from materialized view median (needs real traffic to calibrate) | pending |
 | Composite "workability score" (bandwidth × stability) — needs user research | pending |
 | Vercel × AWS Marketplace integration       | pending |
 

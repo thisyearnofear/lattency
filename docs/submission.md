@@ -210,3 +210,34 @@ After the hackathon deadline, five phases of work transformed lattency from "typ
 **`/partners` page** is the pitch: three audience blocks (ISP / café owner / contributor), each with its own value prop, pricing teaser, and contact email, plus an in-page anchor down to the live bounty board. Built in the same East African transit poster aesthetic as the rest of the site so the monetization narrative reads as continuous with the product.
 
 **Files added:** `app/partners/page.tsx`, `components/bounties-board.tsx`, `components/sponsor-badge.tsx`, `lib/bounties.ts`, `lib/sponsors.ts`. Single source of truth for the demo data; lookups are keyed by café name so they work against both Aurora-backed rows and the mock fallback without touching the schema.
+
+### Phase 7: Pre-users production hardening (v9.3)
+
+Before the first real user touches the product, the app needed to cross a quality threshold across all five axes (product design, UI/UX, system architecture, intuitiveness, reliability). Four waves of focused work landed.
+
+**Intuitiveness — every public surface routes traffic toward the right action.**
+- Top-nav restructure: added `Partners`, an auth-aware session slot, and a primary `+ Map a café` CTA. A `?contribute=1` deep-link from any sub-route opens the contribution modal on the homepage map.
+- Homepage hero rewrite: the three-sided model gets one line above the editorial sub-line ("Contributors map · Sponsors fund coffees · You find the line you can actually work on"). Primary CTA sits above the fold alongside a `How sponsors pay →` link.
+- Bounty-board intro: one-liner above the cards ("Sponsors pre-pay a coffee · Contributors run a speed test · The map fills in") plus a three-step explainer (Stake → Run → Verify + pay).
+- Empty-state nudges on the directory + bounties + `/me` so a fresh install or a no-results filter still moves the user forward.
+
+**UI/UX — the dense surfaces become navigable.**
+- Detail drawer restructured: identity + stats + signal quality stay always-visible at the top, then four tabs (Recent · Hours · Contribute · About) for the deeper data. Each tab knows its empty state and routes to Contribute when needed.
+- Contribution form: 5-dot step indicator in the header, "almost there" / "last step" microcopy on the final step.
+- Speed-test running view: phase chips (Ping / Download / Upload) advance in real time + a live numeric readout + four skeleton tiles where the results land.
+- Sponsor badge recolored: ink-on-cream chip with a `$` prefix, no longer competing with the express-tier green that sits on the same card.
+
+**Architecture — the demo data moves into the database.**
+- Migration 0007 adds `sponsorships` + `bounties` tables. `sponsorships` has a partial unique index on `(cafe_id) WHERE ends_at IS NULL` (one active sponsor per café for v1). The materialized view is recreated with a `LEFT JOIN sponsorships`, so the homepage list still serves café + sponsor in one round-trip.
+- Migration 0008 makes the median outlier-aware — a CTE counts measurements per café, and the median calculation excludes `is_outlier = TRUE` rows when the café has at least 3 readings. Single fat-finger entries no longer move the tier.
+- The MV refresh is decoupled from the request path via `next/server`'s `after()` — the HTTP response goes out immediately, the refresh runs after. Within-instance throttle of 15 seconds coalesces bursts; Postgres serializes any genuinely concurrent attempts via the `CONCURRENTLY` lock.
+- Migration 0009 + Auth.js v5 + Resend magic-link: standard `users` / `accounts` / `sessions` / `verification_token` tables, plus `contributor_user_id` on measurements and `created_by_user_id` on cafes so logged-in contributions get attributed. Anonymous contributions still work end-to-end. `auth.ts` runs in a degraded mode when `AUTH_RESEND_KEY` is unset — the magic link is logged to the server console instead of sent.
+- `/me` contributor dashboard joins measurements + cafes by user_id. Stat band shows readings logged, cafés added, coffees earned (placeholder until the payout rail ships). Lists both timelines with the same poster aesthetic.
+- vitest smoke suite — 44 tests across rate-limit, measurements, cafe-metadata, slug, stability. Pure-function coverage that runs without touching the DB. `slugify()` upgraded to NFD-normalize accented café names ("Café Réveille" → "cafe-reveille").
+
+**Reliability — failure modes get UX, not stack traces.**
+- Aurora warmer: `GET /api/warm` poked by Vercel cron every 5 minutes during business hours (`*/5 6-22 * * *`). Authenticated via the `CRON_SECRET` header. The next user request doesn't pay the 15–30s cold-start tax.
+- Structured logging: JSON-line in production with request id (`x-vercel-id`) and scope tag; pretty-prints in dev. Replaces the scattered `console.warn` calls.
+- Error boundaries: `app/error.tsx` (route-level), `app/global-error.tsx` (layout-level), per-route boundaries on `/cafes/[slug]` and `/me`. All render in the poster aesthetic so failure feels like part of the product, not an HTTP-stack escape.
+- Contribution POST retry: `postWithRetry()` in `lib/fetch-retry.ts` does a single 2-second backoff retry on transient network failures and 502/503/504. Applied to both contribution + measurement forms — a 30-second speed test doesn't vanish into a flaky network blip.
+- Public pages stay statically prerenderable: the original `await auth()` in TopNav would have forced every public route to be dynamic. The session resolves client-side via `<AuthSlot/>` so `/`, `/sf`, `/partners`, `/tour`, and `/cafes/[slug]` all keep their ISR caching.

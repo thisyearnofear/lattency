@@ -1,19 +1,17 @@
 // Coffee bounties — pre-funded incentives for verified contributions.
-// The mechanic: a sponsor stakes a small amount of coffee money for a
-// specific target (first verified café in a neighbourhood, N cafés with
-// oat milk, Nth contributor, etc). When contributors meet the target and
-// the readings are verified by others, the bounty pays out.
-//
-// This file is the demo dataset that powers the BountiesBoard component.
-// The real version would back this with a `bounties` table and a Stripe
-// (or M-Pesa) hold/release flow. For the hackathon it shows the model
-// concretely without standing up payment infrastructure.
+// Backed by the `bounties` table created in migration 0007. Falls back to
+// the bundled snapshot when Aurora is unreachable so the demo still
+// renders. The fallback IS the seed file's data, kept in sync by hand —
+// see seeds/sponsorships_bounties.sql.
+
+import { query } from "./db";
+import { log } from "./log";
 
 export type BountyKind =
-  | "first-in-neighbourhood"   // first verified café in a specific area
-  | "attribute-match"          // N cafés with a specific metadata attribute
-  | "tier-target"              // N cafés on a specific speed tier
-  | "nth-contributor";         // the Nth verified contributor at a café
+  | "first-in-neighbourhood"
+  | "attribute-match"
+  | "tier-target"
+  | "nth-contributor";
 
 export interface Bounty {
   id: string;
@@ -30,17 +28,16 @@ export interface Bounty {
   /** Sponsor display name. */
   sponsor: string;
   /** Sponsor type — used to colour-code the badge. */
-  sponsorKind: "isp" | "community" | "café" | "anon";
+  sponsorKind: "isp" | "café" | "community" | "anon";
   /** Bounty mechanic, for the badge label. */
   kind: BountyKind;
-  /** Expiry as a plain ISO date — keeps the demo data evergreen. */
+  /** Expiry as an ISO date — keeps the demo data evergreen. */
   expiresAt: string;
 }
 
-// A snapshot of open bounties. Mixed sponsor types deliberately —
-// ISP-funded, community-funded, café-owner-funded — to show the model is
-// two-sided (and three-sided when contributors fund their own area).
-export const BOUNTIES: Bounty[] = [
+// Fallback snapshot served when Aurora is cold or returns no rows. Mirrors
+// the seed file so the UI is byte-for-byte the same as a live read.
+const FALLBACK_BOUNTIES: Bounty[] = [
   {
     id: "b-eastleigh-first",
     goal: "First verified café in Eastleigh",
@@ -114,6 +111,61 @@ export const BOUNTIES: Bounty[] = [
     expiresAt: "2026-07-30",
   },
 ];
+
+interface BountyRow {
+  id: string;
+  goal: string;
+  area: string;
+  amount_usd: string | number;
+  target: number;
+  progress: number;
+  sponsor_name: string;
+  sponsor_kind: string;
+  kind: string;
+  expires_at: string | Date | null;
+}
+
+function rowToBounty(r: BountyRow): Bounty {
+  const expiresAt =
+    r.expires_at instanceof Date
+      ? r.expires_at.toISOString()
+      : r.expires_at ?? "";
+  return {
+    id: r.id,
+    goal: r.goal,
+    area: r.area,
+    amountUsd: Number(r.amount_usd),
+    target: r.target,
+    progress: r.progress,
+    sponsor: r.sponsor_name,
+    sponsorKind: r.sponsor_kind as Bounty["sponsorKind"],
+    kind: r.kind as BountyKind,
+    expiresAt,
+  };
+}
+
+/**
+ * Returns the open coffee bounties — those not yet paid out and either
+ * still in their funding window or open-ended. Ordered by soonest expiry.
+ */
+export async function getBounties(): Promise<Bounty[]> {
+  try {
+    const result = await query<BountyRow>(`
+      SELECT id, goal, area, amount_usd, target, progress, sponsor_name,
+             sponsor_kind, kind, expires_at
+      FROM bounties
+      WHERE NOT paid_out
+        AND (expires_at IS NULL OR expires_at > now())
+      ORDER BY expires_at ASC NULLS LAST
+    `);
+    if (result.rows.length === 0) return FALLBACK_BOUNTIES;
+    return result.rows.map(rowToBounty);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    log.warn("getBounties: serving fallback", { scope: "bounties", reason });
+    return FALLBACK_BOUNTIES;
+  }
+}
 
 export function sponsorBadgeStyle(
   kind: Bounty["sponsorKind"],

@@ -1,7 +1,8 @@
 import type { QueryResult } from "pg";
 import { query } from "./db";
 import { MOCK_CAFES } from "./mock-cafes";
-import type { CafeDetail, CafeStation, Neighbourhood, Tier, TimeBucket } from "./types";
+import type { CafeDetail, CafeStation, Neighbourhood, Sponsor, Tier, TimeBucket } from "./types";
+import { log } from "./log";
 
 // ── Demo-safety fallback ──────────────────────────────────────────────────────
 // Aurora Serverless v2 auto-pauses at 0 ACU and the first cold connection can
@@ -13,7 +14,10 @@ import type { CafeDetail, CafeStation, Neighbourhood, Tier, TimeBucket } from ".
 
 function warnFallback(scope: string, err: unknown): void {
   const reason = err instanceof Error ? err.message : String(err);
-  console.warn(`[lattency] ${scope}: serving bundled snapshot (Aurora unavailable: ${reason})`);
+  log.warn("serving bundled snapshot (Aurora unavailable)", {
+    scope: `cafes.${scope}`,
+    reason,
+  });
 }
 
 // Haversine distance in metres — lets the geo filter work against the snapshot
@@ -73,6 +77,11 @@ interface CafeRow {
   median_loss_pct: string | number;
   measurement_count: string | number;
   latest_photo_url: string | null;
+  /** Active sponsor (LEFT JOIN sponsorships in the MV); all three columns
+   *  are null together when no sponsor is attached. */
+  sponsor_name: string | null;
+  sponsor_kind: string | null;
+  sponsor_tagline: string | null;
 }
 
 // Backfill for Aurora-backed rows: the DB doesn't carry vibe_tags yet, but
@@ -82,6 +91,15 @@ interface CafeRow {
 const VIBE_TAGS_BY_NAME: Map<string, string[]> = new Map(
   MOCK_CAFES.map((c) => [c.name, c.vibeTags ?? []]),
 );
+
+function rowToSponsor(r: CafeRow): Sponsor | null {
+  if (!r.sponsor_name || !r.sponsor_kind) return null;
+  return {
+    name: r.sponsor_name,
+    kind: r.sponsor_kind as Sponsor["kind"],
+    tagline: r.sponsor_tagline,
+  };
+}
 
 function rowToStation(r: CafeRow): CafeStation {
   return {
@@ -112,6 +130,7 @@ function rowToStation(r: CafeRow): CafeStation {
       wifiNetwork: r.wifi_network ?? undefined,
     },
     photoUrl: r.photo_url ?? null,
+    sponsor: rowToSponsor(r),
   };
 }
 
@@ -152,6 +171,9 @@ const CAFE_COLUMNS = `
   cs.median_jitter_ms,
   cs.median_loss_pct,
   cs.measurement_count,
+  cs.sponsor_name,
+  cs.sponsor_kind,
+  cs.sponsor_tagline,
   lp.photo_url AS latest_photo_url
 `;
 
@@ -179,6 +201,9 @@ const LIST_COLUMNS = `
   cs.median_jitter_ms,
   cs.median_loss_pct,
   cs.measurement_count,
+  cs.sponsor_name,
+  cs.sponsor_kind,
+  cs.sponsor_tagline,
   lp.photo_url AS latest_photo_url
 `;
 

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import {
   deviceTypeFromUA,
@@ -7,6 +7,8 @@ import {
   validateMeasurement,
 } from "@/lib/measurements";
 import type { MeasurementInput } from "@/lib/types";
+import { auth, authConfigured } from "@/auth";
+import { log, reqIdFrom } from "@/lib/log";
 
 function badRequest(message: string): Response {
   return Response.json({ error: message }, { status: 400 });
@@ -16,6 +18,7 @@ function badRequest(message: string): Response {
 // Body: { cafeId, downMbps, upMbps, latencyMs, jitterMs?, lossPct?, measuredAt?, ... }
 // Inserts → rate-limit check → outlier flag → refreshes cafe_speed_stats CONCURRENTLY.
 export async function POST(req: NextRequest) {
+  const reqId = reqIdFrom(req);
   let body: MeasurementInput;
   try {
     body = (await req.json()) as MeasurementInput;
@@ -48,10 +51,12 @@ export async function POST(req: NextRequest) {
   }
 
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
+  const session = authConfigured ? await auth() : null;
+  const userId = session?.user?.id ?? null;
 
   let measurementId: string;
   try {
-    measurementId = await insertMeasurement(body, ipHash, deviceType);
+    measurementId = await insertMeasurement(body, ipHash, deviceType, undefined, userId);
   } catch (err) {
     const msg = (err as Error).message;
     if (msg.includes("measurements_cafe_id_fkey")) {
@@ -60,7 +65,20 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
-  await refreshStatsView();
+  // Defer the materialized-view refresh until after the response. The
+  // throttle in refreshStatsView() coalesces bursts; Postgres serializes
+  // any genuinely concurrent attempts via the CONCURRENTLY lock.
+  after(async () => {
+    try {
+      await refreshStatsView();
+    } catch (err) {
+      log.warn("MV refresh after measurement insert failed", {
+        reqId,
+        scope: "contribute.measurement",
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
 
   const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
   return Response.json(

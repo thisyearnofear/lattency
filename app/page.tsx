@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { getCafes } from "@/lib/cafes";
 import { TopNav } from "@/components/top-nav";
@@ -32,11 +33,35 @@ export default async function Home() {
                 <br />
                 in Nairobi today?
               </h1>
-              <p className="font-serif italic text-ink-soft text-xl md:text-2xl mt-4 max-w-2xl">
-                Twelve cafés. Three lines. Live wifi speeds from anyone with
-                a connection — tap a station to see its measurements, drop a
-                reading of your own.
+              {/* Three-sided model in one line, sitting above the
+                  existing editorial sub-line so the value prop reads
+                  before the data. */}
+              <p className="font-mono text-[11px] md:text-[12px] tracking-[0.22em] uppercase text-ink-soft mt-5">
+                Contributors map.
+                <span className="text-ink-faint mx-1.5">·</span>
+                Sponsors fund coffees.
+                <span className="text-ink-faint mx-1.5">·</span>
+                You find the line you can actually work on.
               </p>
+              <p className="font-serif italic text-ink-soft text-xl md:text-2xl mt-3 max-w-2xl">
+                Twelve cafés today, anyone can add the thirteenth. Live
+                wifi speeds from anyone with a connection — tap a station
+                to see its measurements, drop a reading of your own.
+              </p>
+              <div className="flex flex-wrap items-center gap-4 mt-6">
+                <Link
+                  href="/?contribute=1"
+                  className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors"
+                >
+                  <span aria-hidden>+</span> Map a café in 60 seconds
+                </Link>
+                <Link
+                  href="/partners"
+                  className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
+                >
+                  How sponsors pay <span aria-hidden>→</span>
+                </Link>
+              </div>
             </div>
             <Link
               href="/tour"
@@ -49,8 +74,12 @@ export default async function Home() {
 
         {/* The map. Static (no scroll), interactive (click stations,
             toggle schematic ↔ geographic). */}
+        {/* MapShell reads ?contribute=1 from the URL, so it must sit inside
+            a Suspense boundary to keep the page statically prerenderable. */}
         <section className="mt-4 mb-10" aria-label="Café wifi network map">
-          <MapShell cafes={cafes} />
+          <Suspense fallback={null}>
+            <MapShell cafes={cafes} />
+          </Suspense>
         </section>
 
         {/* The directory. Search/filter/geolocation across the same data. */}

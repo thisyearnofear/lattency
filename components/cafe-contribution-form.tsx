@@ -19,6 +19,7 @@ import {
   MILK_LABELS,
 } from "@/lib/cafe-metadata";
 import { CITIES } from "@/lib/cities";
+import { postWithRetry } from "@/lib/fetch-retry";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
 
@@ -275,7 +276,7 @@ export function CafeContributionForm({
     };
 
     try {
-      const res = await fetch("/api/cafes", {
+      const res = await postWithRetry("/api/cafes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -296,16 +297,25 @@ export function CafeContributionForm({
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  const stepLabel = {
-    location: "Step 1 of 5 — Location",
-    details: "Step 2 of 5 — Café details",
-    metadata: "Step 3 of 5 — Coffee details",
-    speedtest: "Step 4 of 5 — Speed test",
-    photo: "Step 5 of 5 — Photo",
+  const STEP_ORDER: Step[] = ["location", "details", "metadata", "speedtest", "photo"];
+  const STEP_LABELS: Record<Step, string> = {
+    location: "Location",
+    details: "Café details",
+    metadata: "Coffee details",
+    speedtest: "Speed test",
+    photo: "Photo",
     submitting: "Submitting…",
     done: "Café mapped!",
     error: "Error",
-  }[step];
+  };
+  const currentStepIndex = STEP_ORDER.indexOf(step);
+  const totalSteps = STEP_ORDER.length;
+  const isProgressVisible = currentStepIndex >= 0;
+  const stepsLeft =
+    currentStepIndex >= 0 ? totalSteps - currentStepIndex - 1 : 0;
+  const stepLabel = isProgressVisible
+    ? `Step ${currentStepIndex + 1} of ${totalSteps} — ${STEP_LABELS[step]}`
+    : STEP_LABELS[step];
 
   return (
     <div
@@ -317,21 +327,59 @@ export function CafeContributionForm({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-cream border-b border-ink/15 px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <p className="stamp">Map a new café</p>
-            <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint mt-1">
-              {stepLabel}
-            </p>
+        <div className="sticky top-0 bg-cream border-b border-ink/15 px-6 py-4 z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="stamp">Map a new café</p>
+              <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint mt-1">
+                {stepLabel}
+                {isProgressVisible && stepsLeft > 0 && (
+                  <span className="text-ink-faint/60 ml-2 normal-case">
+                    · {stepsLeft === 1 ? "almost there" : `${stepsLeft} steps left`}
+                  </span>
+                )}
+                {isProgressVisible && stepsLeft === 0 && (
+                  <span className="text-express ml-2 normal-case">· last step</span>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-ink-faint hover:text-ink text-xl leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-ink-faint hover:text-ink text-xl leading-none"
-            aria-label="Close"
-          >
-            ×
-          </button>
+
+          {/* Visible 5-dot progress that fills as the user advances. */}
+          {isProgressVisible && (
+            <div
+              role="progressbar"
+              aria-valuemin={1}
+              aria-valuemax={totalSteps}
+              aria-valuenow={currentStepIndex + 1}
+              aria-label={`Step ${currentStepIndex + 1} of ${totalSteps}`}
+              className="flex items-center gap-1.5 mt-3"
+            >
+              {STEP_ORDER.map((s, i) => {
+                const reached = i <= currentStepIndex;
+                const current = i === currentStepIndex;
+                return (
+                  <span
+                    key={s}
+                    aria-hidden
+                    className={[
+                      "h-1.5 flex-1 transition-colors duration-300",
+                      reached ? "bg-ink" : "bg-cream-deep",
+                      current ? "ring-2 ring-offset-1 ring-offset-cream ring-ink" : "",
+                    ].join(" ")}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-5">
@@ -550,26 +598,7 @@ export function CafeContributionForm({
               )}
 
               {testState === "running" && testProgress && (
-                <div className="space-y-2">
-                  <div className="font-mono text-sm text-ink">
-                    {testProgress.phase === "ping" && "Pinging edge…"}
-                    {testProgress.phase === "download" && (testProgress.downMbps !== undefined ? `↓ ${testProgress.downMbps} Mbps` : "Downloading…")}
-                    {testProgress.phase === "upload" && (testProgress.upMbps !== undefined ? `↑ ${testProgress.upMbps} Mbps` : "Uploading…")}
-                    {testProgress.phase === "done" && "Test complete"}
-                  </div>
-                  <div className="h-1 bg-ink/10">
-                    <div
-                      className="h-full bg-express transition-all duration-300"
-                      style={{
-                        width: `${
-                          testProgress.phase === "ping" ? 15 :
-                          testProgress.phase === "download" ? 50 :
-                          testProgress.phase === "upload" ? 85 : 100
-                        }%`,
-                      }}
-                    />
-                  </div>
-                </div>
+                <SpeedTestRunning progress={testProgress} />
               )}
 
               {testState === "done" && form.measurement && (
@@ -729,6 +758,108 @@ function Stat({ label, value, unit }: { label: string; value: string; unit: stri
       <div className="font-mono text-[8px] text-ink-faint mt-0.5">
         {unit}
       </div>
+    </div>
+  );
+}
+
+// Speed-test "live" panel — three phase chips (ping / download / upload),
+// a real-time numeric readout for the active phase, and skeleton tiles
+// for the four result stats so the user sees where the numbers are about
+// to land. Replaces the previous bare progress bar.
+function SpeedTestRunning({ progress }: { progress: SpeedTestProgress }) {
+  const phases: Array<{ id: SpeedTestProgress["phase"]; label: string }> = [
+    { id: "ping", label: "Ping" },
+    { id: "download", label: "Download" },
+    { id: "upload", label: "Upload" },
+  ];
+  const phaseIndex = phases.findIndex((p) => p.id === progress.phase);
+  // `done` falls past the last phase — clamp to 100% in that case.
+  const widthPct =
+    progress.phase === "done"
+      ? 100
+      : phaseIndex < 0
+        ? 5
+        : ((phaseIndex + 0.85) / phases.length) * 100;
+
+  const liveLabel =
+    progress.phase === "ping"
+      ? "Pinging the edge…"
+      : progress.phase === "download"
+        ? progress.downMbps !== undefined
+          ? `${progress.downMbps.toFixed(1)} Mbps down`
+          : "Streaming the 10 MB blob…"
+        : progress.phase === "upload"
+          ? progress.upMbps !== undefined
+            ? `${progress.upMbps.toFixed(1)} Mbps up`
+            : "Uploading test payloads…"
+          : "Wrapping up…";
+
+  return (
+    <div className="space-y-4">
+      {/* Phase track */}
+      <div className="grid grid-cols-3 gap-2">
+        {phases.map((p, i) => {
+          const isActive = p.id === progress.phase;
+          const isDone = i < phaseIndex || progress.phase === "done";
+          return (
+            <div
+              key={p.id}
+              className={[
+                "border px-2 py-1.5 transition-colors duration-300",
+                isActive
+                  ? "border-express bg-express/10 text-ink"
+                  : isDone
+                    ? "border-ink/40 bg-cream text-ink-soft"
+                    : "border-ink/15 bg-cream-edge/40 text-ink-faint",
+              ].join(" ")}
+            >
+              <div className="flex items-center justify-between font-mono text-[9px] tracking-[0.18em] uppercase">
+                <span>{p.label}</span>
+                <span aria-hidden>
+                  {isDone ? "✓" : isActive ? "●" : "○"}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Live readout */}
+      <div className="font-mono text-sm text-ink min-h-[1.25rem] flex items-center gap-2">
+        <span
+          aria-hidden
+          className="inline-block w-2 h-2 rounded-full bg-express animate-pulse"
+        />
+        {liveLabel}
+      </div>
+
+      {/* Animated bar */}
+      <div className="h-1 bg-ink/10 overflow-hidden">
+        <div
+          className="h-full bg-express transition-all duration-500 ease-out"
+          style={{ width: `${widthPct}%` }}
+        />
+      </div>
+
+      {/* Result skeleton — four tiles that the actual numbers slot into. */}
+      <div
+        aria-hidden
+        className="grid grid-cols-4 gap-2 pt-2 opacity-50"
+      >
+        {["DOWN", "UP", "PING", "JITTER"].map((label) => (
+          <div key={label} className="border border-dashed border-ink/20 py-2">
+            <div className="font-mono text-[8px] tracking-[0.14em] uppercase text-ink-faint">
+              {label}
+            </div>
+            <div className="mt-1 h-4 bg-ink/10 animate-pulse" />
+            <div className="mt-1 h-2 bg-ink/5" />
+          </div>
+        ))}
+      </div>
+
+      <p className="font-mono text-[10px] text-ink-faint leading-snug">
+        Round-trip recorded against the nearest Vercel edge. ~12 seconds.
+      </p>
     </div>
   );
 }

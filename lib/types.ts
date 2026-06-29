@@ -114,6 +114,18 @@ export interface CafeStation {
    *  Gives the café page a face. The mandatory speed test is the actual
    *  trust mechanism; the photo is presentation. */
   photoUrl?: string | null;
+  /** Active sponsorship for this café, joined from `sponsorships` in the
+   *  cafe_speed_stats MV. Null when no sponsor is currently attached. */
+  sponsor?: Sponsor | null;
+}
+
+// One active sponsor per café (the partial unique index in migration 0007
+// enforces this for v1). Surfaced via the LEFT JOIN in the cafe_speed_stats
+// materialized view so the read path is one query, not N+1.
+export interface Sponsor {
+  name: string;
+  kind: "isp" | "café" | "community" | "anon";
+  tagline: string | null;
 }
 
 // Returned by GET /api/cafes/[id] — detail + distribution by time bucket.

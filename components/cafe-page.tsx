@@ -195,10 +195,12 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
                 <VibeChips tags={cafe.vibeTags} />
               </div>
             )}
-            <div className="mt-4 space-y-1.5">
-              <SponsorBadge cafeName={cafe.name} />
-              <SponsorTagline cafeName={cafe.name} />
-            </div>
+            {cafe.sponsor && (
+              <div className="mt-4 space-y-1.5">
+                <SponsorBadge sponsor={cafe.sponsor} />
+                <SponsorTagline sponsor={cafe.sponsor} />
+              </div>
+            )}
             <div className="flex items-baseline justify-between gap-3 mt-4">
               <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft">
                 {TIER_ROAST[cafe.tier]}

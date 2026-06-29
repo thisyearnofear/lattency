@@ -1,12 +1,13 @@
-// "Powered by [Sponsor]" badge — appears on sponsored café tiles across
-// the station card, detail drawer, and per-café page. The badge links to
-// /partners so judges can see how the sponsorship model is priced.
+// "Sponsored by [Sponsor]" badge for sponsored café tiles. Receives the
+// sponsor as a prop (resolved server-side via the cafe_speed_stats join in
+// lib/cafes.ts) so client components don't need to do their own lookup.
 //
-// `compact` mode shrinks the badge for the station-card row; default mode
-// is the larger inline lockup used on detail pages.
+// `compact` shrinks the chip for use on station cards.
+// `asLink={false}` switches to a non-interactive span — required when the
+// badge sits inside another interactive element (a button-style card).
 
 import Link from "next/link";
-import { sponsorForCafe, type Sponsor } from "@/lib/sponsors";
+import type { Sponsor } from "@/lib/types";
 
 function SponsorChip({
   sponsor,
@@ -20,28 +21,28 @@ function SponsorChip({
   const size = compact
     ? "text-[9px] tracking-[0.16em] px-1.5 py-[3px]"
     : "text-[10px] tracking-[0.2em] px-2 py-[4px]";
+  // Ink-on-cream with a leading `$` glyph: keeps the badge unmistakably a
+  // "sponsorship" signal without borrowing the express-tier green that
+  // already runs the tier badge on the same card.
   const inner = (
     <>
       <span
         aria-hidden
         className={`font-mono ${size} uppercase border border-ink/40 bg-cream text-ink-faint group-hover:border-ink group-hover:text-ink transition-colors`}
       >
-        sponsored
+        $ sponsored
       </span>
       <span
-        className={`font-mono ${size} uppercase bg-express text-cream group-hover:bg-ink transition-colors`}
+        className={`font-mono ${size} uppercase bg-ink text-cream group-hover:bg-ink/80 transition-colors`}
       >
         {sponsor.name}
       </span>
     </>
   );
   if (!asLink) {
-    // Card view: cards are buttons, so the badge can't be an interactive
-    // element itself. Render a static lockup that still inherits the
-    // group hover state of the surrounding card.
     return (
       <span
-        title={`${sponsor.tagline} · see /partners`}
+        title={`${sponsor.tagline ?? sponsor.name} · see /partners`}
         className="inline-flex items-center gap-1.5 group"
       >
         {inner}
@@ -51,7 +52,7 @@ function SponsorChip({
   return (
     <Link
       href="/partners"
-      title={`${sponsor.tagline} · sponsorship model`}
+      title={`${sponsor.tagline ?? sponsor.name} · sponsorship model`}
       className="inline-flex items-center gap-1.5 group"
     >
       {inner}
@@ -60,24 +61,22 @@ function SponsorChip({
 }
 
 export function SponsorBadge({
-  cafeName,
+  sponsor,
   compact = false,
   asLink = true,
 }: {
-  cafeName: string;
+  sponsor: Sponsor | null | undefined;
   compact?: boolean;
-  /** Set false when rendered inside another interactive element (a button-card).
-   *  Avoids nested interactives — accessibility + valid HTML. */
+  /** Set false when rendered inside another interactive element (a
+   *  button-card). Avoids nested interactives — a11y + valid HTML. */
   asLink?: boolean;
 }) {
-  const sponsor = sponsorForCafe(cafeName);
   if (!sponsor) return null;
   return <SponsorChip sponsor={sponsor} compact={compact} asLink={asLink} />;
 }
 
-export function SponsorTagline({ cafeName }: { cafeName: string }) {
-  const sponsor = sponsorForCafe(cafeName);
-  if (!sponsor) return null;
+export function SponsorTagline({ sponsor }: { sponsor: Sponsor | null | undefined }) {
+  if (!sponsor || !sponsor.tagline) return null;
   return (
     <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint">
       {sponsor.tagline} ·{" "}

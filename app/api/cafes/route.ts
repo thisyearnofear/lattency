@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { withTransaction } from "@/lib/db";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import { validateCafeMetadata } from "@/lib/cafe-metadata";
@@ -10,6 +10,8 @@ import {
 } from "@/lib/measurements";
 import { slugify } from "@/lib/slug";
 import type { CafeCreationInput } from "@/lib/types";
+import { auth, authConfigured } from "@/auth";
+import { log, reqIdFrom } from "@/lib/log";
 
 // Force dynamic — each POST runs as a function.
 export const dynamic = "force-dynamic";
@@ -26,6 +28,7 @@ function badRequest(message: string): Response {
 // Body: CafeCreationInput (see lib/types.ts)
 // Returns: { cafeId, slug, measurementId }
 export async function POST(req: NextRequest) {
+  const reqId = reqIdFrom(req);
   let body: CafeCreationInput;
   try {
     body = (await req.json()) as CafeCreationInput;
@@ -77,6 +80,10 @@ export async function POST(req: NextRequest) {
   // and a flaky network blips. The MV refresh runs AFTER commit because
   // REFRESH ... CONCURRENTLY cannot live inside a transaction.
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
+  // Attribute to the signed-in user when there is one; otherwise the
+  // contribution is anonymous and only the IP hash gates rate-limit.
+  const session = authConfigured ? await auth() : null;
+  const userId = session?.user?.id ?? null;
   let cafeId: string;
   let measurementId: string;
   try {
@@ -86,10 +93,10 @@ export async function POST(req: NextRequest) {
         INSERT INTO cafes
           (name, neighbourhood, lat, lng, location, vibe, city,
            price_tier, milk_options, power_outlets, seating, wifi_network,
-           photo_url, created_by_ip_hash)
+           photo_url, created_by_ip_hash, created_by_user_id)
         VALUES ($1, $2, $3, $4,
           ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography,
-          $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id
         `,
         [
@@ -106,6 +113,7 @@ export async function POST(req: NextRequest) {
           metadata.wifiNetwork ?? null,
           body.photo,
           ipHash,
+          userId,
         ],
       );
       const newCafeId = cafeInsert.rows[0].id;
@@ -114,6 +122,7 @@ export async function POST(req: NextRequest) {
         ipHash,
         deviceType,
         tx,
+        userId,
       );
       return { cafeId: newCafeId, measurementId: newMeasurementId };
     }));
@@ -123,21 +132,34 @@ export async function POST(req: NextRequest) {
       return badRequest("invalid price_tier");
     if (msg.includes("check_seating"))
       return badRequest("invalid seating type");
-    console.error("[lattency] POST /api/cafes failed (rolled back):", err);
+    log.error("POST /api/cafes failed (rolled back)", {
+      reqId,
+      scope: "contribute.cafe",
+      reason: msg,
+    });
     return Response.json(
       { error: "couldn't create café — please try again" },
       { status: 500 },
     );
   }
 
-  // Refresh the materialized view so the new café appears immediately.
-  // Errors here don't roll back the café — they just delay map visibility
-  // until the next refresh; surface a soft warning instead of a 500.
-  try {
-    await refreshStatsView();
-  } catch (err) {
-    console.warn("[lattency] MV refresh after café creation failed:", err);
-  }
+  // Defer the materialized-view refresh until after the response is sent.
+  // `after()` keeps the function instance alive past the response so the
+  // client doesn't pay for refresh latency; the throttle in
+  // refreshStatsView() coalesces bursts so concurrent writes share one
+  // refresh. Errors are swallowed because the café is already committed
+  // and will appear on the next refresh anyway.
+  after(async () => {
+    try {
+      await refreshStatsView();
+    } catch (err) {
+      log.warn("MV refresh after café creation failed", {
+        reqId,
+        scope: "contribute.cafe",
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
 
   const slug = slugify(body.name);
 

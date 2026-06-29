@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { MeasurementInput, MeasurementReading, Tier } from "@/lib/types";
+import { postWithRetry } from "@/lib/fetch-retry";
 import {
   runSpeedTest,
   type SpeedTestProgress,
@@ -135,7 +136,7 @@ export function MeasurementForm({
           downloadDurationMs: autoResult.downloadDurationMs,
         }),
       };
-      const res = await fetch("/api/measurements", {
+      const res = await postWithRetry("/api/measurements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
