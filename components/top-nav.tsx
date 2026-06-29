@@ -2,11 +2,17 @@ import Link from "next/link";
 import { CitySwitcher } from "./city-switcher";
 
 /**
- * Thin sticky nav surfaced on both / (the app) and /tour (the cinematic).
- * The current-route indicator is left to the consumer — pass `current` so
- * the active link can be styled.
+ * Thin sticky nav surfaced on /, /sf, /tour, and the per-café pages.
+ * - `current` controls the highlighted route link
+ * - `currentCity` controls the active city in the city switcher dropdown
  */
-export function TopNav({ current }: { current: "app" | "tour" }) {
+export function TopNav({
+  current,
+  currentCity = "nairobi",
+}: {
+  current: "app" | "tour";
+  currentCity?: string;
+}) {
   return (
     <nav
       className="sticky top-0 z-40 border-b border-ink/15 bg-cream/90 backdrop-blur-md"
@@ -22,7 +28,7 @@ export function TopNav({ current }: { current: "app" | "tour" }) {
           </Link>
           <span aria-hidden className="text-ink-faint hidden md:inline">·</span>
           <div className="hidden md:block">
-            <CitySwitcher />
+            <CitySwitcher current={currentCity} />
           </div>
         </div>
 

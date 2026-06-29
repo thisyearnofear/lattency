@@ -12,32 +12,24 @@
 // "Find me" locates the user; if they're far from Nairobi (judges anywhere
 // in the world), it offers four demo neighbourhoods to explore from.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import type { CafeStation, Tier } from "@/lib/types";
+import type { CafeStation, CityId, Tier } from "@/lib/types";
 import {
-  STATION_WAYPOINT,
   TIER_COLOUR,
   TIER_PATH,
   TIER_TINT,
   VIEW_H,
   VIEW_W,
   splitName,
+  waypointsForCity,
 } from "@/lib/map-data";
+import { CITIES } from "@/lib/cities";
 import { CafeDetail } from "./cafe-detail";
 
-// Approximate centre of Nairobi for "how far away am I?" math.
-const NAIROBI_CBD = { lat: -1.2864, lng: 36.8172 };
-// If the geolocated position is further than this from Nairobi, we treat
-// it as "demo from afar" and offer neighbourhood quick-picks.
-const NEAR_NAIROBI_KM = 50;
-
-const DEMO_LOCATIONS: Array<{ id: string; name: string; lat: number; lng: number }> = [
-  { id: "westlands", name: "Westlands", lat: -1.262, lng: 36.806 },
-  { id: "kilimani", name: "Kilimani", lat: -1.293, lng: 36.7891 },
-  { id: "cbd", name: "CBD", lat: -1.285, lng: 36.8226 },
-  { id: "karen", name: "Karen", lat: -1.331, lng: 36.7102 },
-];
+// Anything farther than this from the active city's centre is treated as
+// "demo from afar" and the neighbourhood quick-picks stay visible.
+const NEAR_CITY_KM = 50;
 
 function haversineKm(
   a: { lat: number; lng: number },
@@ -111,10 +103,12 @@ function NameLabel({ name, x, y }: { name: string; x: number; y: number }) {
 
 function SchematicLayer({
   cafes,
+  waypoints,
   activeTiers,
   onSelect,
 }: {
   cafes: CafeStation[];
+  waypoints: ReturnType<typeof waypointsForCity>;
   activeTiers: Set<Tier>;
   onSelect: (cafe: CafeStation) => void;
 }) {
@@ -195,7 +189,7 @@ function SchematicLayer({
 
       {/* Stations — filtered out entirely when their tier is off */}
       {cafes.filter((c) => activeTiers.has(c.tier)).map((cafe) => {
-        const pos = STATION_WAYPOINT[cafe.name];
+        const pos = waypoints[cafe.name];
         if (!pos) return null;
         const stroke =
           cafe.tier === "suspended"
@@ -254,7 +248,16 @@ function SchematicLayer({
 
 type LocateStatus = "idle" | "pending" | "here" | "far" | "denied" | "unavailable";
 
-export function MapShell({ cafes }: { cafes: CafeStation[] }) {
+export function MapShell({
+  cafes,
+  city = "nairobi",
+}: {
+  cafes: CafeStation[];
+  city?: CityId;
+}) {
+  const cityConfig = CITIES[city];
+  const waypoints = useMemo(() => waypointsForCity(cafes, city), [cafes, city]);
+
   const [view, setView] = useState<ViewMode>("schematic");
   const [selected, setSelected] = useState<CafeStation | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number; label: string } | null>(null);
@@ -301,9 +304,9 @@ export function MapShell({ cafes }: { cafes: CafeStation[] }) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const d = haversineKm(here, NAIROBI_CBD);
+        const d = haversineKm(here, cityConfig.centre);
         setDistanceKm(d);
-        if (d > NEAR_NAIROBI_KM) {
+        if (d > NEAR_CITY_KM) {
           setLocStatus("far");
           setFocus({ ...here, label: `You · ${Math.round(d).toLocaleString()} km away` });
         } else {
@@ -316,7 +319,7 @@ export function MapShell({ cafes }: { cafes: CafeStation[] }) {
     );
   }
 
-  function jumpTo(neighbourhood: (typeof DEMO_LOCATIONS)[number]) {
+  function jumpTo(neighbourhood: (typeof cityConfig.demoLocations)[number]) {
     ensureGeographic();
     setFocus({
       lat: neighbourhood.lat,
@@ -337,7 +340,7 @@ export function MapShell({ cafes }: { cafes: CafeStation[] }) {
     idle: "Find me",
     pending: "Locating…",
     here: "Located",
-    far: "You're far · pick a spot",
+    far: `You're far · pick a ${cityConfig.name} spot`,
     denied: "Permission denied",
     unavailable: "Geolocation unavailable",
   };
@@ -395,6 +398,7 @@ export function MapShell({ cafes }: { cafes: CafeStation[] }) {
       {view === "schematic" ? (
         <SchematicLayer
           cafes={cafes}
+          waypoints={waypoints}
           activeTiers={activeTiers}
           onSelect={setSelected}
         />
@@ -404,6 +408,8 @@ export function MapShell({ cafes }: { cafes: CafeStation[] }) {
           onSelectStation={setSelected}
           focusOn={focus}
           activeTiers={activeTiers}
+          centre={cityConfig.centre}
+          zoom={cityConfig.zoom}
         />
       )}
 
@@ -441,13 +447,13 @@ export function MapShell({ cafes }: { cafes: CafeStation[] }) {
             <div className="px-3 py-2 border-t border-ink/20">
               <p className="text-ink-faint mb-1.5 tracking-[0.18em]">
                 {locStatus === "far"
-                  ? "Demo from a Nairobi neighbourhood"
+                  ? `Demo from a ${cityConfig.name} neighbourhood`
                   : locStatus === "denied" || locStatus === "unavailable"
                   ? "Pick a demo spot"
                   : "Or jump in"}
               </p>
               <div className="grid grid-cols-2 gap-1">
-                {DEMO_LOCATIONS.map((n) => (
+                {cityConfig.demoLocations.map((n) => (
                   <button
                     key={n.id}
                     type="button"

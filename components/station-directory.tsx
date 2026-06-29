@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CafeStation, Tier } from "@/lib/types";
+import type { CafeStation, CityId, Tier } from "@/lib/types";
+import { CITIES } from "@/lib/cities";
 import { CafeDetail } from "./cafe-detail";
 
 const TIER_BG: Record<Tier, string> = {
@@ -15,9 +16,7 @@ const TIER_LABEL: Record<Tier, string> = {
   suspended: "S · SUSPENDED",
 };
 
-// Nairobi CBD — the demo origin so the geolocation flow lands somewhere
-// meaningful for a judge watching from anywhere in the world.
-const NAIROBI_CBD = { lat: -1.2864, lng: 36.8172 };
+// Each city brings its own "start from the centre" demo origin via CITIES.
 
 function initials(name: string): string {
   return name
@@ -148,7 +147,14 @@ const FILTERS: Array<{ key: Tier | "all"; label: string }> = [
   { key: "suspended", label: "Suspended" },
 ];
 
-export function StationDirectory({ cafes }: { cafes: CafeStation[] }) {
+export function StationDirectory({
+  cafes,
+  city = "nairobi",
+}: {
+  cafes: CafeStation[];
+  city?: CityId;
+}) {
+  const cityConfig = CITIES[city];
   const [selected, setSelected] = useState<CafeStation | null>(null);
   const [filter, setFilter] = useState<Tier | "all">("all");
   const [geo, setGeo] = useState<GeoState>({ kind: "idle" });
@@ -201,7 +207,7 @@ export function StationDirectory({ cafes }: { cafes: CafeStation[] }) {
       () =>
         setGeo({
           kind: "error",
-          message: "Couldn't read your location — try the Nairobi pin.",
+          message: `Couldn't read your location — try the ${cityConfig.name} pin.`,
         }),
       { enableHighAccuracy: false, timeout: 8000 },
     );
@@ -233,10 +239,10 @@ export function StationDirectory({ cafes }: { cafes: CafeStation[] }) {
           </button>
           <button
             type="button"
-            onClick={() => locate(NAIROBI_CBD, "Nairobi CBD")}
+            onClick={() => locate(cityConfig.centre, `${cityConfig.name} centre`)}
             className="font-mono text-[11px] tracking-[0.2em] uppercase px-4 py-2.5 border border-ink/40 text-ink-soft hover:border-ink hover:text-ink transition-colors"
           >
-            ☕ Start from Nairobi CBD
+            ☕ Start from {cityConfig.name}
           </button>
           {origin && (
             <button

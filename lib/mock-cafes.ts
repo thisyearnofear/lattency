@@ -1,9 +1,16 @@
 import type { CafeStation } from "./types";
 
-// Mock data shaped exactly like GET /api/cafes/near will return in STEP 2.
-// Values match what the Nairobi seed produces so the swap to real data is
-// purely mechanical — no UI changes required.
+// Mock café data. Two cities: Nairobi (DB-backed in prod, this is the
+// fallback when Aurora is unreachable) and San Francisco (mock-only for
+// now — the multi-city engine is proven without yet touching the schema).
+//
+// Same shape as `GET /api/cafes/near` returns. Adding a city is: pick 12
+// real cafés, tag them with `city: '<id>'`, and `getCafes({ city })` does
+// the rest.
+
 export const MOCK_CAFES: CafeStation[] = [
+  // ── Nairobi ────────────────────────────────────────────────────────────────
+
   // Westlands
   {
     id: "mock-1",
@@ -18,6 +25,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/sarit-b/600/400",
     vibe: "weekday workhorse",
+    city: "nairobi",
   },
   {
     id: "mock-2",
@@ -32,6 +40,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/westgate-b/600/400",
     vibe: "lunch rush regular",
+    city: "nairobi",
   },
   {
     id: "mock-3",
@@ -46,6 +55,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/connect-b/600/400",
     vibe: "the speed dealers",
+    city: "nairobi",
   },
   // Kilimani
   {
@@ -61,6 +71,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/kaldi-b/600/400",
     vibe: "yaya regulars",
+    city: "nairobi",
   },
   {
     id: "mock-5",
@@ -75,6 +86,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/brew-a/600/400",
     vibe: "loud at lunch",
+    city: "nairobi",
   },
   {
     id: "mock-6",
@@ -89,6 +101,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/thyme-b/600/400",
     vibe: "fibre + filter",
+    city: "nairobi",
   },
   // CBD
   {
@@ -104,6 +117,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/mamangina-b/600/400",
     vibe: "downtown standby",
+    city: "nairobi",
   },
   {
     id: "mock-8",
@@ -118,6 +132,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/savanna-b/600/400",
     vibe: "uptown for uplink",
+    city: "nairobi",
   },
   {
     id: "mock-9",
@@ -132,6 +147,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/dormans-a/600/400",
     vibe: "old school, slow lane",
+    city: "nairobi",
   },
   // Karen
   {
@@ -147,6 +163,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/talisman-b/600/400",
     vibe: "garden over wires",
+    city: "nairobi",
   },
   {
     id: "mock-11",
@@ -161,6 +178,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/blixen-b/600/400",
     vibe: "the book-wifi",
+    city: "nairobi",
   },
   {
     id: "mock-12",
@@ -175,5 +193,200 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/hub-b/600/400",
     vibe: "mall route",
+    city: "nairobi",
+  },
+
+  // ── San Francisco ──────────────────────────────────────────────────────────
+  // 12 real cafés the local tech crowd will recognize. Tier assignments are
+  // educated guesses based on each spot's reputation, not measured ground
+  // truth — the live engine would correct these the moment real contributors
+  // log readings.
+
+  // SOMA / FiDi
+  {
+    id: "sf-1",
+    name: "Sightglass Coffee SOMA",
+    neighbourhood: "SOMA",
+    lat: 37.7752,
+    lng: -122.4083,
+    tier: "express",
+    medianDownMbps: 72,
+    medianUpMbps: 18.4,
+    medianLatencyMs: 13,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/sightglass/600/400",
+    vibe: "the glassworks",
+    city: "sf",
+  },
+  {
+    id: "sf-2",
+    name: "Mazarine Coffee",
+    neighbourhood: "FiDi",
+    lat: 37.7888,
+    lng: -122.4001,
+    tier: "express",
+    medianDownMbps: 96,
+    medianUpMbps: 24.6,
+    medianLatencyMs: 10,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/mazarine/600/400",
+    vibe: "screen-time fortress",
+    city: "sf",
+  },
+  {
+    id: "sf-3",
+    name: "Blue Bottle Mint Plaza",
+    neighbourhood: "SOMA",
+    lat: 37.7826,
+    lng: -122.4081,
+    tier: "local",
+    medianDownMbps: 38,
+    medianUpMbps: 9.6,
+    medianLatencyMs: 24,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/bluebottle-mint/600/400",
+    vibe: "weekday rotation",
+    city: "sf",
+  },
+
+  // Mission
+  {
+    id: "sf-4",
+    name: "Ritual Coffee Roasters Mission",
+    neighbourhood: "Mission",
+    lat: 37.7569,
+    lng: -122.4214,
+    tier: "express",
+    medianDownMbps: 64,
+    medianUpMbps: 15.8,
+    medianLatencyMs: 18,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/ritual-mission/600/400",
+    vibe: "valencia laptop class",
+    city: "sf",
+  },
+  {
+    id: "sf-5",
+    name: "Verve Coffee Roasters Mission",
+    neighbourhood: "Mission",
+    lat: 37.7625,
+    lng: -122.4194,
+    tier: "local",
+    medianDownMbps: 28,
+    medianUpMbps: 7.2,
+    medianLatencyMs: 32,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/verve-mission/600/400",
+    vibe: "saturday saturated",
+    city: "sf",
+  },
+  {
+    id: "sf-6",
+    name: "Linea Caffe",
+    neighbourhood: "Mission",
+    lat: 37.7615,
+    lng: -122.4254,
+    tier: "local",
+    medianDownMbps: 33,
+    medianUpMbps: 8.4,
+    medianLatencyMs: 28,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/linea/600/400",
+    vibe: "calle dieciocho",
+    city: "sf",
+  },
+
+  // Russian Hill / Hayes
+  {
+    id: "sf-7",
+    name: "Saint Frank Coffee Polk",
+    neighbourhood: "Russian Hill",
+    lat: 37.7984,
+    lng: -122.4220,
+    tier: "express",
+    medianDownMbps: 81,
+    medianUpMbps: 20.5,
+    medianLatencyMs: 12,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/saintfrank/600/400",
+    vibe: "polk hill ritual",
+    city: "sf",
+  },
+  {
+    id: "sf-8",
+    name: "Réveille Coffee Hayes Valley",
+    neighbourhood: "Hayes Valley",
+    lat: 37.7757,
+    lng: -122.4255,
+    tier: "local",
+    medianDownMbps: 35,
+    medianUpMbps: 8.8,
+    medianLatencyMs: 27,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/reveille-hayes/600/400",
+    vibe: "octavia regulars",
+    city: "sf",
+  },
+  {
+    id: "sf-9",
+    name: "The Coffee Movement",
+    neighbourhood: "Nob Hill",
+    lat: 37.7956,
+    lng: -122.4101,
+    tier: "local",
+    medianDownMbps: 26,
+    medianUpMbps: 6.5,
+    medianLatencyMs: 34,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/coffee-movement/600/400",
+    vibe: "nob hill pour",
+    city: "sf",
+  },
+
+  // Marina / Outer
+  {
+    id: "sf-10",
+    name: "Wrecking Ball Coffee Roasters",
+    neighbourhood: "Marina",
+    lat: 37.7976,
+    lng: -122.4360,
+    tier: "local",
+    medianDownMbps: 31,
+    medianUpMbps: 7.9,
+    medianLatencyMs: 30,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/wreckingball/600/400",
+    vibe: "union street pour",
+    city: "sf",
+  },
+  {
+    id: "sf-11",
+    name: "The Mill",
+    neighbourhood: "NoPa",
+    lat: 37.7763,
+    lng: -122.4373,
+    tier: "suspended",
+    medianDownMbps: 6.5,
+    medianUpMbps: 1.7,
+    medianLatencyMs: 88,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/themill/600/400",
+    vibe: "loaves before wifi",
+    city: "sf",
+  },
+  {
+    id: "sf-12",
+    name: "Andytown Coffee Roasters",
+    neighbourhood: "Outer Sunset",
+    lat: 37.7547,
+    lng: -122.4933,
+    tier: "suspended",
+    medianDownMbps: 7.5,
+    medianUpMbps: 2.1,
+    medianLatencyMs: 76,
+    measurementCount: 4,
+    latestPhotoUrl: "https://picsum.photos/seed/andytown/600/400",
+    vibe: "ocean fog brew",
+    city: "sf",
   },
 ];

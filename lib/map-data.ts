@@ -114,14 +114,22 @@ export function projectLatLng(
 // Per-cafe waypoint along its tier's *schematic* path (x/y and 0-1 progress).
 // The geographic view derives positions from projectLatLng() at render time.
 //
-// Keyed by café NAME (not id) so the cinematic resolves correctly against
-// either mock data or live Aurora rows. UUIDs change between environments;
-// names don't.
+// Keyed by café NAME (not id) so it works against either mock data or live
+// Aurora rows. UUIDs change between environments; names don't.
+//
+// Nairobi positions are hand-tuned for storytelling order (Westlands first,
+// Karen last — neighbourhood-driven, not strictly geographic). New cities
+// derive positions automatically via `computeWaypoints` below.
 
-export const STATION_WAYPOINT: Record<
-  string,
-  { x: number; y: number; progress: number }
-> = {
+import type { CafeStation, CityId } from "./types";
+
+export interface Waypoint {
+  x: number;
+  y: number;
+  progress: number;
+}
+
+export const STATION_WAYPOINT: Record<string, Waypoint> = {
   // Express line — 4 stations end to end
   "Connect Coffee Roasters":    { x: 300,  y: 280, progress: 0.13 },
   "About Thyme":                { x: 520,  y: 380, progress: 0.42 },
@@ -140,6 +148,64 @@ export const STATION_WAYPOINT: Record<
   "Brew Bistro Kilimani":       { x: 560,  y: 510, progress: 0.50 },
   "Dormans Standard Street":    { x: 900,  y: 480, progress: 0.88 },
 };
+
+// ── Auto-layout ──────────────────────────────────────────────────────────────
+// For cities other than Nairobi, derive schematic positions automatically:
+// extract anchor points from each tier's Bezier path (the M endpoint plus
+// each Q's endpoint = the points the curve actually passes through), skip
+// the first + last (so lines extend past the outermost stations), sort
+// stations by longitude west-to-east, and distribute evenly.
+//
+// This generalises to any city — the only per-city setup is adding cafés
+// to mock-cafes.ts with the city tag.
+
+function extractAnchors(d: string): Array<{ x: number; y: number }> {
+  const points: Array<{ x: number; y: number }> = [];
+  // M, L endpoints + Q's endpoint contribute anchors the curve passes through.
+  const regex =
+    /([ML])\s+([\d.-]+)\s+([\d.-]+)|Q\s+[\d.-]+\s+[\d.-]+\s*,\s*([\d.-]+)\s+([\d.-]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(d)) !== null) {
+    if (m[1]) points.push({ x: parseFloat(m[2]), y: parseFloat(m[3]) });
+    else points.push({ x: parseFloat(m[4]), y: parseFloat(m[5]) });
+  }
+  return points;
+}
+
+export function computeWaypoints(cafes: CafeStation[]): Record<string, Waypoint> {
+  const out: Record<string, Waypoint> = {};
+  (Object.keys(TIER_PATH) as Tier[]).forEach((tier) => {
+    const anchors = extractAnchors(TIER_PATH[tier]);
+    const interior = anchors.slice(1, -1);
+    const stations = cafes
+      .filter((c) => c.tier === tier)
+      .sort((a, b) => a.lng - b.lng);
+    if (stations.length === 0 || interior.length === 0) return;
+    stations.forEach((cafe, i) => {
+      const idx =
+        stations.length === 1
+          ? Math.floor(interior.length / 2)
+          : Math.round((i / (stations.length - 1)) * (interior.length - 1));
+      const point = interior[Math.min(idx, interior.length - 1)];
+      const progress = (idx + 1) / Math.max(1, anchors.length - 1);
+      out[cafe.name] = { x: point.x, y: point.y, progress };
+    });
+  });
+  return out;
+}
+
+/**
+ * Resolves waypoints for a city. Nairobi returns the hand-tuned canonical
+ * positions; everywhere else gets auto-layout. Callers pass the full cafe
+ * list and we filter to the city internally.
+ */
+export function waypointsForCity(
+  cafes: CafeStation[],
+  city: CityId,
+): Record<string, Waypoint> {
+  if (city === "nairobi") return STATION_WAYPOINT;
+  return computeWaypoints(cafes.filter((c) => c.city === city));
+}
 
 // ── Geographic tier connectors ────────────────────────────────────────────────
 // For the geographic view, we build smooth curves through the projected

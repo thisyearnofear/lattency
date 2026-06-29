@@ -1,6 +1,11 @@
 export type Tier = "express" | "local" | "suspended";
 
-export type Neighbourhood = "Westlands" | "Kilimani" | "CBD" | "Karen";
+// String, not enum — different cities have different neighbourhoods and we
+// don't want to centralise that here. The map UI only uses neighbourhood
+// names for label rendering, not for layout decisions.
+export type Neighbourhood = string;
+
+export type CityId = "nairobi" | "sf";
 
 export type TimeBucket = "morning" | "afternoon" | "evening";
 
@@ -23,6 +28,10 @@ export interface CafeStation {
    *  Surfaced on station cards and in the map hover state. Stored in DB
    *  alongside the rest of the cafés metadata; STEP 2 will SELECT it. */
   vibe: string;
+  /** The city this café belongs to. Currently DB-less: defaulted to
+   *  'nairobi' for rows out of Aurora; SF rows live only in mock data
+   *  while we prove the multi-city engine. */
+  city: CityId;
 }
 
 // Returned by GET /api/cafes/[id] — detail + distribution by time bucket.

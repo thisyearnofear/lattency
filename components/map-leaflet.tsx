@@ -15,10 +15,6 @@ import type { CafeStation, Tier } from "@/lib/types";
 import { TIER_COLOUR } from "@/lib/map-data";
 import "leaflet/dist/leaflet.css";
 
-// Hand-tuned to frame the four Nairobi neighbourhoods (Westlands → Karen).
-const NAIROBI_CENTRE: [number, number] = [-1.292, 36.770];
-const INITIAL_ZOOM = 12;
-
 const TIER_ORDER: Tier[] = ["express", "local", "suspended"];
 
 interface Props {
@@ -28,6 +24,10 @@ interface Props {
   focusOn: { lat: number; lng: number; label: string } | null;
   /** Which tiers to display. Markers + polylines for hidden tiers are removed. */
   activeTiers: Set<Tier>;
+  /** Map centre on first paint — varies per city. */
+  centre: { lat: number; lng: number };
+  /** Initial zoom — wider for smaller cities, tighter for sprawling ones. */
+  zoom: number;
 }
 
 export default function MapLeaflet({
@@ -35,6 +35,8 @@ export default function MapLeaflet({
   onSelectStation,
   focusOn,
   activeTiers,
+  centre,
+  zoom,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -63,8 +65,8 @@ export default function MapLeaflet({
       if (cleanupCalled || !containerRef.current) return;
 
       const map = L.map(containerRef.current, {
-        center: NAIROBI_CENTRE,
-        zoom: INITIAL_ZOOM,
+        center: [centre.lat, centre.lng],
+        zoom,
         zoomControl: true,
         attributionControl: true,
         scrollWheelZoom: true,
@@ -146,6 +148,9 @@ export default function MapLeaflet({
       }
       tierLayersRef.current = { express: [], local: [], suspended: [] };
     };
+    // centre/zoom are read on init only — we don't re-mount the map when they
+    // change. Switching city unmounts MapShell entirely, so this is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cafes]);
 
   // Reactive: when the activeTiers set changes, add or remove the layers

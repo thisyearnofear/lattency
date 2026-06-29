@@ -32,15 +32,20 @@ function distanceMetres(a: { lat: number; lng: number }, b: { lat: number; lng: 
 }
 
 function fallbackCafes(opts: GetCafesOptions): CafeStation[] {
-  const { lat, lng, radiusM } = opts;
+  const { lat, lng, radiusM, city } = opts;
+  // City filter — default to Nairobi for back-compat with callers that
+  // don't pass a city (e.g. the existing home + tour routes).
+  const wantedCity = city ?? "nairobi";
+  const cityCafes = MOCK_CAFES.filter((c) => c.city === wantedCity);
   if (lat !== undefined && lng !== undefined && radiusM !== undefined) {
     const origin = { lat, lng };
-    return MOCK_CAFES.map((c) => ({ c, d: distanceMetres(origin, c) }))
+    return cityCafes
+      .map((c) => ({ c, d: distanceMetres(origin, c) }))
       .filter(({ d }) => d <= radiusM)
       .sort((a, b) => a.d - b.d)
       .map(({ c }) => c);
   }
-  return [...MOCK_CAFES].sort((a, b) => a.name.localeCompare(b.name));
+  return [...cityCafes].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Raw row shape from cafe_speed_stats + latest-photo lateral join.
@@ -73,6 +78,9 @@ function rowToStation(r: CafeRow): CafeStation {
     measurementCount: Number(r.measurement_count),
     latestPhotoUrl: r.latest_photo_url,
     vibe: r.vibe ?? "",
+    // Aurora rows are Nairobi-only for now. When we migrate the schema to
+    // multi-city this defaults to whatever the row says.
+    city: "nairobi",
   };
 }
 
@@ -81,6 +89,10 @@ interface GetCafesOptions {
   lat?: number;
   lng?: number;
   radiusM?: number;
+  /** Filter by city. Defaults to 'nairobi' (the DB-backed city).
+   *  Any other city is served entirely from MOCK_CAFES — the DB doesn't
+   *  have multi-city rows yet. */
+  city?: CafeStation["city"];
 }
 
 /**
@@ -89,7 +101,12 @@ interface GetCafesOptions {
  * Result order: by distance ascending when filtered, by name otherwise.
  */
 export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[]> {
-  const { lat, lng, radiusM } = opts;
+  const { lat, lng, radiusM, city } = opts;
+  // Non-Nairobi cities live in MOCK_CAFES only — the schema doesn't have a
+  // city column yet. Short-circuit the DB call entirely for those.
+  if (city && city !== "nairobi") {
+    return fallbackCafes({ ...opts });
+  }
   const geoFiltered = lat !== undefined && lng !== undefined && radiusM !== undefined;
 
   const sql = geoFiltered
