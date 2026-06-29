@@ -306,9 +306,9 @@ Returns the Vercel edge region serving the request, parsed from the `x-vercel-id
 
 ### `GET /api/warm`
 
-Poked by Vercel cron (see `vercel.json`, schedule `*/5 6-22 * * *`) to keep Aurora Serverless v2 warm during business hours. Issues a tiny `SELECT COUNT(*) FROM cafe_speed_stats` against the materialized view the homepage reads, so the next user request doesn't pay the 15–30s cold-start tax.
+Aurora Serverless v2 warmer — issues a tiny `SELECT COUNT(*) FROM cafe_speed_stats` against the materialized view the homepage reads, so the next user request doesn't pay the 15–30s cold-start tax. Designed to be poked on a schedule; on Vercel Hobby (which only allows once-daily crons) the endpoint is kept but the cron is omitted from `vercel.json`, so the homepage's 60-second ISR revalidate plus real visitor traffic keep Aurora warm during active periods. On Vercel Pro the cron can be re-enabled.
 
-Authenticated via the `Authorization: Bearer $CRON_SECRET` header (Vercel cron sets this automatically once `CRON_SECRET` is configured in the project env). Without `CRON_SECRET` set, the endpoint accepts all callers — fine for dev, lock down in production.
+Authenticated via the `Authorization: Bearer $CRON_SECRET` header. Without `CRON_SECRET` set, the endpoint accepts all callers — fine for dev, lock down in production.
 
 ```json
 { "ok": true, "cafeStatsCount": 12, "elapsedMs": 1670 }
@@ -526,7 +526,7 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | vitest smoke suite — 44 tests across rate-limit / measurements / cafe-metadata / slug / stability | done |
 | slugify() upgraded — NFD-normalizes so accented café names ("Café Réveille") slug cleanly | done |
 | **Reliability** | |
-| Aurora warmer — `GET /api/warm` poked by Vercel cron every 5min during business hours (cron expression `*/5 6-22 * * *`); authenticated via `CRON_SECRET` header | done |
+| Aurora warmer — `GET /api/warm` endpoint issues a tiny SELECT to keep Aurora Serverless v2 warm; authenticated via `CRON_SECRET` header. Cron omitted on Vercel Hobby (daily-only limit); ISR revalidate + visitor traffic keep Aurora warm during active periods | done |
 | Structured JSON-line logging with request id (x-vercel-id); console-pretty in dev | done |
 | Error boundaries — `app/error.tsx`, `app/global-error.tsx`, per-route boundaries on `/cafes/[slug]` + `/me` | done |
 | Contribution POST retry — single 2s-backoff retry for transient 502/503/504 + network failures, applied to both contribution + measurement forms | done |
