@@ -190,9 +190,16 @@ interface DistributionRow {
 // Synthesizes a believable morning/afternoon/evening curve from a single
 // median, used when Aurora is unreachable. Afternoons sag (everyone's online),
 // mornings are fastest — the same shape the seed data produces.
+//
+// When measurementCount === 0 (e.g. SF cafés, which are pre-seeded reputation
+// tiers awaiting their first real reading), return an empty distribution so
+// the UI can show a clean "no data yet" state rather than fabricating one.
 function fallbackDetail(id: string): CafeDetail | null {
   const station = MOCK_CAFES.find((c) => c.id === id);
   if (!station) return null;
+  if (station.measurementCount === 0) {
+    return { ...station, distribution: [] };
+  }
   const base = station.medianDownMbps;
   const shape: Array<{ timeBucket: TimeBucket; factor: number }> = [
     { timeBucket: "morning", factor: 1.12 },
@@ -279,14 +286,24 @@ export async function getCafeById(id: string): Promise<CafeDetail | null> {
 }
 
 /**
- * Resolves a slug like "about-thyme" to a full CafeDetail by name match.
+ * Resolves a slug like "about-thyme" or "sightglass-coffee-soma" to a full
+ * CafeDetail by name match. Searches every known city (we keep the list
+ * here narrow rather than importing CITIES to avoid a cycle).
+ *
  * Slugs are derived from names (see lib/slug.ts) so there's nothing to store.
  */
 import { slugify } from "./slug";
 
+const KNOWN_CITIES: Array<CafeStation["city"]> = ["nairobi", "sf"];
+
 export async function getCafeBySlug(slug: string): Promise<CafeDetail | null> {
-  const cafes = await getCafes();
-  const station = cafes.find((c) => slugify(c.name) === slug);
+  const lists = await Promise.all(
+    KNOWN_CITIES.map((city) => getCafes({ city })),
+  );
+  const all = lists.flat();
+  const station = all.find((c) => slugify(c.name) === slug);
   if (!station) return null;
+  // getCafeById hits the DB for Nairobi rows and falls back to mock-by-id
+  // otherwise; either way the SF row resolves through fallbackDetail.
   return getCafeById(station.id);
 }

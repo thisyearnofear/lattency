@@ -185,9 +185,17 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
                 {cafe.vibe}
               </p>
             )}
-            <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft mt-4">
-              {TIER_ROAST[cafe.tier]}
-            </p>
+            <div className="flex items-baseline justify-between gap-3 mt-4">
+              <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft">
+                {TIER_ROAST[cafe.tier]}
+              </p>
+              <a
+                href="#contribute"
+                className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint hover:text-ink transition-colors whitespace-nowrap"
+              >
+                Tier wrong? log a reading ↓
+              </a>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3 pt-4 border-t border-ink/15">
@@ -195,14 +203,29 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
             <Stat label="Up" value={cafe.medianUpMbps.toFixed(1)} unit="Mbps" />
             <Stat label="Ping" value={String(Math.round(cafe.medianLatencyMs))} unit="ms" />
           </div>
-          <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint">
-            {cafe.measurementCount} measurements on file
-          </p>
+          {cafe.measurementCount > 0 ? (
+            <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint">
+              {cafe.measurementCount} measurements on file
+            </p>
+          ) : (
+            <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft">
+              <span className="text-ink">Tier estimated</span> · no readings yet ·
+              <a
+                href="#contribute"
+                className="ml-1 underline underline-offset-4 hover:text-ink"
+              >
+                be the first →
+              </a>
+            </p>
+          )}
         </div>
       </header>
 
       {/* Distribution + measurement form, side by side on wide */}
-      <section className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-10 mb-16">
+      <section
+        id="contribute"
+        className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-10 mb-16 scroll-mt-20"
+      >
         <div>
           <DistributionChart detail={cafe} />
         </div>

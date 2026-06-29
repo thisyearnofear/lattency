@@ -11,8 +11,13 @@ export const revalidate = 60;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  const cafes = await getCafes();
-  return cafes.map((c) => ({ slug: slugify(c.name) }));
+  // Pre-render slugs from every known city, so /cafes/sightglass-coffee-soma
+  // and /cafes/about-thyme both ship as static HTML at build time.
+  const [nairobi, sf] = await Promise.all([
+    getCafes({ city: "nairobi" }),
+    getCafes({ city: "sf" }),
+  ]);
+  return [...nairobi, ...sf].map((c) => ({ slug: slugify(c.name) }));
 }
 
 export async function generateMetadata({

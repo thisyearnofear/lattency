@@ -276,25 +276,40 @@ export function CafeDetail({
             <p className="font-serif italic text-ink-faint text-lg mt-2">
               {d.neighbourhood} · {d.vibe}
             </p>
-            <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-soft mt-1">
-              {TIER_ROAST[d.tier]}
-            </p>
+            <div className="flex items-baseline justify-between gap-3 mt-1">
+              <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-soft">
+                {TIER_ROAST[d.tier]}
+              </p>
+              <a
+                href="#contribute-form"
+                className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint hover:text-ink transition-colors whitespace-nowrap"
+              >
+                Tier wrong? log a reading ↓
+              </a>
+            </div>
 
             <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-ink/15">
               <Stat label="Down" value={String(Math.round(d.medianDownMbps))} unit="Mbps" />
               <Stat label="Up" value={d.medianUpMbps.toFixed(1)} unit="Mbps" />
               <Stat label="Ping" value={String(Math.round(d.medianLatencyMs))} unit="ms" />
             </div>
-            <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-faint mt-3">
-              {d.measurementCount} measurements on file
-              {loading && <span className="ml-2 text-ink-faint/60">· syncing…</span>}
-            </p>
+            {d.measurementCount > 0 ? (
+              <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-faint mt-3">
+                {d.measurementCount} measurements on file
+                {loading && <span className="ml-2 text-ink-faint/60">· syncing…</span>}
+              </p>
+            ) : (
+              <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-soft mt-3">
+                <span className="text-ink">Tier estimated</span> · no readings yet ·
+                <span className="ml-1 text-ink-faint">be the first below ↓</span>
+              </p>
+            )}
 
             <div className="mt-7 pt-6 border-t border-ink/15">
               <Distribution detail={d} />
             </div>
 
-            <div className="mt-7 pt-6 border-t border-ink/15">
+            <div id="contribute-form" className="mt-7 pt-6 border-t border-ink/15">
               <MeasurementForm
                 cafeId={d.id}
                 cafeName={d.name}

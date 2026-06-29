@@ -127,7 +127,9 @@ function StationCard({
         </div>
 
         <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-faint group-hover:text-ink transition-colors">
-          {cafe.measurementCount} measurements · open station →
+          {cafe.measurementCount > 0
+            ? `${cafe.measurementCount} measurements · open station →`
+            : "Tier estimated · be the first to log a reading →"}
         </p>
       </div>
     </button>

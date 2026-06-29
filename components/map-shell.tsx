@@ -347,19 +347,20 @@ export function MapShell({
 
   return (
     <div className="relative w-full">
-      {/* Tier filter chips — above the map. Click any to toggle, "All" resets. */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      {/* Tier filter chips — above the map. Click any to toggle, "All" resets.
+          On narrow screens the chip labels collapse to keep the row to one line. */}
+      <div className="mb-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
         <button
           type="button"
           onClick={showAllTiers}
           aria-pressed={allActive}
-          className={`px-3 py-1.5 font-mono text-[10px] tracking-[0.22em] uppercase border transition-colors ${
+          className={`px-2.5 sm:px-3 py-1.5 font-mono text-[10px] tracking-[0.22em] uppercase border transition-colors ${
             allActive
               ? "bg-ink text-cream border-ink"
               : "bg-cream text-ink-soft border-ink/30 hover:border-ink hover:text-ink"
           }`}
         >
-          All lines
+          All<span className="hidden sm:inline"> lines</span>
         </button>
         {TIER_ORDER.map((tier) => {
           const active = activeTiers.has(tier);
@@ -375,7 +376,7 @@ export function MapShell({
               type="button"
               onClick={() => toggleTier(tier)}
               aria-pressed={active}
-              className={`pl-2 pr-3 py-1.5 inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.22em] uppercase border transition-all ${
+              className={`pl-1.5 pr-2 sm:pl-2 sm:pr-3 py-1.5 inline-flex items-center gap-1.5 sm:gap-2 font-mono text-[10px] tracking-[0.22em] uppercase border transition-all ${
                 active
                   ? "bg-cream text-ink border-ink"
                   : "bg-cream/60 text-ink-faint border-ink/15 hover:border-ink/40"
@@ -386,7 +387,7 @@ export function MapShell({
               >
                 {TIER_BADGE[tier]}
               </span>
-              <span>{tier}</span>
+              <span className="hidden sm:inline">{tier}</span>
               <span className={active ? "text-ink-faint" : "text-ink-faint/60"}>
                 {tierCounts[tier]}
               </span>
@@ -421,21 +422,23 @@ export function MapShell({
         </div>
       )}
 
-      {/* Locate panel — top-right of the map */}
-      <div className="absolute top-3 right-3 md:top-4 md:right-4 z-[500] pointer-events-auto max-w-[260px] md:max-w-[300px]">
-        <div className="bg-cream/95 border border-ink/80 shadow-[4px_5px_0_0_var(--color-ink)] font-mono text-[10px] tracking-[0.2em] uppercase">
+      {/* Locate panel — top-right of the map. On mobile the demo picks
+          collapse behind a disclosure to keep the map readable; on
+          desktop the full panel is always visible. */}
+      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[500] pointer-events-auto w-[190px] sm:max-w-[260px] sm:w-auto md:max-w-[300px]">
+        <div className="bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] sm:shadow-[4px_5px_0_0_var(--color-ink)] font-mono text-[10px] tracking-[0.2em] uppercase">
           <button
             type="button"
             onClick={locateMe}
             disabled={locStatus === "pending"}
-            className="w-full px-3 py-2 flex items-center justify-between gap-3 bg-ink text-cream hover:bg-ink-soft disabled:opacity-60 transition-colors"
+            className="w-full px-2.5 sm:px-3 py-2 flex items-center justify-between gap-2 sm:gap-3 bg-ink text-cream hover:bg-ink-soft disabled:opacity-60 transition-colors"
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
               <span aria-hidden>◎</span>
-              {locateLabel[locStatus]}
+              <span className="truncate">{locateLabel[locStatus]}</span>
             </span>
             {distanceKm !== null && locStatus !== "pending" && (
-              <span className="text-cream/70">
+              <span className="text-cream/70 whitespace-nowrap">
                 {distanceKm < 1
                   ? "<1 km"
                   : `${Math.round(distanceKm).toLocaleString()} km`}
@@ -443,8 +446,15 @@ export function MapShell({
             )}
           </button>
 
+          {/* On mobile, demo picks are hidden by default. Only the "far"
+              and "denied/unavailable" states open them automatically —
+              that's where the user clearly needs them. */}
           {showDemoPicks && (
-            <div className="px-3 py-2 border-t border-ink/20">
+            <div
+              className={`px-2.5 sm:px-3 py-2 border-t border-ink/20 ${
+                locStatus === "idle" ? "hidden sm:block" : ""
+              }`}
+            >
               <p className="text-ink-faint mb-1.5 tracking-[0.18em]">
                 {locStatus === "far"
                   ? `Demo from a ${cityConfig.name} neighbourhood`
