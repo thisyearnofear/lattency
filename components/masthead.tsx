@@ -1,9 +1,14 @@
+import { BrandMark } from "./brand-mark";
+
 export function Masthead() {
   return (
     <header className="relative">
       {/* Top hairline + edition stamp */}
       <div className="flex items-center justify-between border-b border-ink/80 pb-3">
-        <span className="stamp">Edition 01 · 2026 · Vol I</span>
+        <span className="stamp inline-flex items-center gap-2">
+          <BrandMark size={22} decorative />
+          Edition 01 · 2026 · Vol I
+        </span>
         <span className="stamp">
           Nairobi · Live from <span className="text-express">PG_DB</span>
         </span>

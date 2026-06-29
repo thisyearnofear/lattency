@@ -57,6 +57,13 @@ interface CafeRow {
   lng: string | number;
   vibe: string | null;
   tier: Tier;
+  city: string | null;
+  price_tier: string | null;
+  milk_options: string[] | null;
+  power_outlets: boolean | null;
+  seating: string | null;
+  wifi_network: string | null;
+  photo_url: string | null;
   median_down_mbps: string | number;
   median_up_mbps: string | number;
   median_latency_ms: string | number;
@@ -65,6 +72,14 @@ interface CafeRow {
   measurement_count: string | number;
   latest_photo_url: string | null;
 }
+
+// Backfill for Aurora-backed rows: the DB doesn't carry vibe_tags yet, but
+// the seeded café names match the mock catalog one-to-one (see seeds/0001*).
+// Looking up tags by name keeps MOCK_CAFES as the single source of truth
+// for the chip vocabulary without needing a migration.
+const VIBE_TAGS_BY_NAME: Map<string, string[]> = new Map(
+  MOCK_CAFES.map((c) => [c.name, c.vibeTags ?? []]),
+);
 
 function rowToStation(r: CafeRow): CafeStation {
   return {
@@ -80,11 +95,18 @@ function rowToStation(r: CafeRow): CafeStation {
     medianJitterMs: Number(r.median_jitter_ms),
     medianLossPct: Number(r.median_loss_pct),
     measurementCount: Number(r.measurement_count),
-    latestPhotoUrl: r.latest_photo_url,
+    latestPhotoUrl: r.latest_photo_url ?? r.photo_url,
     vibe: r.vibe ?? "",
-    // Aurora rows are Nairobi-only for now. When we migrate the schema to
-    // multi-city this defaults to whatever the row says.
-    city: "nairobi",
+    vibeTags: VIBE_TAGS_BY_NAME.get(r.name) ?? [],
+    city: r.city ?? "nairobi",
+    metadata: {
+      priceTier: (r.price_tier as "budget" | "mid" | "premium") ?? undefined,
+      milkOptions: r.milk_options ?? undefined,
+      powerOutlets: r.power_outlets ?? undefined,
+      seating: (r.seating as "bar" | "tables" | "lounge" | "mixed") ?? undefined,
+      wifiNetwork: r.wifi_network ?? undefined,
+    },
+    photoUrl: r.photo_url ?? null,
   };
 }
 
@@ -93,94 +115,105 @@ interface GetCafesOptions {
   lat?: number;
   lng?: number;
   radiusM?: number;
-  /** Filter by city. Defaults to 'nairobi' (the DB-backed city).
-   *  Any other city is served entirely from MOCK_CAFES — the DB doesn't
-   *  have multi-city rows yet. */
+  /** Filter by city. When set, only cafés in that city are returned. */
   city?: CafeStation["city"];
+  /** Return all cafés from all cities (ignores city filter). */
+  all?: boolean;
 }
 
+// Shared column list for all cafe_speed_stats queries — keeps the SELECT
+// in sync with the CafeRow interface and the MV definition.
+const CAFE_COLUMNS = `
+  cs.cafe_id AS id,
+  cs.name,
+  cs.neighbourhood,
+  cs.lat,
+  cs.lng,
+  cs.vibe,
+  cs.tier,
+  cs.city,
+  cs.price_tier,
+  cs.milk_options,
+  cs.power_outlets,
+  cs.seating,
+  cs.wifi_network,
+  cs.photo_url,
+  cs.median_down_mbps,
+  cs.median_up_mbps,
+  cs.median_latency_ms,
+  cs.median_jitter_ms,
+  cs.median_loss_pct,
+  cs.measurement_count,
+  lp.photo_url AS latest_photo_url
+`;
+
+const LATEST_PHOTO_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT photo_url
+    FROM measurements m
+    WHERE m.cafe_id = cs.cafe_id AND m.photo_url IS NOT NULL
+    ORDER BY m.measured_at DESC
+    LIMIT 1
+  ) lp ON TRUE
+`;
+
 /**
- * Returns cafés with tier + median speeds + latest photo.
+ * Returns cafés with tier + median speeds + latest photo + metadata.
  * Without coordinates → returns the whole network. With → ST_DWithin filter.
  * Result order: by distance ascending when filtered, by name otherwise.
  */
 export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[]> {
-  const { lat, lng, radiusM, city } = opts;
-  // Non-Nairobi cities live in MOCK_CAFES only — the schema doesn't have a
-  // city column yet. Short-circuit the DB call entirely for those.
-  if (city && city !== "nairobi") {
-    return fallbackCafes({ ...opts });
-  }
+  const { lat, lng, radiusM, city, all } = opts;
   const geoFiltered = lat !== undefined && lng !== undefined && radiusM !== undefined;
 
-  const sql = geoFiltered
-    ? `
-      SELECT
-        cs.cafe_id AS id,
-        cs.name,
-        cs.neighbourhood,
-        cs.lat,
-        cs.lng,
-        cs.vibe,
-        cs.tier,
-        cs.median_down_mbps,
-        cs.median_up_mbps,
-        cs.median_latency_ms,
-        cs.median_jitter_ms,
-        cs.median_loss_pct,
-        cs.measurement_count,
-        lp.photo_url AS latest_photo_url
-      FROM cafe_speed_stats cs
-      JOIN cafes c ON c.id = cs.cafe_id
-      LEFT JOIN LATERAL (
-        SELECT photo_url
-        FROM measurements m
-        WHERE m.cafe_id = cs.cafe_id AND m.photo_url IS NOT NULL
-        ORDER BY m.measured_at DESC
-        LIMIT 1
-      ) lp ON TRUE
-      WHERE ST_DWithin(
-        c.location,
-        ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
-        $3
-      )
-      ORDER BY ST_Distance(
+  // Build WHERE clause conditions
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+  let paramIdx = 1;
+
+  if (geoFiltered) {
+    conditions.push(`ST_DWithin(
+      c.location,
+      ST_SetSRID(ST_MakePoint($${paramIdx + 1}, $${paramIdx}), 4326)::geography,
+      $${paramIdx + 2}
+    )`);
+    params.push(lat, lng, radiusM);
+    paramIdx += 3;
+  }
+
+  if (!all && city) {
+    conditions.push(`cs.city = $${paramIdx}`);
+    params.push(city);
+    paramIdx++;
+  }
+
+  const whereClause = conditions.length > 0
+    ? `WHERE ${conditions.join(" AND ")}`
+    : "";
+
+  const orderBy = geoFiltered
+    ? `ORDER BY ST_Distance(
         c.location,
         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
-      ) ASC
-    `
-    : `
-      SELECT
-        cs.cafe_id AS id,
-        cs.name,
-        cs.neighbourhood,
-        cs.lat,
-        cs.lng,
-        cs.vibe,
-        cs.tier,
-        cs.median_down_mbps,
-        cs.median_up_mbps,
-        cs.median_latency_ms,
-        cs.median_jitter_ms,
-        cs.median_loss_pct,
-        cs.measurement_count,
-        lp.photo_url AS latest_photo_url
-      FROM cafe_speed_stats cs
-      LEFT JOIN LATERAL (
-        SELECT photo_url
-        FROM measurements m
-        WHERE m.cafe_id = cs.cafe_id AND m.photo_url IS NOT NULL
-        ORDER BY m.measured_at DESC
-        LIMIT 1
-      ) lp ON TRUE
-      ORDER BY cs.name ASC
-    `;
+      ) ASC`
+    : "ORDER BY cs.name ASC";
 
-  const params = geoFiltered ? [lat, lng, radiusM] : [];
+  const needsCafesJoin = geoFiltered; // ST_DWithin needs the cafes table
+  const joinClause = needsCafesJoin
+    ? "JOIN cafes c ON c.id = cs.cafe_id"
+    : "";
+
+  const sql = `
+    SELECT ${CAFE_COLUMNS}
+    FROM cafe_speed_stats cs
+    ${joinClause}
+    ${LATEST_PHOTO_JOIN}
+    ${whereClause}
+    ${orderBy}
+  `;
+
   try {
     const result = await query<CafeRow>(sql, params);
-    // An empty result usually means an un-seeded cluster in a fresh env; the
-    // demo should still show the network, so treat empty as a fallback too.
     if (result.rows.length === 0) return fallbackCafes(opts);
     return result.rows.map(rowToStation);
   } catch (err) {
@@ -195,6 +228,58 @@ interface DistributionRow {
   sample_size: string | number;
 }
 
+interface RecentReadingRow {
+  measured_at: string | Date;
+  down_mbps: string | number;
+}
+
+// Deterministic 32-bit hash of a string — used to seed the mock "recent
+// readings" synthesis so the same café renders the same trail across
+// server + client, while still feeling fresh each minute (the timestamps
+// are anchored to the current Date.now()).
+function fnv1a(s: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+// Tiny LCG seeded from the cafe id — same id, same sequence. We only need
+// a handful of [0,1) draws per café so cryptographic quality is irrelevant.
+function makeRand(seed: number): () => number {
+  let s = (seed || 1) >>> 0;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 0xffffffff;
+  };
+}
+
+function synthesizeRecent(
+  id: string,
+  medianDownMbps: number,
+): CafeDetail["recent"] {
+  const rand = makeRand(fnv1a(id));
+  const now = Date.now();
+  // Five readings, spaced ~roughly across the last 22 hours but biased toward
+  // the recent end so the ticker always has a "minutes ago" entry up top.
+  const offsetsMinutes = [
+    Math.round(2 + rand() * 6),       // 2–8 minutes ago
+    Math.round(18 + rand() * 35),     // 18–53 minutes
+    Math.round(95 + rand() * 90),     // ~1.5–3h
+    Math.round(360 + rand() * 240),   // 6–10h
+    Math.round(900 + rand() * 360),   // 15–21h
+  ];
+  return offsetsMinutes.map((mins) => {
+    const variance = 0.85 + rand() * 0.3;
+    return {
+      measuredAt: new Date(now - mins * 60_000).toISOString(),
+      downMbps: Math.max(1, Math.round(medianDownMbps * variance * 10) / 10),
+    };
+  });
+}
+
 // Synthesizes a believable morning/afternoon/evening curve from a single
 // median, used when Aurora is unreachable. Afternoons sag (everyone's online),
 // mornings are fastest — the same shape the seed data produces.
@@ -206,7 +291,7 @@ function fallbackDetail(id: string): CafeDetail | null {
   const station = MOCK_CAFES.find((c) => c.id === id);
   if (!station) return null;
   if (station.measurementCount === 0) {
-    return { ...station, distribution: [] };
+    return { ...station, distribution: [], recent: [] };
   }
   const base = station.medianDownMbps;
   const shape: Array<{ timeBucket: TimeBucket; factor: number }> = [
@@ -219,7 +304,11 @@ function fallbackDetail(id: string): CafeDetail | null {
     medianDownMbps: Math.max(1, Math.round(base * factor * 10) / 10),
     sampleSize: Math.max(1, Math.round(station.measurementCount / 3)),
   }));
-  return { ...station, distribution };
+  return {
+    ...station,
+    distribution,
+    recent: synthesizeRecent(id, base),
+  };
 }
 
 /**
@@ -228,33 +317,14 @@ function fallbackDetail(id: string): CafeDetail | null {
 export async function getCafeById(id: string): Promise<CafeDetail | null> {
   let statsResult: QueryResult<CafeRow>;
   let distResult: QueryResult<DistributionRow>;
+  let recentResult: QueryResult<RecentReadingRow>;
   try {
-    [statsResult, distResult] = await Promise.all([
+    [statsResult, distResult, recentResult] = await Promise.all([
     query<CafeRow>(
       `
-      SELECT
-        cs.cafe_id AS id,
-        cs.name,
-        cs.neighbourhood,
-        cs.lat,
-        cs.lng,
-        cs.vibe,
-        cs.tier,
-        cs.median_down_mbps,
-        cs.median_up_mbps,
-        cs.median_latency_ms,
-        cs.median_jitter_ms,
-        cs.median_loss_pct,
-        cs.measurement_count,
-        lp.photo_url AS latest_photo_url
+      SELECT ${CAFE_COLUMNS}
       FROM cafe_speed_stats cs
-      LEFT JOIN LATERAL (
-        SELECT photo_url
-        FROM measurements m
-        WHERE m.cafe_id = cs.cafe_id AND m.photo_url IS NOT NULL
-        ORDER BY m.measured_at DESC
-        LIMIT 1
-      ) lp ON TRUE
+      ${LATEST_PHOTO_JOIN}
       WHERE cs.cafe_id = $1
       `,
       [id],
@@ -276,6 +346,16 @@ export async function getCafeById(id: string): Promise<CafeDetail | null> {
       `,
       [id],
     ),
+    query<RecentReadingRow>(
+      `
+      SELECT measured_at, down_mbps
+      FROM measurements
+      WHERE cafe_id = $1
+      ORDER BY measured_at DESC
+      LIMIT 5
+      `,
+      [id],
+    ),
     ]);
   } catch (err) {
     warnFallback("getCafeById", err);
@@ -292,28 +372,35 @@ export async function getCafeById(id: string): Promise<CafeDetail | null> {
     sampleSize: Number(r.sample_size),
   }));
 
-  return { ...station, distribution };
+  const recent = recentResult.rows.map((r) => ({
+    measuredAt:
+      r.measured_at instanceof Date
+        ? r.measured_at.toISOString()
+        : new Date(r.measured_at).toISOString(),
+    downMbps: Number(r.down_mbps),
+  }));
+
+  return { ...station, distribution, recent };
 }
 
 /**
  * Resolves a slug like "about-thyme" or "sightglass-coffee-soma" to a full
- * CafeDetail by name match. Searches every known city (we keep the list
- * here narrow rather than importing CITIES to avoid a cycle).
+ * CafeDetail by name match. Searches all cafés — DB-backed cities plus
+ * mock fallback — so user-generated cafés in any city resolve correctly.
  *
  * Slugs are derived from names (see lib/slug.ts) so there's nothing to store.
  */
 import { slugify } from "./slug";
 
-const KNOWN_CITIES: Array<CafeStation["city"]> = ["nairobi", "sf"];
-
 export async function getCafeBySlug(slug: string): Promise<CafeDetail | null> {
-  const lists = await Promise.all(
-    KNOWN_CITIES.map((city) => getCafes({ city })),
-  );
-  const all = lists.flat();
-  const station = all.find((c) => slugify(c.name) === slug);
-  if (!station) return null;
-  // getCafeById hits the DB for Nairobi rows and falls back to mock-by-id
-  // otherwise; either way the SF row resolves through fallbackDetail.
-  return getCafeById(station.id);
+  // Try DB first (all cities), then fall back to mock for SF/curated cities.
+  const dbCafes = await getCafes({ all: true });
+  const station = dbCafes.find((c) => slugify(c.name) === slug);
+  if (station) return getCafeById(station.id);
+
+  // Fallback to mock for cities that aren't in the DB yet.
+  const mockStation = MOCK_CAFES.find((c) => slugify(c.name) === slug);
+  if (mockStation) return getCafeById(mockStation.id);
+
+  return null;
 }

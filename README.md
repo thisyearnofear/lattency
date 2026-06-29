@@ -356,11 +356,29 @@ Live at **https://lattency.vercel.app/**. To redeploy or fork:
 | Stability ring on map markers (SVG schematic + Leaflet geographic + transit map) | done  |
 | Signal quality in Leaflet tooltips | done  |
 
+**Open contribution platform (v9):**
+
+| Step                                       | State |
+| ------------------------------------------ | ----- |
+| Migration 0006 — café metadata columns (city, price_tier, milk_options, power_outlets, seating, photo_url, created_by_ip_hash) | done  |
+| `POST /api/cafes` — create café + first measurement in one transaction | done  |
+| Café creation rate-limiting (one per IP per hour, SHA-256 hashed) | done  |
+| `CafeContributionForm` — 5-step modal: geolocation → details → coffee metadata → speed test → photo | done  |
+| Coffee metadata: price tier, milk options, power outlets, seating, WiFi network | done  |
+| Photo upload with client-side canvas resize (800px JPEG, Base64) | done  |
+| `CafeMetadataDisplay` — chips on cards, labeled rows on detail/page | done  |
+| "Map a café" CTA in map toolbar | done  |
+| `lib/cafe-metadata.ts` — single source of truth for vocabulary + validation | done  |
+| `lib/measurements.ts` — extracted insert logic (DRY between two endpoints) | done  |
+| Generalized `checkRateLimit` with scope parameter (measurements + cafés) | done  |
+| `getCafeBySlug` searches all cities (DB + mock fallback) | done  |
+
 **Beyond the hackathon:**
 
 | Step                                       | State |
 | ------------------------------------------ | ----- |
-| Schema migration to real multi-city Aurora (city column + per-city seed) | pending |
+| Reverse-geocode city name from coordinates (currently user-entered) | pending |
+| Vercel Blob for photo storage (currently Base64 in Postgres) | pending |
 | Real measurements from a community-sourced public dataset | pending |
 | Exclude flagged outliers from materialized view median (needs real traffic to calibrate) | pending |
 | Composite "workability score" (bandwidth × stability) — needs user research | pending |

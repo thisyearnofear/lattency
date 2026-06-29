@@ -5,6 +5,9 @@ import type { CafeDetail, CafeStation, MeasurementReading, Tier, TimeBucket } fr
 import { slugify } from "@/lib/slug";
 import { MeasurementForm } from "./measurement-form";
 import { SignalQuality } from "./signal-quality";
+import { VibeChips } from "./vibe-chips";
+import { CafeMetadataRows } from "./cafe-metadata-display";
+import { RecentReadings } from "./recent-readings";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -131,7 +134,7 @@ export function CafeDetail({
   const d: CafeDetail | null = station
     ? detail && detail.id === station.id
       ? detail
-      : { ...station, distribution: [] }
+      : { ...station, distribution: [], recent: [] }
     : null;
   const loading = Boolean(d) && d!.distribution.length === 0;
 
@@ -185,7 +188,7 @@ export function CafeDetail({
       const base: CafeDetail =
         detail && detail.id === station.id
           ? detail
-          : { ...station, distribution: [] };
+          : { ...station, distribution: [], recent: [] };
       const n = base.measurementCount;
       const blend = (old: number, val: number) => (old * n + val) / (n + 1);
       const hour = new Date().getHours();
@@ -287,6 +290,11 @@ export function CafeDetail({
             <p className="font-serif italic text-ink-faint text-lg mt-2">
               {d.neighbourhood} · {d.vibe}
             </p>
+            {d.vibeTags && d.vibeTags.length > 0 && (
+              <div className="mt-2.5">
+                <VibeChips tags={d.vibeTags} />
+              </div>
+            )}
             <div className="flex items-baseline justify-between gap-3 mt-1">
               <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-soft">
                 {TIER_ROAST[d.tier]}
@@ -311,6 +319,11 @@ export function CafeDetail({
                 lossPct={d.medianLossPct}
               />
             </div>
+            {d.metadata && (
+              <div className="mt-4 pt-3 border-t border-ink/10">
+                <CafeMetadataRows cafe={d} />
+              </div>
+            )}
             {d.measurementCount > 0 ? (
               <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-faint mt-3">
                 {d.measurementCount} measurements on file
@@ -321,6 +334,12 @@ export function CafeDetail({
                 <span className="text-ink">Tier estimated</span> · no readings yet ·
                 <span className="ml-1 text-ink-faint">be the first below ↓</span>
               </p>
+            )}
+
+            {d.recent.length > 0 && (
+              <div className="mt-7 pt-6 border-t border-ink/15">
+                <RecentReadings readings={d.recent} />
+              </div>
             )}
 
             <div className="mt-7 pt-6 border-t border-ink/15">

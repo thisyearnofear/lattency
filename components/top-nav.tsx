@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CitySwitcher } from "./city-switcher";
+import { BrandMark } from "./brand-mark";
 
 /**
  * Thin sticky nav surfaced on /, /sf, /tour, and the per-café pages.
@@ -22,9 +23,11 @@ export function TopNav({
         <div className="flex items-center gap-5 md:gap-8">
           <Link
             href="/"
-            className="font-display font-black uppercase text-[22px] leading-none tracking-[-0.02em] text-ink"
+            aria-label="Lattency home"
+            className="flex items-center gap-2 font-display font-black uppercase text-[22px] leading-none tracking-[-0.02em] text-ink"
           >
-            Lattency
+            <BrandMark size={26} decorative />
+            <span>Lattency</span>
           </Link>
           <span aria-hidden className="text-ink-faint hidden md:inline">·</span>
           <div className="hidden md:block">

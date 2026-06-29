@@ -27,6 +27,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/sarit-b/600/400",
     vibe: "weekday workhorse",
+    vibeTags: ["outlets++", "mall", "brunch"],
     city: "nairobi",
   },
   {
@@ -44,6 +45,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/westgate-b/600/400",
     vibe: "lunch rush regular",
+    vibeTags: ["buzzy", "mall", "brunch"],
     city: "nairobi",
   },
   {
@@ -61,6 +63,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/connect-b/600/400",
     vibe: "the speed dealers",
+    vibeTags: ["fibre", "pour-over", "quiet"],
     city: "nairobi",
   },
   // Kilimani
@@ -79,6 +82,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/kaldi-b/600/400",
     vibe: "yaya regulars",
+    vibeTags: ["outlets++", "mall", "oat-milk"],
     city: "nairobi",
   },
   {
@@ -96,6 +100,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/brew-a/600/400",
     vibe: "loud at lunch",
+    vibeTags: ["buzzy", "late-night", "view"],
     city: "nairobi",
   },
   {
@@ -113,6 +118,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/thyme-b/600/400",
     vibe: "fibre + filter",
+    vibeTags: ["fibre", "garden", "pour-over"],
     city: "nairobi",
   },
   // CBD
@@ -131,6 +137,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/mamangina-b/600/400",
     vibe: "downtown standby",
+    vibeTags: ["central", "outlets++", "brunch"],
     city: "nairobi",
   },
   {
@@ -148,6 +155,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/savanna-b/600/400",
     vibe: "uptown for uplink",
+    vibeTags: ["fibre", "central", "quiet"],
     city: "nairobi",
   },
   {
@@ -165,6 +173,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/dormans-a/600/400",
     vibe: "old school, slow lane",
+    vibeTags: ["classic", "central", "pastry"],
     city: "nairobi",
   },
   // Karen
@@ -183,6 +192,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/talisman-b/600/400",
     vibe: "garden over wires",
+    vibeTags: ["garden", "brunch", "view"],
     city: "nairobi",
   },
   {
@@ -200,6 +210,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/blixen-b/600/400",
     vibe: "the book-wifi",
+    vibeTags: ["garden", "quiet", "view"],
     city: "nairobi",
   },
   {
@@ -217,6 +228,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 4,
     latestPhotoUrl: "https://picsum.photos/seed/hub-b/600/400",
     vibe: "mall route",
+    vibeTags: ["mall", "outlets++", "brunch"],
     city: "nairobi",
   },
 
@@ -242,6 +254,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/sightglass/600/400",
     vibe: "the glassworks",
+    vibeTags: ["fibre", "pour-over", "espresso"],
     city: "sf",
   },
   {
@@ -259,6 +272,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/mazarine/600/400",
     vibe: "screen-time fortress",
+    vibeTags: ["fibre", "outlets++", "quiet"],
     city: "sf",
   },
   {
@@ -276,6 +290,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/bluebottle-mint/600/400",
     vibe: "weekday rotation",
+    vibeTags: ["pour-over", "brunch", "central"],
     city: "sf",
   },
 
@@ -295,6 +310,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/ritual-mission/600/400",
     vibe: "valencia laptop class",
+    vibeTags: ["fibre", "outlets++", "pour-over"],
     city: "sf",
   },
   {
@@ -312,6 +328,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/verve-mission/600/400",
     vibe: "saturday saturated",
+    vibeTags: ["brunch", "pastry", "buzzy"],
     city: "sf",
   },
   {
@@ -329,6 +346,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/linea/600/400",
     vibe: "calle dieciocho",
+    vibeTags: ["quiet", "pour-over", "espresso"],
     city: "sf",
   },
 
@@ -348,6 +366,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/saintfrank/600/400",
     vibe: "polk hill ritual",
+    vibeTags: ["fibre", "pour-over", "quiet"],
     city: "sf",
   },
   {
@@ -365,6 +384,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/reveille-hayes/600/400",
     vibe: "octavia regulars",
+    vibeTags: ["garden", "brunch", "oat-milk"],
     city: "sf",
   },
   {
@@ -382,6 +402,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/coffee-movement/600/400",
     vibe: "nob hill pour",
+    vibeTags: ["pour-over", "quiet", "espresso"],
     city: "sf",
   },
 
@@ -401,6 +422,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/wreckingball/600/400",
     vibe: "union street pour",
+    vibeTags: ["buzzy", "brunch", "view"],
     city: "sf",
   },
   {
@@ -418,6 +440,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/themill/600/400",
     vibe: "loaves before wifi",
+    vibeTags: ["pastry", "brunch", "buzzy"],
     city: "sf",
   },
   {
@@ -435,6 +458,7 @@ export const MOCK_CAFES: CafeStation[] = [
     measurementCount: 0,
     latestPhotoUrl: "https://picsum.photos/seed/andytown/600/400",
     vibe: "ocean fog brew",
+    vibeTags: ["view", "pastry", "brunch"],
     city: "sf",
   },
 ];

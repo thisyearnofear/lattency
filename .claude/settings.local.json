@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(docker --version)",
-      "Bash(docker compose *)"
+      "Bash(docker compose *)",
+      "Bash(pnpm exec *)"
     ]
   }
 }

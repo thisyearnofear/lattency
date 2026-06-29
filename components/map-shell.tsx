@@ -13,6 +13,7 @@
 // in the world), it offers four demo neighbourhoods to explore from.
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
 import {
@@ -27,6 +28,7 @@ import {
 import { CITIES } from "@/lib/cities";
 import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
 import { CafeDetail } from "./cafe-detail";
+import { CafeContributionForm } from "./cafe-contribution-form";
 
 // Anything farther than this from the active city's centre is treated as
 // "demo from afar" and the neighbourhood quick-picks stay visible.
@@ -283,6 +285,8 @@ export function MapShell({
   const [activeTiers, setActiveTiers] = useState<Set<Tier>>(
     () => new Set(["express", "local", "suspended"]),
   );
+  const [showContribution, setShowContribution] = useState(false);
+  const router = useRouter();
 
   function toggleTier(tier: Tier) {
     setActiveTiers((prev) => {
@@ -411,6 +415,14 @@ export function MapShell({
             </button>
           );
         })}
+        {/* Map a new café — the open contribution CTA */}
+        <button
+          type="button"
+          onClick={() => setShowContribution(true)}
+          className="ml-auto px-3 py-1.5 font-mono text-[10px] tracking-[0.22em] uppercase border border-express text-express hover:bg-express hover:text-cream transition-colors"
+        >
+          + Map a café
+        </button>
       </div>
 
       {view === "schematic" ? (
@@ -531,6 +543,16 @@ export function MapShell({
       </p>
 
       <CafeDetail station={selected} onClose={() => setSelected(null)} />
+
+      {showContribution && (
+        <CafeContributionForm
+          onClose={() => setShowContribution(false)}
+          onSuccess={(slug) => {
+            setShowContribution(false);
+            router.push(`/cafes/${slug}`);
+          }}
+        />
+      )}
     </div>
   );
 }

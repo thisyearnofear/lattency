@@ -5,6 +5,8 @@ import type { CafeStation, CityId, Tier } from "@/lib/types";
 import { CITIES } from "@/lib/cities";
 import { CafeDetail } from "./cafe-detail";
 import { SignalQuality } from "./signal-quality";
+import { VibeChips } from "./vibe-chips";
+import { CafeMetadataChips } from "./cafe-metadata-display";
 
 const TIER_BG: Record<Tier, string> = {
   express: "bg-express",
@@ -110,6 +112,9 @@ function StationCard({
             {cafe.vibe}
           </p>
         </div>
+
+        <VibeChips tags={cafe.vibeTags} dense />
+        <CafeMetadataChips cafe={cafe} />
 
         <div className="pt-3 border-t border-cream-deep grid grid-cols-3 gap-2 font-mono text-[11px] text-ink-soft">
           {[

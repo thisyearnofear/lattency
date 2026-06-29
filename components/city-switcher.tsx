@@ -137,14 +137,7 @@ export function CitySwitcher({ current }: { current?: string }) {
           <div className="px-4 py-3 border-t border-ink/15 bg-cream-edge/40">
             <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
               Your city missing?{" "}
-              <a
-                href="https://github.com/thisyearnofear/lattency/issues"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-ink hover:underline"
-              >
-                Open an issue →
-              </a>
+              <span className="text-ink">Map a café →</span>
             </p>
           </div>
         </div>
