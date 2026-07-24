@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Big_Shoulders, IBM_Plex_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
+import { NimiqProvider } from "@/components/nimiq-provider";
 
 const display = Big_Shoulders({
   variable: "--font-big-shoulders",
@@ -72,7 +73,9 @@ export default function RootLayout({
       lang="en"
       className={`${display.variable} ${mono.variable} ${serif.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-cream text-ink paper-grain">{children}</body>
+      <body className="min-h-full bg-cream text-ink paper-grain">
+        <NimiqProvider>{children}</NimiqProvider>
+      </body>
     </html>
   );
 }

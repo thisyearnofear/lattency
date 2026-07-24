@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
   const latParam = searchParams.get("lat");
   const lngParam = searchParams.get("lng");
   const radiusParam = searchParams.get("radius");
+  const city = searchParams.get("city") ?? undefined;
 
   // Either all three are present or none.
   const hasAny = latParam || lngParam || radiusParam;
@@ -39,10 +40,10 @@ export async function GET(req: NextRequest) {
         { status: 400 },
       );
     }
-    const cafes = await getCafes({ lat, lng, radiusM: radius });
+    const cafes = await getCafes({ lat, lng, radiusM: radius, city });
     return Response.json({ cafes });
   }
 
-  const cafes = await getCafes();
+  const cafes = await getCafes({ city });
   return Response.json({ cafes });
 }

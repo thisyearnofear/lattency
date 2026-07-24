@@ -1,0 +1,24 @@
+{
+  "name": "Bounty",
+  "type": "object",
+  "title": "Bounty",
+  "properties": {
+    "title":               { "type": "string" },
+    "description":         { "type": "string" },
+    "reward":              { "type": "number" },
+    "currency":            { "type": "string", "default": "KES" },
+    "reward_lunas":        { "type": "number", "default": 0 },
+    "target_city":         { "type": "string" },
+    "target_neighbourhood": { "type": "string" },
+    "criteria":            { "type": "string" },
+    "active":              { "type": "boolean", "default": true },
+    "status":              { "type": "string", "enum": ["open", "claiming", "paid"], "default": "open" },
+    "claimed_by_address":  { "type": "string", "default": null },
+    "tx_hash":             { "type": "string", "default": null }
+  },
+  "required": ["title", "reward"],
+  "rls": {
+    "read": true,
+    "create": { "created_by": "{{user.email}}" }
+  }
+}

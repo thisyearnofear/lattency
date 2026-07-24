@@ -9,6 +9,7 @@
 // M-Pesa hold/release flow.
 
 import { getBounties, sponsorBadgeStyle, bountyKindLabel, type Bounty } from "@/lib/bounties";
+import { BountyClaim } from "./bounty-claim";
 
 function CoffeeRow({ amount }: { amount: number }) {
   const cups = Math.max(1, Math.ceil(amount / 5));
@@ -95,6 +96,9 @@ function BountyCard({ bounty }: { bounty: Bounty }) {
             style={{ width: `${Math.min(pct, 100)}%` }}
           />
         </div>
+
+        {/* Nimiq claim action */}
+        <BountyClaim bounty={bounty} />
       </div>
     </li>
   );
@@ -124,9 +128,8 @@ export async function BountiesBoard({ limit }: { limit?: number }) {
           </p>
           <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-3 max-w-2xl">
             ISPs target their service areas; café owners reward their regulars;
-            community members backfill gaps in the map. Six representative
-            bounties below — same mechanics that already gate contribution
-            integrity will gate the payouts.
+            community members backfill gaps in the map. Open a completed bounty
+            inside Nimiq Pay to claim your NIM reward.
           </p>
         </div>
         <a
@@ -142,7 +145,7 @@ export async function BountiesBoard({ limit }: { limit?: number }) {
         {[
           { n: "01", verb: "Stake", body: "An ISP, café owner, or community member pre-pays a small bounty for a specific target — first café in Lavington, 3 oat-milk spots in Kilimani, 10th verified test at Savanna." },
           { n: "02", verb: "Run", body: "A contributor walks into a café, runs a real in-browser speed test, fills in the coffee metadata, snaps a photo. The reading lands in Aurora the moment it commits." },
-          { n: "03", verb: "Verify + pay", body: "Outlier-flagged or solo readings wait for a second corroborating test. Once verified, the bounty pays out — today a coffee on the house, soon a balance via M-Pesa or Stripe." },
+          { n: "03", verb: "Verify + pay", body: "Outlier-flagged or solo readings wait for a second corroborating test. Once verified, the bounty pays out in NIM directly to your Nimiq Pay wallet." },
         ].map((step) => (
           <li
             key={step.n}
@@ -189,7 +192,7 @@ export async function BountiesBoard({ limit }: { limit?: number }) {
       )}
 
       <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint mt-5">
-        Preview · payment + verification flow ships next · see{" "}
+        NIM payouts via @nimiq/mini-app-sdk · see{" "}
         <a href="/partners" className="text-ink underline underline-offset-4 hover:text-express">
           /partners
         </a>{" "}

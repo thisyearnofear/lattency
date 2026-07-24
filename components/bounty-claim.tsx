@@ -1,0 +1,102 @@
+"use client";
+
+import { useState } from "react";
+import { useNimiq } from "@/hooks/use-nimiq";
+import type { Bounty } from "@/lib/bounties";
+
+type ClaimState = "idle" | "loading" | "success" | "error";
+
+export function BountyClaim({ bounty }: { bounty: Bounty }) {
+  const { address, inMiniApp, loading: providerLoading } = useNimiq();
+  const [state, setState] = useState<ClaimState>("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const filled = bounty.progress >= bounty.target;
+  const claimable = filled && bounty.status === "open";
+
+  async function handleClaim() {
+    if (!address) return;
+    setState("loading");
+    setError(null);
+
+    try {
+      const res = await fetch("/api/bounties/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bountyId: bounty.id, nimiqAddress: address }),
+      });
+      const data = (await res.json()) as {
+        success?: boolean;
+        txHash?: string;
+        error?: string;
+      };
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error ?? "claim failed");
+      }
+
+      setTxHash(data.txHash ?? null);
+      setState("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Claim failed");
+      setState("error");
+    }
+  }
+
+  if (bounty.status === "paid" || bounty.claimedByAddress) {
+    return (
+      <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express">
+        Claimed{bounty.txHash ? ` · tx ${bounty.txHash.slice(0, 12)}…` : ""}
+      </p>
+    );
+  }
+
+  if (!claimable) {
+    return (
+      <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint">
+        {filled ? "Claim window closed" : "Not yet complete"}
+      </p>
+    );
+  }
+
+  if (state === "success") {
+    return (
+      <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express">
+        Claimed · {bounty.rewardNim} NIM
+        {txHash ? ` · ${txHash.slice(0, 12)}…` : ""}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={handleClaim}
+        disabled={!address || providerLoading || state === "loading"}
+        className="w-full bg-express text-cream font-mono text-[10px] tracking-[0.22em] uppercase py-2 transition-opacity hover:bg-express/90 disabled:opacity-40"
+      >
+        {state === "loading"
+          ? "Claiming…"
+          : `Claim ${bounty.rewardNim} NIM`}
+      </button>
+
+      {!inMiniApp && !providerLoading && (
+        <p className="font-serif italic text-ink-faint text-xs">
+          Open in Nimiq Pay to claim NIM.
+        </p>
+      )}
+
+      {inMiniApp && !address && !providerLoading && (
+        <p className="font-serif italic text-ink-faint text-xs">
+          Authorize an account in Nimiq Pay.
+        </p>
+      )}
+
+      {error && (
+        <p className="font-serif italic text-suspended text-xs">{error}</p>
+      )}
+    </div>
+  );
+}

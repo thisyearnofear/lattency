@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TopNav } from "@/components/top-nav";
 import { BountiesBoard } from "@/components/bounties-board";
+import { SponsorDashboard } from "@/components/sponsor-dashboard";
 
 export const metadata: Metadata = {
   title: "Partners · Lattency",
@@ -92,9 +93,12 @@ export default function PartnersPage() {
             A two-sided marketplace on top of a transit map. ISPs sponsor
             verified speed badges in the neighbourhoods they serve. Café
             owners earn the badge by hosting verified speed tests.
-            Contributors earn coffee by running them.
+            Contributors earn NIM by running them.
           </p>
         </header>
+
+        {/* Sponsor dashboard */}
+        <SponsorDashboard />
 
         {/* Pitches */}
         <PitchBlock
@@ -167,8 +171,8 @@ export default function PartnersPage() {
                 ISP or a café owner is willing to pay for. Run a test, snap
                 a photo, fill in the metadata — when your reading is
                 verified by the next contributor, the bounty pays out.
-                Today as a coffee on the house at the same café. Tomorrow
-                as a balance you can withdraw via M-Pesa or Stripe.
+                Today as NIM in your Nimiq Pay wallet. Tomorrow as a
+                balance you can withdraw via M-Pesa or Stripe.
               </p>
               <p>
                 Want to back-fill the network where there&rsquo;s no
@@ -177,7 +181,7 @@ export default function PartnersPage() {
                 pay it forward when the next person walks in.
               </p>
               <p className="font-mono text-[13px] text-ink-faint">
-                Currently in preview · payout rail (M-Pesa / Stripe) ships
+                NIM payouts live in preview · M-Pesa / Stripe rails ship
                 with the first ISP partner.
               </p>
             </>
@@ -230,7 +234,7 @@ export default function PartnersPage() {
             Lattency · partners · {new Date().getFullYear()}
           </p>
           <p className="font-serif italic text-ink-faint">
-            built on Aurora PostgreSQL · deployed on Vercel
+            funded with Nimiq Pay · deployed on Vercel
           </p>
           <Link href="/" className="stamp hover:text-ink transition-colors">
             ← Back to the map

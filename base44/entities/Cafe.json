@@ -1,0 +1,31 @@
+{
+  "name": "Cafe",
+  "type": "object",
+  "title": "Cafe",
+  "properties": {
+    "name":          { "type": "string", "minLength": 1 },
+    "neighbourhood": { "type": "string" },
+    "latitude":      { "type": "number" },
+    "longitude":     { "type": "number" },
+    "vibe":          { "type": "string" },
+    "venue_type":    { "type": "string", "enum": ["cafe", "coworking", "hotel-lobby", "library", "hybrid"], "default": "cafe" },
+    "city":          { "type": "string", "default": "london" },
+    "price_tier":    { "type": "string", "enum": ["budget", "mid", "premium"] },
+    "milk_options":  { "type": "array", "items": { "type": "string" } },
+    "power_outlets": { "type": "boolean", "default": false },
+    "seating":       { "type": "string", "enum": ["bar", "tables", "lounge", "mixed"] },
+    "noise_level":   { "type": "string", "enum": ["quiet", "moderate", "loud"] },
+    "table_space":   { "type": "string", "enum": ["small", "standard", "large"] },
+    "wifi_network":  { "type": "string" },
+    "photo_url":     { "type": "string" },
+    "created_by_ip_hash": { "type": "string" },
+    "created_by_user_id": { "type": "string" }
+  },
+  "required": ["name", "latitude", "longitude"],
+  "rls": {
+    "create": true,
+    "read": true,
+    "update": { "created_by": "{{user.email}}" },
+    "delete": { "created_by": "{{user.email}}" }
+  }
+}

@@ -8,6 +8,7 @@ import {
   type SpeedTestProgress,
   type SpeedTestResult,
 } from "@/lib/speedtest";
+import { useNimiq } from "@/hooks/use-nimiq";
 
 // Maps a download speed to the tier it would fall into — mirrors the
 // thresholds the materialized view uses server-side, so the contributor sees
@@ -55,6 +56,7 @@ export function MeasurementForm({
   cafeName: string;
   onContributed?: (reading: MeasurementReading) => void;
 }) {
+  const { inMiniApp } = useNimiq();
   const [down, setDown] = useState("");
   const [up, setUp] = useState("");
   const [ping, setPing] = useState("");
@@ -162,6 +164,11 @@ export function MeasurementForm({
         <p className="font-serif italic text-ink-faint text-sm mt-1.5">
           Thanks — your measurement is now part of {cafeName}&rsquo;s line.
         </p>
+        {inMiniApp && (
+          <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express mt-2">
+            Open the bounties board to claim any earned NIM.
+          </p>
+        )}
         <button
           type="button"
           onClick={() => {

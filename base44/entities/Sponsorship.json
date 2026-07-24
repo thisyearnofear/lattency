@@ -1,0 +1,18 @@
+{
+  "name": "Sponsorship",
+  "type": "object",
+  "title": "Sponsorship",
+  "properties": {
+    "cafe_name":    { "type": "string" },
+    "sponsor_name": { "type": "string" },
+    "kind":         { "type": "string", "enum": ["isp", "café", "community", "anon"] },
+    "tagline":      { "type": "string" },
+    "active":       { "type": "boolean", "default": true }
+  },
+  "required": ["cafe_name", "sponsor_name", "kind"],
+  "rls": {
+    "create": true,
+    "read": true,
+    "update": { "created_by": "{{user.email}}" }
+  }
+}

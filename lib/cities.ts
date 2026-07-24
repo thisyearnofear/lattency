@@ -26,6 +26,21 @@ export interface CityConfig {
 }
 
 export const CITIES: Record<CityId, CityConfig> = {
+  london: {
+    id: "london",
+    name: "London",
+    country: "UK",
+    centre: { lat: 51.525, lng: -0.077 },
+    zoom: 15,
+    bounds: { south: 51.515, west: -0.095, north: 51.535, east: -0.055 },
+    path: "/",
+    demoLocations: [
+      { id: "shoreditch", name: "Shoreditch", lat: 51.525, lng: -0.077 },
+      { id: "hoxton", name: "Hoxton", lat: 51.53, lng: -0.08 },
+      { id: "old-street", name: "Old Street", lat: 51.526, lng: -0.088 },
+      { id: "bethnal-green", name: "Bethnal Green", lat: 51.524, lng: -0.061 },
+    ],
+  },
   nairobi: {
     id: "nairobi",
     name: "Nairobi",
@@ -33,7 +48,7 @@ export const CITIES: Record<CityId, CityConfig> = {
     centre: { lat: -1.292, lng: 36.77 },
     zoom: 12,
     bounds: { south: -1.45, west: 36.65, north: -1.15, east: 36.95 },
-    path: "/",
+    path: "/nairobi",
     demoLocations: [
       { id: "westlands", name: "Westlands", lat: -1.262, lng: 36.806 },
       { id: "kilimani", name: "Kilimani", lat: -1.293, lng: 36.7891 },
@@ -58,4 +73,4 @@ export const CITIES: Record<CityId, CityConfig> = {
   },
 };
 
-export const CITY_ORDER: CityId[] = ["nairobi", "sf"];
+export const CITY_ORDER: CityId[] = ["london", "nairobi", "sf"];

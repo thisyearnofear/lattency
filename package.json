@@ -9,9 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate": "tsx scripts/migrate.ts",
-    "seed": "tsx scripts/seed.ts",
-    "db:check": "tsx scripts/db-check.ts",
+    "seed": "tsx scripts/seed-base44.ts",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -23,24 +21,21 @@
     ]
   },
   "dependencies": {
-    "@auth/pg-adapter": "1.11.2",
+    "@base44/sdk": "latest",
     "@gsap/react": "2.1.2",
+    "@nimiq/mini-app-sdk": "0.1.0",
     "dotenv": "17.4.2",
     "gsap": "3.15.0",
     "leaflet": "1.9.4",
     "next": "16.3.0-preview.5",
-    "next-auth": "5.0.0-beta.31",
-    "pg": "8.22.0",
     "react": "19.2.7",
-    "react-dom": "19.2.7",
-    "resend": "6.16.0"
+    "react-dom": "19.2.7"
   },
   "devDependencies": {
     "@secretlint/secretlint-rule-preset-recommend": "13.0.2",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "1.9.21",
     "@types/node": "^20",
-    "@types/pg": "8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "4.1.9",

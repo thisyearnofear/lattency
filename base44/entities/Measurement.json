@@ -1,0 +1,29 @@
+{
+  "name": "Measurement",
+  "type": "object",
+  "title": "Measurement",
+  "properties": {
+    "cafe_id":              { "type": "string" },
+    "down_mbps":            { "type": "number" },
+    "up_mbps":              { "type": "number" },
+    "latency_ms":           { "type": "number" },
+    "jitter_ms":            { "type": "number" },
+    "loss_pct":             { "type": "number" },
+    "measured_at":          { "type": "string", "format": "date-time" },
+    "time_bucket":          { "type": "string", "enum": ["morning", "afternoon", "evening"] },
+    "photo_url":            { "type": "string" },
+    "test_method":          { "type": "string", "enum": ["manual", "browser-auto"] },
+    "target_server":        { "type": "string" },
+    "device_type":          { "type": "string" },
+    "contributor_ip_hash":  { "type": "string" },
+    "is_outlier":           { "type": "boolean", "default": false },
+    "contributor_user_id":  { "type": "string" },
+    "download_bytes":       { "type": "number" },
+    "download_duration_ms": { "type": "number" }
+  },
+  "required": ["cafe_id", "down_mbps", "up_mbps", "latency_ms", "measured_at"],
+  "rls": {
+    "create": true,
+    "read": true
+  }
+}

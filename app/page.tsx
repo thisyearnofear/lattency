@@ -12,7 +12,7 @@ import { BountiesBoard } from "@/components/bounties-board";
 export const revalidate = 60;
 
 export default async function Home() {
-  const cafes = await getCafes();
+  const cafes = await getCafes({ city: "london" });
 
   return (
     <>
@@ -24,14 +24,14 @@ export default async function Home() {
         <section className="pt-8 md:pt-10 pb-4">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="max-w-3xl">
-              <p className="stamp">Nairobi · Live from PG_DB</p>
+              <p className="stamp">Shoreditch, London · Live</p>
               <h1
                 className="font-display font-black uppercase text-ink leading-[0.92] tracking-[-0.02em] mt-2"
                 style={{ fontSize: "clamp(40px, 7vw, 96px)" }}
               >
                 Where can you work
                 <br />
-                in Nairobi today?
+                in Shoreditch today?
               </h1>
               {/* Three-sided model in one line, sitting above the
                   existing editorial sub-line so the value prop reads
@@ -44,9 +44,9 @@ export default async function Home() {
                 You find the line you can actually work on.
               </p>
               <p className="font-serif italic text-ink-soft text-xl md:text-2xl mt-3 max-w-2xl">
-                Twelve cafés today, anyone can add the thirteenth. Live
-                wifi speeds from anyone with a connection — tap a station
-                to see its measurements, drop a reading of your own.
+                Cafés, coworking spaces, and hotel lobbies — verified wifi
+                speeds from anyone with a connection. Tap a station to see its
+                measurements, run a test, earn NIM.
               </p>
               <div className="flex flex-wrap items-center gap-4 mt-6">
                 <Link
@@ -76,7 +76,7 @@ export default async function Home() {
             toggle schematic ↔ geographic). */}
         {/* MapShell reads ?contribute=1 from the URL, so it must sit inside
             a Suspense boundary to keep the page statically prerenderable. */}
-        <section className="mt-4 mb-10" aria-label="Café wifi network map">
+        <section className="mt-4 mb-10" aria-label="Shoreditch workspace network map">
           <Suspense fallback={null}>
             <MapShell cafes={cafes} />
           </Suspense>
@@ -95,10 +95,10 @@ export default async function Home() {
         {/* Footer — the global ambition tail lives at /tour now. */}
         <footer className="border-t border-ink/40 pt-6 pb-10 flex flex-wrap items-baseline justify-between gap-4 text-sm">
           <p className="stamp">
-            Lattency · printed in Nairobi · {new Date().getFullYear()}
+            Lattency · printed in Shoreditch · {new Date().getFullYear()}
           </p>
           <p className="font-serif italic text-ink-faint">
-            built on Aurora PostgreSQL · deployed on Vercel
+            built on Base44 · powered by Nimiq Pay · deployed on Vercel
           </p>
           <Link
             href="/tour"

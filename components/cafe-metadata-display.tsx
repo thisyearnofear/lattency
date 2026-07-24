@@ -1,19 +1,19 @@
-// Shared café metadata display — the coffee-lover details that sit
+// Shared workspace metadata display — the objective details that sit
 // alongside the speed/signal stats. Two modes matching SignalQuality:
 //   compact  → chips on station cards (reuses VibeChips styling)
-//   full     → labeled rows on detail modal + café page
+//   full     → labeled rows on detail modal + venue page
 //
 // Single source of truth: lib/cafe-metadata.ts provides the vocabulary
 // and formatting; this component renders it.
 
-import { formatMetadata, metadataChips } from "@/lib/cafe-metadata";
+import { formatMetadata, metadataChips, VENUE_TYPE_LABELS } from "@/lib/cafe-metadata";
 import type { CafeStation } from "@/lib/types";
 
 export function CafeMetadataChips({ cafe }: { cafe: Pick<CafeStation, "metadata"> }) {
   const chips = metadataChips(cafe);
   if (chips.length === 0) return null;
   return (
-    <ul aria-label="Café metadata" className="flex flex-wrap items-center gap-1.5">
+    <ul aria-label="Venue metadata" className="flex flex-wrap items-center gap-1.5">
       {chips.map((chip) => (
         <li
           key={chip}
@@ -23,6 +23,15 @@ export function CafeMetadataChips({ cafe }: { cafe: Pick<CafeStation, "metadata"
         </li>
       ))}
     </ul>
+  );
+}
+
+export function VenueTypeChip({ venueType }: { venueType?: string }) {
+  if (!venueType) return null;
+  return (
+    <span className="font-mono text-[9px] tracking-[0.14em] px-1.5 py-[2px] uppercase border border-ink/25 text-ink-soft bg-cream-edge/60">
+      {VENUE_TYPE_LABELS[venueType as keyof typeof VENUE_TYPE_LABELS] ?? venueType}
+    </span>
   );
 }
 

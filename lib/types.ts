@@ -1,5 +1,9 @@
 export type Tier = "express" | "local" | "suspended";
 
+// Nimiq bounty lifecycle states. Bounties are created open, briefly locked
+// while a payout is in flight, and marked paid once the transaction lands.
+export type BountyStatus = "open" | "claiming" | "paid";
+
 // How a measurement was captured. 'manual' = contributor typed numbers from
 // an external tool. 'browser-auto' = the in-app speed test ran the download /
 // upload / ping sampling and submitted the result. The API derives this
@@ -51,18 +55,29 @@ export type CityId = string;
 
 export type TimeBucket = "morning" | "afternoon" | "evening";
 
-// Coffee metadata that a contributor provides when mapping a new café.
+// Types of venues Lattency supports. We started with cafés, but the engine
+// works for any coffee-adjacent workspace.
+export type VenueType = "cafe" | "coworking" | "hotel-lobby" | "library" | "hybrid";
+
+// Workspace metadata that a contributor provides when mapping a new venue.
 // Single source of truth — validation lives in lib/cafe-metadata.ts.
+//
+// We deliberately keep this objective and verifiable. No subjective
+// "coffee quality" ratings. If it can’t be observed or measured, it’s out.
 export interface CafeMetadata {
   priceTier?: "budget" | "mid" | "premium";
   milkOptions?: string[];
   powerOutlets?: boolean;
   seating?: "bar" | "tables" | "lounge" | "mixed";
   wifiNetwork?: string;
+  /** How loud the space is when moderately busy. */
+  noiseLevel?: "quiet" | "moderate" | "loud";
+  /** How much table space a laptop worker can realistically expect. */
+  tableSpace?: "small" | "standard" | "large";
 }
 
-// Input for creating a new café via POST /api/cafes. The measurement is
-// mandatory — a café doesn't exist on the map until it has at least one
+// Input for creating a new venue via POST /api/cafes. The measurement is
+// mandatory — a venue doesn't exist on the map until it has at least one
 // real speed reading.
 export interface CafeCreationInput {
   name: string;
@@ -70,6 +85,7 @@ export interface CafeCreationInput {
   lat: number;
   lng: number;
   city?: string;
+  venueType?: VenueType;
   vibe?: string;
   metadata: CafeMetadata;
   photo: string;
@@ -95,27 +111,30 @@ export interface CafeStation {
   medianLossPct: number;
   measurementCount: number;
   latestPhotoUrl: string | null;
-  /** Short editorial descriptor — the café's "atmosphere" in 2-4 words.
+  /** What kind of workspace this is. We default to cafe for backward
+   *  compatibility, but the engine supports coworking, hotel lobbies, etc. */
+  venueType?: VenueType;
+  /** Short editorial descriptor — the venue's "atmosphere" in 2-4 words.
    *  Surfaced on station cards and in the map hover state. Stored in DB
-   *  alongside the rest of the cafés metadata; STEP 2 will SELECT it. */
+   *  alongside the rest of the venue metadata; STEP 2 will SELECT it. */
   vibe: string;
   /** Compact, fixed-vocabulary chips that ride alongside `vibe`. Two or
-   *  three per café — what you'd put on a transit-poster sticker. Optional
+   *  three per venue — what you'd put on a transit-poster sticker. Optional
    *  because DB rows don't carry them yet; the mock backfill does, and the
-   *  hackathon demo path runs through mock data when Aurora is cold. */
+   *  hackathon demo path runs through mock data when Base44 is cold. */
   vibeTags?: string[];
-  /** The city this café belongs to. Curated cities have entries in CITIES;
+  /** The city this venue belongs to. Curated cities have entries in CITIES;
    *  user-generated cities are arbitrary strings. */
   city: CityId;
-  /** Coffee metadata — price, milk, power, seating. Optional because
-   *  seeded cafés and early contributions may not include it. */
+  /** Workspace metadata — price, milk, power, seating, noise, table space.
+   *  Optional because seeded venues and early contributions may not include it. */
   metadata?: CafeMetadata;
-  /** Photo of the café or the contributor's coffee — Base64 data URL.
-   *  Gives the café page a face. The mandatory speed test is the actual
+  /** Photo of the venue or the contributor's coffee — Base64 data URL.
+   *  Gives the venue page a face. The mandatory speed test is the actual
    *  trust mechanism; the photo is presentation. */
   photoUrl?: string | null;
-  /** Active sponsorship for this café, joined from `sponsorships` in the
-   *  cafe_speed_stats MV. Null when no sponsor is currently attached. */
+  /** Active sponsorship for this venue, joined from `sponsorships`. Null when
+   *  no sponsor is currently attached. */
   sponsor?: Sponsor | null;
 }
 
@@ -126,6 +145,21 @@ export interface Sponsor {
   name: string;
   kind: "isp" | "café" | "community" | "anon";
   tagline: string | null;
+}
+
+// Address returned by Nimiq Mini App SDK's listAccounts(). The SDK hides
+// private keys; we only ever see the public address.
+export interface NimiqAccount {
+  address: string;
+  label: string;
+}
+
+// Measurement POST response when the reading completed one or more bounties.
+export interface CompletedBounty {
+  bountyId: string;
+  goal: string;
+  rewardLunas: number;
+  rewardNim: number;
 }
 
 // Returned by GET /api/cafes/[id] — detail + distribution by time bucket.

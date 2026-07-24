@@ -1,7 +1,7 @@
 import type { QueryResult } from "pg";
 import { query } from "./db";
 import { MOCK_CAFES } from "./mock-cafes";
-import type { CafeDetail, CafeStation, Neighbourhood, Sponsor, Tier, TimeBucket } from "./types";
+import type { CafeDetail, CafeStation, Neighbourhood, Sponsor, Tier, TimeBucket, VenueType } from "./types";
 import { log } from "./log";
 
 // ── Demo-safety fallback ──────────────────────────────────────────────────────
@@ -37,9 +37,8 @@ function distanceMetres(a: { lat: number; lng: number }, b: { lat: number; lng: 
 
 function fallbackCafes(opts: GetCafesOptions): CafeStation[] {
   const { lat, lng, radiusM, city } = opts;
-  // City filter — default to Nairobi for back-compat with callers that
-  // don't pass a city (e.g. the existing home + tour routes).
-  const wantedCity = city ?? "nairobi";
+  // City filter — default to London for the Shoreditch-first pivot.
+  const wantedCity = city ?? "london";
   const cityCafes = MOCK_CAFES.filter((c) => c.city === wantedCity);
   if (lat !== undefined && lng !== undefined && radiusM !== undefined) {
     const origin = { lat, lng };
@@ -67,6 +66,9 @@ interface CafeRow {
   power_outlets: boolean | null;
   seating: string | null;
   wifi_network: string | null;
+  noise_level: string | null;
+  table_space: string | null;
+  venue_type: string | null;
   /** Optional because the LIST_COLUMNS query intentionally omits this
    *  field. Detail queries always include it. */
   photo_url?: string | null;
@@ -122,12 +124,15 @@ function rowToStation(r: CafeRow): CafeStation {
     vibe: r.vibe ?? "",
     vibeTags: VIBE_TAGS_BY_NAME.get(r.name) ?? [],
     city: r.city ?? "nairobi",
+    venueType: (r.venue_type as VenueType | undefined) ?? undefined,
     metadata: {
       priceTier: (r.price_tier as "budget" | "mid" | "premium") ?? undefined,
       milkOptions: r.milk_options ?? undefined,
       powerOutlets: r.power_outlets ?? undefined,
       seating: (r.seating as "bar" | "tables" | "lounge" | "mixed") ?? undefined,
       wifiNetwork: r.wifi_network ?? undefined,
+      noiseLevel: (r.noise_level as "quiet" | "moderate" | "loud") ?? undefined,
+      tableSpace: (r.table_space as "small" | "standard" | "large") ?? undefined,
     },
     photoUrl: r.photo_url ?? null,
     sponsor: rowToSponsor(r),
