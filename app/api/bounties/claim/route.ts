@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { executeNimiqPayout } from "@/lib/nimiq-payout";
 import { log, reqIdFrom } from "@/lib/log";
 import type { Bounty } from "@/lib/bounties";
+import { markBountyPaid } from "@/lib/bounties";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,8 @@ export async function POST(req: NextRequest) {
     });
 
     const { txHash } = await executeNimiqPayout(nimiqAddress, bounty.rewardNim);
+
+    await markBountyPaid(bountyId, nimiqAddress, txHash);
 
     return Response.json({
       success: true,

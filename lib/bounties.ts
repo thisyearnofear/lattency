@@ -177,6 +177,7 @@ function rowToBounty(r: BountyRow): Bounty {
  * still in their funding window or open-ended. Ordered by soonest expiry.
  */
 export async function getBounties(): Promise<Bounty[]> {
+  let dbBounties: Bounty[] = [];
   try {
     const result = await query<BountyRow>(`
       SELECT id, goal, area, amount_usd, target, progress, sponsor_name,
@@ -186,13 +187,18 @@ export async function getBounties(): Promise<Bounty[]> {
         AND (expires_at IS NULL OR expires_at > now())
       ORDER BY expires_at ASC NULLS LAST
     `);
-    if (result.rows.length === 0) return FALLBACK_BOUNTIES;
-    return result.rows.map(rowToBounty);
+    dbBounties = result.rows.map(rowToBounty);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     log.warn("getBounties: serving fallback", { scope: "bounties", reason });
-    return FALLBACK_BOUNTIES;
   }
+
+  const merged =
+    dbBounties.length > 0
+      ? [...dbBounties, ...CREATED_BOUNTIES]
+      : [...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES];
+
+  return merged;
 }
 
 /**
@@ -236,6 +242,32 @@ export async function createBounty(input: BountyCreationInput): Promise<Bounty> 
   log.info("bounty created", { scope: "bounties.create", bountyId: bounty.id, rewardNim: bounty.rewardNim });
 
   return bounty;
+}
+
+/**
+ * Mark a bounty as paid. Searches the in-memory fallback + created stores.
+ * In production this would update the database row.
+ */
+export async function markBountyPaid(
+  bountyId: string,
+  claimedByAddress: string,
+  txHash: string,
+): Promise<void> {
+  const bounty =
+    CREATED_BOUNTIES.find((b) => b.id === bountyId) ??
+    FALLBACK_BOUNTIES.find((b) => b.id === bountyId);
+  if (!bounty) return;
+
+  bounty.status = "paid";
+  bounty.claimedByAddress = claimedByAddress;
+  bounty.txHash = txHash;
+
+  log.info("bounty marked paid", {
+    scope: "bounties.paid",
+    bountyId,
+    claimedByAddress,
+    txHash,
+  });
 }
 
 export function sponsorBadgeStyle(

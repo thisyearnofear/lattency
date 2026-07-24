@@ -61,11 +61,27 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
   }
 
   if (state === "success") {
+    const explorerBase =
+      process.env.NEXT_PUBLIC_NIMIQ_EXPLORER_URL ??
+      "https://test.nimiq.watch/#/tx/";
+    const explorerUrl = txHash ? `${explorerBase}${txHash}` : null;
     return (
-      <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express">
-        Claimed · {bounty.rewardNim} NIM
-        {txHash ? ` · ${txHash.slice(0, 12)}…` : ""}
-      </p>
+      <div className="space-y-1">
+        <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express">
+          Claimed · {bounty.rewardNim} NIM
+          {txHash ? ` · ${txHash.slice(0, 12)}…` : ""}
+        </p>
+        {explorerUrl && (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block font-mono text-[9px] tracking-[0.16em] uppercase text-ink-soft hover:text-express transition-colors"
+          >
+            View on Nimiq explorer →
+          </a>
+        )}
+      </div>
     );
   }
 

@@ -47,7 +47,17 @@ Supporting NIM earns bonus points under the competition rules.
 5. The server checks `progress >= target`, marks the bounty `claiming`, executes the payout, and returns a `txHash`.
 6. The UI updates to show the bounty as claimed.
 
-In the current hackathon build the on-chain broadcast is mocked (`lib/nimiq-payout.ts`) so the repo stays free of private keys while the full flow is wired end-to-end.
+The on-chain broadcast is implemented in `lib/nimiq-payout.ts` using `@nimiq/core`. It signs a real basic transaction from a dedicated escrow hot wallet and broadcasts it via the JSON-RPC endpoint configured by `NIMIQ_RPC_URL`. If `NIMIQ_PRIVATE_KEY` is not configured (or `NIMIQ_PAYOUT_MOCK=1`), the function falls back to a mock so development and testing can continue without real funds.
+
+**Environment configuration** (all in `.env.local` / deployment secrets):
+
+| Variable | Purpose |
+|---|---|
+| `NIMIQ_PRIVATE_KEY` | Hex private key of the escrow hot wallet. Never commit this. |
+| `NIMIQ_NETWORK` | `mainnet`, `testnet` (default), or `devnet`. |
+| `NIMIQ_NETWORK_ID` | Optional integer override if the default network mapping changes. |
+| `NIMIQ_RPC_URL` | JSON-RPC endpoint. Default switches by network. |
+| `NIMIQ_PAYOUT_MOCK` | Set to `1` to keep the mock path even when a key is configured. |
 
 ### Sponsor dashboard
 

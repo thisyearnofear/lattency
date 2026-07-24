@@ -23,6 +23,7 @@
   "dependencies": {
     "@base44/sdk": "latest",
     "@gsap/react": "2.1.2",
+    "@nimiq/core": "2.7.1",
     "@nimiq/mini-app-sdk": "0.1.0",
     "dotenv": "17.4.2",
     "gsap": "3.15.0",

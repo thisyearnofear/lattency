@@ -131,7 +131,7 @@ Distribution is engineered into the product:
 - Sponsor dashboard at /partners to create + fund bounties in NIM ✅
 - NIM payout on verified speed test ✅
 - Mobile-first Mini App polish
-- Replace mock payout (`lib/nimiq-payout.ts`) with real on-chain broadcast using a secure signer / escrow wallet
+- Replace mock payout (`lib/nimiq-payout.ts`) with real on-chain broadcast using a secure signer / escrow wallet ✅
 
 ### Week 3: Users
 - Recruit contributors in Shoreditch
