@@ -32,8 +32,8 @@ function getRpcUrl(): string {
   return (
     process.env.NIMIQ_RPC_URL ??
     (getNetworkId() === 0
-      ? "https://rpc.nimiqwatch.com"
-      : "https://rpc.nimiq-testnet.com")
+      ? "https://rpc.nimiqwatch.com/"
+      : "https://rpc.testnet.nimiqwatch.com/")
   );
 }
 
@@ -61,7 +61,12 @@ async function getCurrentHeight(): Promise<number> {
   for (const method of ["getBlockNumber", "blockNumber"]) {
     try {
       const result = await rpcCall(method);
-      if (typeof result === "number") return result;
+      // Nimiq Watch RPC wraps results in `{ data: ... }`.
+      const value =
+        result && typeof result === "object" && "data" in result
+          ? (result as { data: unknown }).data
+          : result;
+      if (typeof value === "number") return value;
     } catch (err) {
       log.warn("nimiq rpc height failed", {
         scope: "nimiq.payout",
@@ -159,9 +164,11 @@ export async function executeNimiqPayout(
     keyPair.signTransaction(tx);
     const txHex = tx.toHex();
 
-    await rpcCall("sendRawTransaction", [txHex]);
-
-    const txHash = tx.hash();
+    const sendResult = await rpcCall("sendRawTransaction", [txHex]);
+    const txHash =
+      sendResult && typeof sendResult === "object" && "data" in sendResult
+        ? String((sendResult as { data: string }).data)
+        : tx.hash();
     log.info("nimiq payout executed", {
       scope: "nimiq.payout",
       recipient,
