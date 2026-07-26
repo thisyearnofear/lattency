@@ -1,8 +1,13 @@
+// Seed Base44 with venue + measurement data from the bundled mock snapshot.
+// Run: NEXT_PUBLIC_BASE44_APP_ID=<id> pnpm exec tsx scripts/seed-base44.ts
+//
+// Creates a Cafe entity + N synthetic measurements for each MOCK_CAFES entry.
+// Idempotent: skips cafés whose name already exists in the app.
+
 import base44 from "../lib/base44";
 import { MOCK_CAFES } from "../lib/mock-cafes";
 
-interface Base44Entity {
-  _id: string;
+interface B44Cafe {
   id: string;
   name: string;
 }
@@ -25,49 +30,61 @@ function deriveTimeBucket(d: Date): string {
 }
 
 async function seed() {
+  if (!process.env.NEXT_PUBLIC_BASE44_APP_ID) {
+    console.error(
+      "NEXT_PUBLIC_BASE44_APP_ID is not set. Provide it to seed Base44.\n" +
+        "Example: NEXT_PUBLIC_BASE44_APP_ID=abc123 pnpm exec tsx scripts/seed-base44.ts",
+    );
+    process.exit(1);
+  }
+
+  // Fetch existing cafes once for O(1) duplicate checks.
+  const existing = (await base44.entities.Cafe.list(
+    "-created_date",
+    5000,
+    0,
+  )) as B44Cafe[];
+  const existingNames = new Set(existing.map((c) => c.name));
+  console.log(`Found ${existing.length} existing cafés in Base44.`);
+
+  let created = 0;
+  let skipped = 0;
+
   for (const cafe of MOCK_CAFES) {
-    const existing = (await base44.entities.Cafe.list(
-      "-created_date",
-      100,
-      0,
-    )) as Base44Entity[];
-    const found = existing.find((c) => c.name === cafe.name);
-    if (found) {
-      console.log(`Cafe "${cafe.name}" already exists (id=${found._id}), skipping`);
+    if (existingNames.has(cafe.name)) {
+      console.log(`  skip "${cafe.name}" (already exists)`);
+      skipped++;
       continue;
     }
 
-    const created = (await base44.entities.Cafe.create({
+    const b44Cafe = (await base44.entities.Cafe.create({
       name: cafe.name,
       neighbourhood: cafe.neighbourhood,
       latitude: cafe.lat,
       longitude: cafe.lng,
       vibe: cafe.vibe,
+      venue_type: cafe.venueType ?? "cafe",
       city: cafe.city ?? "nairobi",
       price_tier: cafe.metadata?.priceTier ?? null,
       milk_options: cafe.metadata?.milkOptions ?? [],
       power_outlets: cafe.metadata?.powerOutlets ?? false,
       seating: cafe.metadata?.seating ?? null,
+      noise_level: cafe.metadata?.noiseLevel ?? null,
+      table_space: cafe.metadata?.tableSpace ?? null,
       wifi_network: cafe.metadata?.wifiNetwork ?? null,
       photo_url: cafe.photoUrl ?? cafe.latestPhotoUrl ?? null,
-    })) as Base44Entity;
+    })) as B44Cafe;
 
-    console.log(`Created cafe "${cafe.name}" (id=${created._id})`);
-
-    const cafeId = created._id ?? created.id;
+    const cafeId = b44Cafe.id;
     const count = Math.max(cafe.measurementCount, 3);
 
     for (let i = 0; i < count; i++) {
       const measuredAt = new Date(now.getTime() - randomOffsetMs(72 * 60));
-      const baseDown = cafe.medianDownMbps;
-      const baseUp = cafe.medianUpMbps;
-      const baseLat = cafe.medianLatencyMs;
-
       await base44.entities.Measurement.create({
         cafe_id: cafeId,
-        down_mbps: randomMbps(baseDown, baseDown * 0.4),
-        up_mbps: randomMbps(baseUp, baseUp * 0.4),
-        latency_ms: randomMbps(baseLat, baseLat * 0.3),
+        down_mbps: randomMbps(cafe.medianDownMbps, cafe.medianDownMbps * 0.4),
+        up_mbps: randomMbps(cafe.medianUpMbps, cafe.medianUpMbps * 0.4),
+        latency_ms: randomMbps(cafe.medianLatencyMs, cafe.medianLatencyMs * 0.3),
         jitter_ms: Math.max(0, +(Math.random() * 8).toFixed(1)),
         loss_pct: Math.random() > 0.7 ? +(Math.random() * 3).toFixed(1) : 0,
         measured_at: measuredAt.toISOString(),
@@ -77,10 +94,11 @@ async function seed() {
       });
     }
 
-    console.log(`  → Created ${count} measurements for "${cafe.name}"`);
+    console.log(`  + "${cafe.name}" (id=${cafeId}) + ${count} measurements`);
+    created++;
   }
 
-  console.log("Seed complete.");
+  console.log(`\nDone. Created ${created} cafés, skipped ${skipped}.`);
 }
 
 seed().catch((err) => {

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getCafes } from "@/lib/cafes";
 import { TopNav } from "@/components/top-nav";
-import { MapShell } from "@/components/map-shell";
+import { LiveMap } from "@/components/live-map";
 import { StationDirectory } from "@/components/station-directory";
 import { BountiesBoard } from "@/components/bounties-board";
 
@@ -73,12 +73,11 @@ export default async function Home() {
         </section>
 
         {/* The map. Static (no scroll), interactive (click stations,
-            toggle schematic ↔ geographic). */}
-        {/* MapShell reads ?contribute=1 from the URL, so it must sit inside
-            a Suspense boundary to keep the page statically prerenderable. */}
+            toggle schematic ↔ geographic). LiveMap adds realtime updates
+            (new readings refresh the network) and the Workspace Concierge. */}
         <section className="mt-4 mb-10" aria-label="Shoreditch workspace network map">
           <Suspense fallback={null}>
-            <MapShell cafes={cafes} />
+            <LiveMap initialCafes={cafes} city="london" />
           </Suspense>
         </section>
 

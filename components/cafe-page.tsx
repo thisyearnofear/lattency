@@ -13,6 +13,7 @@ import { VibeChips } from "./vibe-chips";
 import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
 import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
+import { AiVenueSummary } from "./ai-venue-summary";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -190,6 +191,7 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
                 {cafe.vibe}
               </p>
             )}
+            <AiVenueSummary cafeId={cafe.id} measurementCount={cafe.measurementCount} />
             {cafe.vibeTags && cafe.vibeTags.length > 0 && (
               <div className="mt-3">
                 <VibeChips tags={cafe.vibeTags} />

@@ -3,6 +3,7 @@ import { query } from "./db";
 import { MOCK_CAFES } from "./mock-cafes";
 import type { CafeDetail, CafeStation, Neighbourhood, Sponsor, Tier, TimeBucket, VenueType } from "./types";
 import { log } from "./log";
+import { base44Configured, b44ListCafes, b44GetCafeById } from "./base44-data";
 
 // ── Demo-safety fallback ──────────────────────────────────────────────────────
 // Aurora Serverless v2 auto-pauses at 0 ACU and the first cold connection can
@@ -229,6 +230,25 @@ const LATEST_PHOTO_JOIN = `
  */
 export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[]> {
   const { lat, lng, radiusM, city, all } = opts;
+
+  // Base44 is the live backend. When configured, the `list-cafes` function
+  // returns fully-assembled stations (aggregated speeds + tier) server-side.
+  // On any failure we fall through to the pg path (currently dead) and then
+  // the bundled snapshot, so the map never white-screens.
+  if (base44Configured) {
+    try {
+      const cafes = await b44ListCafes({
+        city: all ? undefined : (city ?? "london"),
+        lat,
+        lng,
+        radiusM,
+      });
+      if (cafes.length > 0) return cafes;
+    } catch (err) {
+      warnFallback("getCafes.base44", err);
+    }
+  }
+
   const geoFiltered = lat !== undefined && lng !== undefined && radiusM !== undefined;
 
   // Build WHERE clause conditions
@@ -380,6 +400,17 @@ function fallbackDetail(id: string): CafeDetail | null {
  * Single café detail with per–time-bucket distribution.
  */
 export async function getCafeById(id: string): Promise<CafeDetail | null> {
+  // Base44-first: cafe entity + get-cafe-stats function (distribution,
+  // recent, latest photo, aggregate medians) computed server-side.
+  if (base44Configured) {
+    try {
+      const detail = await b44GetCafeById(id);
+      if (detail) return detail;
+    } catch (err) {
+      warnFallback("getCafeById.base44", err);
+    }
+  }
+
   let statsResult: QueryResult<CafeRow>;
   let distResult: QueryResult<DistributionRow>;
   let recentResult: QueryResult<RecentReadingRow>;

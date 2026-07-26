@@ -32,10 +32,25 @@ function buildPool(): Pool {
   return new Pool(config);
 }
 
-export const pool: Pool = globalThis.__lattency_pg_pool ?? buildPool();
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__lattency_pg_pool = pool;
+// Pool is built LAZILY on first use rather than at module load. Aurora is
+// retired (the app runs on Base44 + a bundled mock snapshot), so merely
+// importing this module — which many files still do for its `query` /
+// `withTransaction` exports — must not throw when DATABASE_URL is unset.
+// The Proxy defers buildPool() until a property (e.g. `.connect`, `.query`)
+// is actually accessed, at which point a missing DATABASE_URL still throws
+// the same descriptive error as before.
+function getPool(): Pool {
+  if (!globalThis.__lattency_pg_pool) {
+    globalThis.__lattency_pg_pool = buildPool();
+  }
+  return globalThis.__lattency_pg_pool;
 }
+
+export const pool: Pool = new Proxy({} as Pool, {
+  get(_target, prop) {
+    return Reflect.get(getPool(), prop);
+  },
+});
 
 export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,

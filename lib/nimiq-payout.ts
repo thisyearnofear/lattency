@@ -1,4 +1,7 @@
-import { Address, KeyPair, PrivateKey, Transaction, AccountType } from "@nimiq/core";
+// @nimiq/core loads a WASM binary. Importing it lazily (only inside
+// executeNimiqPayout when a real payout is needed) keeps it out of the
+// build-time page-data collection, which otherwise fails resolving the
+// WASM asset. Mock mode never touches it.
 import { log } from "./log";
 
 const LUNAS_PER_NIM = 100_000;
@@ -140,6 +143,9 @@ export async function executeNimiqPayout(
   }
 
   try {
+    // Lazy-load the WASM-backed SDK only for real payouts.
+    const nimiq = await import("@nimiq/core");
+    const { Address, KeyPair, PrivateKey, Transaction, AccountType } = nimiq;
     const privateKey = PrivateKey.fromHex(privateKeyHex);
     const keyPair = KeyPair.derive(privateKey);
     const senderAddr = keyPair.publicKey.toAddress();

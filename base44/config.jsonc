@@ -1,0 +1,9 @@
+// Base44 Project Configuration
+{
+  "name": "lattency",
+  "description": "Crypto-incentivized workspace-wifi ground-truth network. Verified speed tests, sponsor-funded NIM bounties, and an agent-ready data layer. Backend = Base44 (entities + Deno functions + AI agent + automations), frontend = Next.js on Vercel.",
+
+  "entitiesDir": "./entities",
+  "functionsDir": "./functions",
+  "agentsDir": "./agents"
+}

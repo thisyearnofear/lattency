@@ -47,3 +47,7 @@ public/demo/vo-clips/
 
 # Speed test blobs — reproducible from scripts/gen-speedtest-blobs.ts
 public/speedtest/
+
+# Base44 — app link (credentials) and generated types are local-only
+base44/.app.jsonc
+base44/.types/

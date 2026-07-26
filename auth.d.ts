@@ -1,12 +1,5 @@
-// Module augmentation so session.user.id is typed across the app.
-// Auth.js v5 sets the id via the `session` callback in auth.ts.
+// Session type augmentation. Auth.js was removed during the Base44
+// migration; the Session type is now defined directly in auth.ts.
+// This file is kept as a placeholder for future type augmentation.
 
-import type { DefaultSession } from "next-auth";
-
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-    } & DefaultSession["user"];
-  }
-}
+export {};

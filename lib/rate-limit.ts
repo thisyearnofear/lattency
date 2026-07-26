@@ -11,6 +11,7 @@
 
 import { createHash } from "node:crypto";
 import { query } from "./db";
+import { base44Configured } from "./base44";
 
 // Windows: measurements are 10min per IP+cafe; café creation is 1hr per IP.
 const MEASUREMENT_WINDOW_MINUTES = 10;
@@ -44,6 +45,13 @@ export async function checkRateLimit(
   scope: RateLimitScope,
 ): Promise<boolean> {
   if (!ipHash) return true;
+
+  // On the Base44 backend the Postgres tables don't exist, so the SQL
+  // existence checks below would always throw. Rate-limiting against
+  // Base44 entities is a stretch goal; for now allow the write through
+  // (the in-browser speed test is the real spam gate — it's expensive to
+  // run, so casual flooding isn't a concern at hackathon scale).
+  if (base44Configured) return true;
 
   if (scope.table === "measurements") {
     const result = await query<{ exists: number }>(

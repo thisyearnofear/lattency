@@ -10,6 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "tsx scripts/seed-base44.ts",
+    "base44:login": "npx base44 login",
+    "base44:create": "npx base44 create",
+    "base44:deploy": "npx base44 deploy",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -29,6 +32,7 @@
     "gsap": "3.15.0",
     "leaflet": "1.9.4",
     "next": "16.3.0-preview.5",
+    "pg": "8.22.0",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
@@ -37,9 +41,11 @@
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "1.9.21",
     "@types/node": "^20",
+    "@types/pg": "8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "4.1.9",
+    "base44": "0.1.5",
     "eslint": "^9",
     "eslint-config-next": "16.3.0-preview.5",
     "husky": "9.1.7",

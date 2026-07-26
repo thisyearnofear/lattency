@@ -9,6 +9,7 @@ import {
 import type { MeasurementInput } from "@/lib/types";
 import { auth, authConfigured } from "@/auth";
 import { log, reqIdFrom } from "@/lib/log";
+import { base44Configured, b44InsertMeasurement } from "@/lib/base44-data";
 
 function badRequest(message: string): Response {
   return Response.json({ error: message }, { status: 400 });
@@ -51,8 +52,52 @@ export async function POST(req: NextRequest) {
   }
 
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
-  const session = authConfigured ? await auth() : null;
+  // Legacy Auth.js session hits the dead pg adapter; skip it when Base44 is
+  // the backend (userId attribution is best-effort, not a trust boundary).
+  const session = authConfigured && !base44Configured ? await auth() : null;
   const userId = session?.user?.id ?? null;
+
+  const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
+
+  // Base44 write path — bypasses the dead Postgres MV machinery. The
+  // stats aggregation happens on read (get-cafe-stats function), so there
+  // is no materialized view to refresh.
+  if (base44Configured) {
+    let measurementId: string;
+    try {
+      measurementId = await b44InsertMeasurement({
+        cafeId: body.cafeId,
+        downMbps: body.downMbps,
+        upMbps: body.upMbps,
+        latencyMs: body.latencyMs,
+        jitterMs: body.jitterMs ?? null,
+        lossPct: body.lossPct ?? null,
+        measuredAt: measuredAt.toISOString(),
+        photoUrl: body.photoUrl ?? null,
+        testMethod: body.testMethod,
+        targetServer: body.targetServer ?? null,
+        deviceType,
+        downloadBytes: body.downloadBytes ?? null,
+        downloadDurationMs: body.downloadDurationMs ?? null,
+        contributorIpHash: ipHash,
+        contributorUserId: userId,
+      });
+    } catch (err) {
+      log.error("Base44 measurement insert failed", {
+        reqId,
+        scope: "contribute.measurement",
+        reason: err instanceof Error ? err.message : String(err),
+      });
+      return Response.json(
+        { error: "couldn't record reading — please try again" },
+        { status: 500 },
+      );
+    }
+    return Response.json(
+      { measurementId, measuredAt: measuredAt.toISOString() },
+      { status: 201 },
+    );
+  }
 
   let measurementId: string;
   try {
@@ -80,7 +125,6 @@ export async function POST(req: NextRequest) {
     }
   });
 
-  const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
   return Response.json(
     { measurementId, measuredAt: measuredAt.toISOString() },
     { status: 201 },

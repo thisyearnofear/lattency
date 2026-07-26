@@ -18,6 +18,7 @@
     "table_space":   { "type": "string", "enum": ["small", "standard", "large"] },
     "wifi_network":  { "type": "string" },
     "photo_url":     { "type": "string" },
+    "ai_summary":    { "type": "string" },
     "created_by_ip_hash": { "type": "string" },
     "created_by_user_id": { "type": "string" }
   },

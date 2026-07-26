@@ -9,6 +9,7 @@ import { VibeChips } from "./vibe-chips";
 import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
 import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
+import { AiVenueSummary } from "./ai-venue-summary";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -291,6 +292,7 @@ export function CafeDetail({
             <p className="font-serif italic text-ink-faint text-lg mt-2">
               {d.neighbourhood} · {d.vibe}
             </p>
+            <AiVenueSummary cafeId={d.id} measurementCount={d.measurementCount} />
             {d.vibeTags && d.vibeTags.length > 0 && (
               <div className="mt-2.5">
                 <VibeChips tags={d.vibeTags} />

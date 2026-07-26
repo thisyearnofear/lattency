@@ -1,0 +1,1 @@
+{"name": "update-bounty-progress", "entry": "entry.ts", "automations": [{"type": "entity", "name": "on_measurement_create", "description": "When a new speed test lands, increment progress on any matching open bounty and flag it claimable once its target is met.", "is_active": true, "entity_name": "Measurement", "event_types": ["create"]}]}

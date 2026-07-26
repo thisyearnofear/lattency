@@ -12,6 +12,7 @@ import { slugify } from "@/lib/slug";
 import type { CafeCreationInput } from "@/lib/types";
 import { auth, authConfigured } from "@/auth";
 import { log, reqIdFrom } from "@/lib/log";
+import { base44Configured, b44CreateCafe } from "@/lib/base44-data";
 
 // Force dynamic — each POST runs as a function.
 export const dynamic = "force-dynamic";
@@ -75,15 +76,78 @@ export async function POST(req: NextRequest) {
   // compat. In a production system this would reverse-geocode from lat/lng.
   const city = body.city?.trim().toLowerCase() || "nairobi";
 
+  const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
+  // Legacy Auth.js session hits the dead pg adapter; skip it on the Base44
+  // backend where userId attribution is best-effort.
+  const session = authConfigured && !base44Configured ? await auth() : null;
+  const userId = session?.user?.id ?? null;
+
+  // Base44 write path — the create-cafe function creates the venue + first
+  // measurement atomically (two-phase with rollback) under service role.
+  if (base44Configured) {
+    const measuredAt = body.measurement.measuredAt
+      ? new Date(body.measurement.measuredAt)
+      : new Date();
+    try {
+      const { cafeId, measurementId } = await b44CreateCafe({
+        cafe: {
+          name: body.name.trim(),
+          neighbourhood: body.neighbourhood.trim(),
+          latitude: body.lat,
+          longitude: body.lng,
+          vibe: body.vibe?.trim() || null,
+          venue_type: body.venueType ?? "cafe",
+          city,
+          price_tier: metadata.priceTier ?? null,
+          milk_options: metadata.milkOptions ?? null,
+          power_outlets: metadata.powerOutlets ?? null,
+          seating: metadata.seating ?? null,
+          noise_level: metadata.noiseLevel ?? null,
+          table_space: metadata.tableSpace ?? null,
+          wifi_network: metadata.wifiNetwork ?? null,
+          photo_url: body.photo,
+          created_by_ip_hash: ipHash,
+          created_by_user_id: userId,
+        },
+        measurement: {
+          cafeId: "", // set server-side from the created cafe id
+          downMbps: body.measurement.downMbps,
+          upMbps: body.measurement.upMbps,
+          latencyMs: body.measurement.latencyMs,
+          jitterMs: body.measurement.jitterMs ?? null,
+          lossPct: body.measurement.lossPct ?? null,
+          measuredAt: measuredAt.toISOString(),
+          photoUrl: body.measurement.photoUrl ?? null,
+          testMethod: body.measurement.testMethod,
+          targetServer: body.measurement.targetServer ?? null,
+          deviceType,
+          downloadBytes: body.measurement.downloadBytes ?? null,
+          downloadDurationMs: body.measurement.downloadDurationMs ?? null,
+          contributorIpHash: ipHash,
+          contributorUserId: userId,
+        },
+      });
+      return Response.json(
+        { cafeId, slug: slugify(body.name), measurementId, city },
+        { status: 201 },
+      );
+    } catch (err) {
+      log.error("Base44 café creation failed", {
+        reqId,
+        scope: "contribute.cafe",
+        reason: err instanceof Error ? err.message : String(err),
+      });
+      return Response.json(
+        { error: "couldn't create café — please try again" },
+        { status: 500 },
+      );
+    }
+  }
+
   // Insert café + first measurement in one transaction. If either fails,
   // both roll back — no orphaned café rows when a recording is being made
   // and a flaky network blips. The MV refresh runs AFTER commit because
   // REFRESH ... CONCURRENTLY cannot live inside a transaction.
-  const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
-  // Attribute to the signed-in user when there is one; otherwise the
-  // contribution is anonymous and only the IP hash gates rate-limit.
-  const session = authConfigured ? await auth() : null;
-  const userId = session?.user?.id ?? null;
   let cafeId: string;
   let measurementId: string;
   try {
