@@ -1,8 +1,10 @@
-import { createClientFromRequest } from "npm:@base44/sdk@0.8.20";
+import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
 
 // Scheduled housekeeping: deactivates open bounties whose expires_at has
 // passed. Keeps the bounty board honest without anyone touching it.
-// Runs under service role (scheduled automations have no user context).
+// Called directly via HTTP (previously a cron automation; now invoked by
+// the Next.js frontend or Vercel cron).
+// Runs under service role (no user context).
 
 interface B44Bounty {
   id: string;

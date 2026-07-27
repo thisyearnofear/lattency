@@ -2,22 +2,22 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCafes, getCafeBySlug } from "@/lib/cafes";
 import { slugify } from "@/lib/slug";
+import { CITIES, CITY_ORDER } from "@/lib/cities";
 import { TopNav } from "@/components/top-nav";
 import { CafePage } from "@/components/cafe-page";
 
-// Pre-render all 12 known café pages at build time, revalidate every minute.
+// Pre-render all known café pages at build time, revalidate every minute.
 // New cafés (post-build) fall back to on-demand SSR via `dynamicParams`.
 export const revalidate = 60;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  // Pre-render slugs from every known city, so /cafes/sightglass-coffee-soma
+  // Pre-render slugs from every curated city so /cafes/ozone-coffee-roasters
   // and /cafes/about-thyme both ship as static HTML at build time.
-  const [nairobi, sf] = await Promise.all([
-    getCafes({ city: "nairobi" }),
-    getCafes({ city: "sf" }),
-  ]);
-  return [...nairobi, ...sf].map((c) => ({ slug: slugify(c.name) }));
+  const cityCafes = await Promise.all(
+    CITY_ORDER.map((city) => getCafes({ city })),
+  );
+  return cityCafes.flat().map((c) => ({ slug: slugify(c.name) }));
 }
 
 export async function generateMetadata({
@@ -33,6 +33,7 @@ export async function generateMetadata({
   const median = Math.round(cafe.medianDownMbps);
   const blurb = `${tier} line · ${median} Mbps median${cafe.vibe ? ` · ${cafe.vibe}` : ""}`;
   const title = `${cafe.name} · ${cafe.neighbourhood}`;
+  const cityName = CITIES[cafe.city]?.name ?? cafe.city;
 
   return {
     title,
@@ -40,7 +41,7 @@ export async function generateMetadata({
     openGraph: {
       type: "article",
       title: `${cafe.name} · Lattency`,
-      description: `${blurb}. ${cafe.neighbourhood}, Nairobi.`,
+      description: `${blurb}. ${cafe.neighbourhood}, ${cityName}.`,
       siteName: "Lattency",
     },
     twitter: {
@@ -62,7 +63,7 @@ export default async function CafeRoute({
 
   return (
     <>
-      <TopNav current="app" />
+      <TopNav current="app" currentCity={cafe.city} />
       <CafePage cafe={cafe} />
     </>
   );

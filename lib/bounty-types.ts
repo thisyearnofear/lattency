@@ -16,6 +16,8 @@ export interface Bounty {
   goal: string;
   /** Lowercase neighbourhood or city context, used for the location pill. */
   area: string;
+  /** City id this bounty belongs to (e.g. "london", "nairobi", "sf"). */
+  city?: string;
   /** Bounty payout in USD (coffees). The UI renders ☕ × ceil(amount/5). */
   amountUsd: number;
   /** Bounty payout in NIM (1 NIM = 100,000 Lunas). */

@@ -13,6 +13,7 @@ import type { CafeCreationInput } from "@/lib/types";
 import { auth, authConfigured } from "@/auth";
 import { log, reqIdFrom } from "@/lib/log";
 import { base44Configured, b44CreateCafe } from "@/lib/base44-data";
+import { getBase44 } from "@/lib/base44";
 
 // Force dynamic — each POST runs as a function.
 export const dynamic = "force-dynamic";
@@ -127,6 +128,22 @@ export async function POST(req: NextRequest) {
           contributorUserId: userId,
         },
       });
+      // Fire-and-forget: update bounty progress for the new café's measurement.
+      after(async () => {
+        try {
+          await getBase44().functions.invoke("update-bounty-progress", {
+            cafe_id: cafeId,
+            down_mbps: body.measurement.downMbps,
+          });
+        } catch (err) {
+          log.warn("bounty progress update failed (non-fatal)", {
+            reqId,
+            scope: "contribute.cafe.bounty",
+            reason: err instanceof Error ? err.message : String(err),
+          });
+        }
+      });
+
       return Response.json(
         { cafeId, slug: slugify(body.name), measurementId, city },
         { status: 201 },

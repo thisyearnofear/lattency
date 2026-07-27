@@ -1,14 +1,15 @@
-import { createClientFromRequest } from "npm:@base44/sdk@0.8.20";
+import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
 
-// Triggered automatically whenever a Measurement is created. Finds open
-// bounties whose area/criteria match the new reading and bumps progress.
-// When progress >= target, the bounty status flips to "open" (claimable).
+// Called by the Next.js API after every measurement insert.
+// Finds open bounties whose area/criteria match the new reading and bumps
+// progress. When progress >= target, the bounty status flips to "claiming".
 //
-// Runs under service role (entity-event automations have no user context).
+// Expects body: { cafe_id, down_mbps }
+// Runs under service role (no user context when called via HTTP).
 
-interface B44Measurement {
+interface Input {
   cafe_id: string;
-  down_mbps: number;
+  down_mbps?: number;
 }
 
 interface B44Bounty {
@@ -30,17 +31,19 @@ interface B44Cafe {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const body = (await req.json()) as { record?: B44Measurement };
-    const measurement = body.record;
-    if (!measurement?.cafe_id) {
-      return Response.json({ skipped: true, reason: "no measurement record" });
+    const body = (await req.json()) as Input;
+
+    // Accept either direct call (cafe_id) or entity-event ({ record: ... })
+    const cafeId = body.cafe_id ?? (body as unknown as { record?: { cafe_id?: string } }).record?.cafe_id;
+    if (!cafeId) {
+      return Response.json({ skipped: true, reason: "no cafe_id" });
     }
 
     // Look up the café the measurement belongs to for area matching.
     let cafe: B44Cafe | null = null;
     try {
       cafe = (await base44.asServiceRole.entities.Cafe.get(
-        measurement.cafe_id,
+        cafeId,
       )) as B44Cafe;
     } catch {
       return Response.json({ skipped: true, reason: "cafe not found" });
@@ -80,7 +83,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return Response.json({ updated, measurement_cafe: measurement.cafe_id });
+    return Response.json({ updated, cafe_id: cafeId });
   } catch (err) {
     return Response.json(
       { error: (err as Error).message },

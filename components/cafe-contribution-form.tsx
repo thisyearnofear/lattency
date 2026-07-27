@@ -18,7 +18,7 @@ import {
   SEATING_LABELS,
   MILK_LABELS,
 } from "@/lib/cafe-metadata";
-import { CITIES } from "@/lib/cities";
+import { CITIES, DEFAULT_CITY_ID } from "@/lib/cities";
 import { postWithRetry } from "@/lib/fetch-retry";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
@@ -146,7 +146,7 @@ function initialState(city: string): FormState {
 export function CafeContributionForm({
   onClose,
   onSuccess,
-  currentCity = "nairobi",
+  currentCity = DEFAULT_CITY_ID,
 }: {
   onClose: () => void;
   onSuccess: (slug: string) => void;
@@ -160,6 +160,9 @@ export function CafeContributionForm({
   const [testProgress, setTestProgress] = useState<SpeedTestProgress | null>(null);
   const [testState, setTestState] = useState<"idle" | "running" | "done" | "error">("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [debug] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
+  );
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -403,19 +406,20 @@ export function CafeContributionForm({
               </p>
 
               <div className="relative pt-4 mt-2 border-t border-cream-deep">
-                <p className="stamp mb-2">Don&rsquo;t feel like leaving the house?</p>
-                <button
-                  type="button"
-                  onClick={loadDemoPrefill}
-                  className="w-full py-3 border border-ink/40 font-mono text-xs tracking-[0.22em] uppercase text-ink-soft hover:bg-ink hover:text-cream hover:border-ink transition-colors"
-                >
-                  Try with sample data →
-                </button>
+                <p className="stamp mb-2">You&rsquo;re the first to map this area.</p>
                 <p className="font-mono text-[10px] text-ink-faint mt-2 leading-snug">
-                  Pre-fills a demo café in <span className="text-ink">{CITIES[currentCity]?.name ?? "this city"}</span>.
-                  You still run a real speed test from your browser — that&rsquo;s
-                  what makes the new café appear on the map.
+                  Run a test where you&rsquo;re sitting — that&rsquo;s what makes
+                  a new station appear on the map. No account needed.
                 </p>
+                {debug && (
+                  <button
+                    type="button"
+                    onClick={loadDemoPrefill}
+                    className="w-full mt-3 py-3 border border-ink/40 font-mono text-xs tracking-[0.22em] uppercase text-ink-soft hover:bg-ink hover:text-cream hover:border-ink transition-colors"
+                  >
+                    Debug: pre-fill sample data →
+                  </button>
+                )}
               </div>
             </div>
           )}

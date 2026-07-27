@@ -1,35 +1,33 @@
 "use client";
 
-// Dropdown surfacing the multi-city architecture. Nairobi is the only
-// enabled option; the rest are visible-but-disabled so a curious judge
-// can see the engine is designed to ship to any city.
+// Dropdown surfacing the multi-city architecture. Live cities come from
+// lib/cities.ts; adding a city there automatically surfaces it here.
+// "Coming soon" slots are static teases of the global expansion story.
 
 import { useEffect, useRef, useState } from "react";
+import { CITIES, CITY_ORDER, cityPath } from "@/lib/cities";
+import type { CityId } from "@/lib/types";
 
-type CitySlot = {
-  id: string;
+type SoonCity = {
+  id: CityId;
   name: string;
   country: string;
-  state: "live" | "soon";
-  /** Route to navigate to when selected. Only set for live cities. */
-  href?: string;
 };
 
-const SLOTS: CitySlot[] = [
-  { id: "nairobi", name: "Nairobi", country: "Kenya", state: "live", href: "/" },
-  { id: "sf", name: "San Francisco", country: "USA", state: "live", href: "/sf" },
-  { id: "lagos", name: "Lagos", country: "Nigeria", state: "soon" },
-  { id: "capetown", name: "Cape Town", country: "South Africa", state: "soon" },
-  { id: "accra", name: "Accra", country: "Ghana", state: "soon" },
-  { id: "kampala", name: "Kampala", country: "Uganda", state: "soon" },
-  { id: "kigali", name: "Kigali", country: "Rwanda", state: "soon" },
+const SOON_CITIES: SoonCity[] = [
+  { id: "lagos", name: "Lagos", country: "Nigeria" },
+  { id: "capetown", name: "Cape Town", country: "South Africa" },
+  { id: "accra", name: "Accra", country: "Ghana" },
+  { id: "kampala", name: "Kampala", country: "Uganda" },
+  { id: "kigali", name: "Kigali", country: "Rwanda" },
 ];
 
 export function CitySwitcher({ current }: { current?: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeName =
-    SLOTS.find((s) => s.id === current)?.name ?? "Nairobi";
+    (current && CITIES[current]?.name) ?? CITIES[CITY_ORDER[0]]?.name ?? "Cities";
+  const liveCount = CITY_ORDER.length;
 
   // Click-outside to close.
   useEffect(() => {
@@ -76,7 +74,7 @@ export function CitySwitcher({ current }: { current?: string }) {
         >
           <div className="px-4 py-3 border-b border-ink/15">
             <p className="stamp">
-              Network · {SLOTS.filter((s) => s.state === "live").length} cities live
+              Network · {liveCount} {liveCount === 1 ? "city" : "cities"} live
             </p>
             <p className="font-serif italic text-ink-faint text-xs mt-1">
               One engine, every city — schematic positions auto-derived from
@@ -85,59 +83,70 @@ export function CitySwitcher({ current }: { current?: string }) {
           </div>
 
           <ul className="max-h-[60vh] overflow-y-auto">
-            {SLOTS.map((slot) => {
-              const live = slot.state === "live";
-              const isCurrent = slot.id === current;
+            {CITY_ORDER.map((cityId) => {
+              const city = CITIES[cityId];
+              const isCurrent = cityId === current;
               return (
-                <li key={slot.id}>
-                  {live && slot.href ? (
-                    <a
-                      href={slot.href}
-                      aria-current={isCurrent ? "page" : undefined}
-                      className={`w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left transition-colors ${
-                        isCurrent ? "bg-cream-edge" : "bg-cream hover:bg-cream-edge"
-                      }`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-display font-black uppercase tracking-[-0.01em] text-lg leading-none text-ink">
-                          {slot.name}
-                        </p>
-                        <p className="font-serif italic text-xs mt-0.5 text-ink-soft">
-                          {slot.country}
-                        </p>
-                      </div>
-                      <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-express">
-                        {isCurrent ? "Active" : "Live · 12 stops"}
-                      </span>
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left bg-cream cursor-not-allowed"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-display font-black uppercase tracking-[-0.01em] text-lg leading-none text-ink-faint">
-                          {slot.name}
-                        </p>
-                        <p className="font-serif italic text-xs mt-0.5 text-ink-faint/70">
-                          {slot.country}
-                        </p>
-                      </div>
-                      <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
-                        Coming soon
-                      </span>
-                    </button>
-                  )}
+                <li key={cityId}>
+                  <a
+                    href={cityPath(cityId)}
+                    aria-current={isCurrent ? "page" : undefined}
+                    className={`w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left transition-colors ${
+                      isCurrent ? "bg-cream-edge" : "bg-cream hover:bg-cream-edge"
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-display font-black uppercase tracking-[-0.01em] text-lg leading-none text-ink">
+                        {city.name}
+                      </p>
+                      <p className="font-serif italic text-xs mt-0.5 text-ink-soft">
+                        {city.country}
+                      </p>
+                    </div>
+                    <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-express">
+                      {isCurrent ? "Active" : "Live"}
+                    </span>
+                  </a>
                 </li>
               );
             })}
+
+            {SOON_CITIES.length > 0 && (
+              <li className="px-4 py-2 border-t border-ink/10">
+                <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
+                  Coming soon
+                </p>
+              </li>
+            )}
+            {SOON_CITIES.map((slot) => (
+              <li key={slot.id}>
+                <button
+                  type="button"
+                  disabled
+                  className="w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left bg-cream cursor-not-allowed"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display font-black uppercase tracking-[-0.01em] text-lg leading-none text-ink-faint">
+                      {slot.name}
+                    </p>
+                    <p className="font-serif italic text-xs mt-0.5 text-ink-faint/70">
+                      {slot.country}
+                    </p>
+                  </div>
+                  <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
+                    Coming soon
+                  </span>
+                </button>
+              </li>
+            ))}
           </ul>
 
           <div className="px-4 py-3 border-t border-ink/15 bg-cream-edge/40">
             <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
               Your city missing?{" "}
-              <span className="text-ink">Map a café →</span>
+              <a href={`${cityPath(current && CITIES[current] ? current : CITY_ORDER[0])}?contribute=1`} className="text-ink">
+                Map a café →
+              </a>
             </p>
           </div>
         </div>

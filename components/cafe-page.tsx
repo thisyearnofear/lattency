@@ -6,6 +6,7 @@
 
 import Link from "next/link";
 import type { CafeDetail as CafeDetailType, Tier, TimeBucket } from "@/lib/types";
+import { cityPath, CITIES } from "@/lib/cities";
 import { MeasurementForm } from "./measurement-form";
 import { CopyShareLink } from "./copy-share-link";
 import { SignalQuality } from "./signal-quality";
@@ -137,7 +138,7 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
       {/* Breadcrumb + share */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <Link
-          href="/"
+          href={cityPath(cafe.city)}
           className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
         >
           <span aria-hidden>←</span> All stations
@@ -178,7 +179,7 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
         <div className="flex flex-col justify-between gap-6">
           <div>
             <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft mb-2">
-              {cafe.neighbourhood} · Nairobi
+              {cafe.neighbourhood} · {CITIES[cafe.city]?.name ?? cafe.city}
             </p>
             <h1
               className="font-display font-black uppercase text-ink leading-[0.92] tracking-[-0.02em]"
@@ -272,9 +273,9 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
 
       <footer className="border-t border-ink/40 pt-6 flex flex-wrap items-baseline justify-between gap-4 text-sm">
         <p className="stamp">
-          Lattency · printed in Nairobi · {new Date().getFullYear()}
+          Lattency · printed in {CITIES[cafe.city]?.name ?? cafe.city} · {new Date().getFullYear()}
         </p>
-        <Link href="/" className="stamp hover:text-ink transition-colors">
+        <Link href={cityPath(cafe.city)} className="stamp hover:text-ink transition-colors">
           All stations →
         </Link>
       </footer>

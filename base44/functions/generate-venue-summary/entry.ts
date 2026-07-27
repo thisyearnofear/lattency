@@ -1,4 +1,4 @@
-import { createClientFromRequest } from "npm:@base44/sdk@0.8.20";
+import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
 
 // Generate a one-line editorial summary ("vibe") for a café from its
 // objective metadata + verified speed stats. Uses Base44's built-in

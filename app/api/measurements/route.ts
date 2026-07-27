@@ -10,6 +10,7 @@ import type { MeasurementInput } from "@/lib/types";
 import { auth, authConfigured } from "@/auth";
 import { log, reqIdFrom } from "@/lib/log";
 import { base44Configured, b44InsertMeasurement } from "@/lib/base44-data";
+import { getBase44 } from "@/lib/base44";
 
 function badRequest(message: string): Response {
   return Response.json({ error: message }, { status: 400 });
@@ -93,6 +94,23 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
+
+    // Fire-and-forget: update bounty progress after measurement insert.
+    after(async () => {
+      try {
+        await getBase44().functions.invoke("update-bounty-progress", {
+          cafe_id: body.cafeId,
+          down_mbps: body.downMbps,
+        });
+      } catch (err) {
+        log.warn("bounty progress update failed (non-fatal)", {
+          reqId,
+          scope: "contribute.measurement.bounty",
+          reason: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+
     return Response.json(
       { measurementId, measuredAt: measuredAt.toISOString() },
       { status: 201 },

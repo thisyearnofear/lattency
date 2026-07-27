@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CitySwitcher } from "./city-switcher";
 import { BrandMark } from "./brand-mark";
 import { AuthSlot } from "./auth-slot";
+import { CITIES, cityPath, DEFAULT_CITY_ID } from "@/lib/cities";
 
 /**
  * Thin sticky nav surfaced on every primary route. Stays a synchronous
@@ -14,18 +15,21 @@ import { AuthSlot } from "./auth-slot";
  *
  * Layout: BrandMark · wordmark · CitySwitcher  on the left.
  *          Map · Partners · AuthSlot · (+ Map a café CTA) on the right.
- * The CTA links to /?contribute=1 so the homepage can open the
+ * The CTA links to /{city}?contribute=1 so any city page can open the
  * contribution modal automatically — useful from any sub-route.
  */
 export function TopNav({
   current,
-  currentCity = "nairobi",
+  currentCity = DEFAULT_CITY_ID,
 }: {
   current: "app" | "tour" | "partners" | "me" | "auth";
   currentCity?: string;
 }) {
-  const cityHome = currentCity === "sf" ? "/sf" : "/";
+  const cityHome = cityPath(
+    currentCity && CITIES[currentCity] ? currentCity : DEFAULT_CITY_ID,
+  );
   const contributeHref = `${cityHome}?contribute=1`;
+
   return (
     <nav
       className="sticky top-0 z-40 border-b border-ink/15 bg-cream/90 backdrop-blur-md"
@@ -34,7 +38,7 @@ export function TopNav({
       <div className="mx-auto max-w-[1440px] px-6 md:px-12 h-14 flex items-center justify-between gap-6">
         <div className="flex items-center gap-5 md:gap-8 min-w-0">
           <Link
-            href="/"
+            href={cityHome}
             aria-label="Lattency home"
             className="flex items-center gap-2 font-display font-black uppercase text-[22px] leading-none tracking-[-0.02em] text-ink shrink-0"
           >
@@ -50,14 +54,14 @@ export function TopNav({
         <div className="flex items-center gap-3 md:gap-5 font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase">
           {current === "tour" ? (
             <Link
-              href="/"
+              href={cityHome}
               className="text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
             >
               <span aria-hidden>←</span> Back to map
             </Link>
           ) : (
             <Link
-              href="/"
+              href={cityHome}
               className={
                 current === "app"
                   ? "text-ink"

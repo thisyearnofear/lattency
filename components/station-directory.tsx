@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
-import { CITIES } from "@/lib/cities";
+import { CITIES, cityPath } from "@/lib/cities";
 import { CafeDetail } from "./cafe-detail";
 import { SignalQuality } from "./signal-quality";
 import { VibeChips } from "./vibe-chips";
@@ -340,7 +340,7 @@ export function StationDirectory({
               Show all lines
             </button>
             <a
-              href={`${cityConfig.path}?contribute=1`}
+              href={`${cityPath(cityConfig.id)}?contribute=1`}
               className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors"
             >
               <span aria-hidden>+</span> Map a café

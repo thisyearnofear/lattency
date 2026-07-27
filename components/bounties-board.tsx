@@ -8,6 +8,7 @@
 // implementation would back this with a `bounties` table and a Stripe or
 // M-Pesa hold/release flow.
 
+import Link from "next/link";
 import { getBounties, sponsorBadgeStyle, bountyKindLabel, type Bounty } from "@/lib/bounties";
 import { BountyClaim } from "./bounty-claim";
 
@@ -104,8 +105,8 @@ function BountyCard({ bounty }: { bounty: Bounty }) {
   );
 }
 
-export async function BountiesBoard({ limit }: { limit?: number }) {
-  const all = await getBounties();
+export async function BountiesBoard({ limit, city }: { limit?: number; city?: string }) {
+  const all = await getBounties(city);
   const items = limit ? all.slice(0, limit) : all;
   return (
     <section
@@ -132,12 +133,12 @@ export async function BountiesBoard({ limit }: { limit?: number }) {
             inside Nimiq Pay to claim your NIM reward.
           </p>
         </div>
-        <a
+        <Link
           href="/partners"
           className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
         >
           Fund a bounty <span aria-hidden>→</span>
-        </a>
+        </Link>
       </div>
 
       {/* Three-step mini-explainer reinforcing the one-liner above. */}
@@ -176,12 +177,12 @@ export async function BountiesBoard({ limit }: { limit?: number }) {
             verified café in a neighbourhood you care about, or sponsor a
             tier-target across your service area.
           </p>
-          <a
+          <Link
             href="/partners"
             className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-6"
           >
             Fund the first bounty <span aria-hidden>→</span>
-          </a>
+          </Link>
         </div>
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -193,9 +194,9 @@ export async function BountiesBoard({ limit }: { limit?: number }) {
 
       <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint mt-5">
         NIM payouts via @nimiq/mini-app-sdk · see{" "}
-        <a href="/partners" className="text-ink underline underline-offset-4 hover:text-express">
+        <Link href="/partners" className="text-ink underline underline-offset-4 hover:text-express">
           /partners
-        </a>{" "}
+        </Link>{" "}
         for the model
       </p>
     </section>

@@ -9,6 +9,7 @@ import {
   type UserMeasurementRow,
   type UserCreatedCafeRow,
 } from "@/lib/contributions";
+import { cityPath, CITIES, DEFAULT_CITY_ID } from "@/lib/cities";
 
 export const metadata: Metadata = {
   title: "Your contributions · Lattency",
@@ -31,7 +32,7 @@ function formatDateTime(iso: string): string {
 }
 
 function pathForCity(city: string): string {
-  return city === "sf" ? "/sf" : "/";
+  return cityPath(CITIES[city] ? city : DEFAULT_CITY_ID);
 }
 
 function MeasurementRow({ m }: { m: UserMeasurementRow }) {
