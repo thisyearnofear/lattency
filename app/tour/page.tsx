@@ -4,6 +4,7 @@ import { TopNav } from "@/components/top-nav";
 import { Masthead } from "@/components/masthead";
 import { CinematicMap } from "@/components/cinematic-map";
 import { Legend } from "@/components/legend";
+import { LoopStoryboard } from "@/components/loop-storyboard";
 
 export const revalidate = 60;
 
@@ -22,6 +23,10 @@ export default async function Tour() {
 
       <main className="mx-auto max-w-[1440px] px-6 md:px-12 pt-6 md:pt-10 pb-12">
         <Masthead />
+
+        {/* The product loop, running itself — the first thing a judge sees
+            after the masthead, so the product moves before they touch it. */}
+        <LoopStoryboard />
       </main>
 
       <CinematicMap cafes={cafes} />
@@ -65,10 +70,10 @@ export default async function Tour() {
 
         <footer className="mt-16 pt-6 border-t border-ink/40 flex flex-wrap items-baseline justify-between gap-4">
           <p className="stamp">
-            Lattency · printed in Nairobi · {new Date().getFullYear()}
+            Lattency · live network · {new Date().getFullYear()}
           </p>
           <p className="font-serif italic text-ink-faint text-sm">
-            a hackathon submission · Vercel × AWS Databases
+            a hackathon submission · built on Base44 · powered by Nimiq Pay · deployed on Vercel
           </p>
           <p className="stamp">Set in Big Shoulders &amp; IBM Plex Mono</p>
         </footer>

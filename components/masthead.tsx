@@ -10,7 +10,7 @@ export function Masthead() {
           Edition 01 · 2026 · Vol I
         </span>
         <span className="stamp">
-          Nairobi · Live from <span className="text-express">PG_DB</span>
+          Live in <span className="text-express">3 cities</span>
         </span>
       </div>
 
@@ -56,7 +56,7 @@ export function Masthead() {
             Lattency
           </h1>
           <p className="font-serif italic text-ink-soft text-2xl md:text-3xl mt-4">
-            a metro map of the city&rsquo;s wifi · brewed in nairobi
+            a metro map of the city&rsquo;s wifi · London · Nairobi · SF
           </p>
         </div>
 
