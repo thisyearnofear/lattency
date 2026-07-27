@@ -145,7 +145,7 @@ export async function BountiesBoard({ limit, city }: { limit?: number; city?: st
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
         {[
           { n: "01", verb: "Stake", body: "An ISP, café owner, or community member pre-pays a small bounty for a specific target — first café in Lavington, 3 oat-milk spots in Kilimani, 10th verified test at Savanna." },
-          { n: "02", verb: "Run", body: "A contributor walks into a café, runs a real in-browser speed test, fills in the coffee metadata, snaps a photo. The reading lands in Aurora the moment it commits." },
+          { n: "02", verb: "Run", body: "A contributor walks into a café, runs a real in-browser speed test, fills in the coffee metadata, snaps a photo. The reading lands on the map the moment it commits." },
           { n: "03", verb: "Verify + pay", body: "Outlier-flagged or solo readings wait for a second corroborating test. Once verified, the bounty pays out in NIM directly to your Nimiq Pay wallet." },
         ].map((step) => (
           <li

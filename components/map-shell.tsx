@@ -9,8 +9,8 @@
 //                polylines connecting same-tier stations west-to-east.
 //
 // Click any station — schematic or geographic — opens the CafeDetail drawer.
-// "Find me" locates the user; if they're far from Nairobi (judges anywhere
-// in the world), it offers four demo neighbourhoods to explore from.
+// "Find me" locates the user; if they're far from the active city,
+// it offers neighbourhood quick-picks to explore from.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
