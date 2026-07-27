@@ -6,12 +6,12 @@ import { log } from "./log";
 import { base44Configured, b44ListCafes, b44GetCafeById } from "./base44-data";
 
 // ── Demo-safety fallback ──────────────────────────────────────────────────────
-// Aurora Serverless v2 auto-pauses at 0 ACU and the first cold connection can
-// take 15-30s (see lib/db.ts) — or fail outright if the IP allowlist is stale.
-// For a public hackathon link and a recorded demo, a white-screen is fatal, so
-// every read degrades gracefully to the bundled Nairobi snapshot. The snapshot
-// is shaped identically to the live rows, so the UI is byte-for-byte the same.
+// Aurora is retired (the app runs on Base44 + a bundled mock snapshot). The
+// pg path is only attempted when AURORA_ENABLED=true is explicitly set, so
+// builds and deploys never burn 45s on dead connection timeouts.
 // We log loudly so a real outage is still observable in Vercel logs.
+
+const auroraEnabled = process.env.AURORA_ENABLED === "true";
 
 function warnFallback(scope: string, err: unknown): void {
   const reason = err instanceof Error ? err.message : String(err);
@@ -249,6 +249,9 @@ export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[
     }
   }
 
+  // Aurora is retired — skip the pg path unless explicitly opted in.
+  if (!auroraEnabled) return fallbackCafes(opts);
+
   const geoFiltered = lat !== undefined && lng !== undefined && radiusM !== undefined;
 
   // Build WHERE clause conditions
@@ -410,6 +413,9 @@ export async function getCafeById(id: string): Promise<CafeDetail | null> {
       warnFallback("getCafeById.base44", err);
     }
   }
+
+  // Aurora is retired — skip the pg path unless explicitly opted in.
+  if (!auroraEnabled) return fallbackDetail(id);
 
   let statsResult: QueryResult<CafeRow>;
   let distResult: QueryResult<DistributionRow>;
