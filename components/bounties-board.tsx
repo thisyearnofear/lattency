@@ -31,13 +31,16 @@ function CoffeeRow({ amount }: { amount: number }) {
   );
 }
 
-function BountyCard({ bounty }: { bounty: Bounty }) {
+function BountyCard({ bounty, index }: { bounty: Bounty; index: number }) {
   const sponsor = sponsorBadgeStyle(bounty.sponsorKind);
   const pct = Math.round((bounty.progress / bounty.target) * 100);
   const filled = bounty.progress >= bounty.target;
 
   return (
-    <li className="group bg-cream border border-ink/15 hover:border-ink/60 hover:-translate-y-0.5 hover:shadow-[4px_6px_0_0_var(--color-ink)] transition-[transform,border-color,box-shadow] duration-200">
+    <li
+      className="rise-row pressable group bg-cream border border-ink/15 hover:border-ink/60 hover:-translate-y-0.5 hover:shadow-[4px_6px_0_0_var(--color-ink)]"
+      style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
+    >
       <div className="p-5 flex flex-col gap-4 h-full">
         {/* Sponsor strip */}
         <div className="flex items-center justify-between gap-3">
@@ -186,8 +189,8 @@ export async function BountiesBoard({ limit, city }: { limit?: number; city?: st
         </div>
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {items.map((b) => (
-            <BountyCard key={b.id} bounty={b} />
+          {items.map((b, i) => (
+            <BountyCard key={b.id} bounty={b} index={i} />
           ))}
         </ul>
       )}

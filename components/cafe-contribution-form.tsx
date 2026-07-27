@@ -169,6 +169,8 @@ export function CafeContributionForm({
   }) => void;
 }) {
   const [step, setStep] = useState<Step>("location");
+  // Exit phase — play modal-out before the parent unmounts us.
+  const [closing, setClosing] = useState(false);
   const [form, setForm] = useState<FormState>(() => initialState(currentCity));
   const [errorMsg, setErrorMsg] = useState("");
   const [testProgress, setTestProgress] = useState<SpeedTestProgress | null>(null);
@@ -177,6 +179,11 @@ export function CafeContributionForm({
   const [debug] = useState(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
   );
+
+  function closeWithExit() {
+    setClosing(true);
+    setTimeout(onClose, 220);
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -351,11 +358,15 @@ export function CafeContributionForm({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm"
-      onClick={onClose}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm ${
+        closing ? "backdrop-closing" : ""
+      }`}
+      onClick={closeWithExit}
     >
       <div
-        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-cream border border-ink shadow-[6px_8px_0_0_var(--color-ink)]"
+        className={`relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-cream border border-ink shadow-[6px_8px_0_0_var(--color-ink)] ${
+          closing ? "modal-closing" : "modal-entering"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -377,8 +388,8 @@ export function CafeContributionForm({
             </div>
             <button
               type="button"
-              onClick={onClose}
-              className="text-ink-faint hover:text-ink text-xl leading-none"
+              onClick={closeWithExit}
+              className="pressable text-ink-faint hover:text-ink text-xl leading-none"
               aria-label="Close"
             >
               ×
@@ -414,7 +425,7 @@ export function CafeContributionForm({
           )}
         </div>
 
-        <div className="px-6 py-5">
+        <div key={step} className="px-6 py-5 panel-in">
           {step === "location" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
@@ -425,7 +436,7 @@ export function CafeContributionForm({
               <button
                 type="button"
                 onClick={getLocation}
-                className="w-full py-3 bg-ink text-cream font-mono text-xs tracking-[0.22em] uppercase hover:bg-ink/90 transition-colors"
+                className="pressable w-full py-3 bg-ink text-cream font-mono text-xs tracking-[0.22em] uppercase hover:bg-ink/90"
               >
                 Share my location
               </button>
@@ -501,7 +512,7 @@ export function CafeContributionForm({
                 type="button"
                 disabled={!form.name.trim() || !form.neighbourhood.trim()}
                 onClick={() => setStep("metadata")}
-                className="w-full py-3 bg-ink text-cream font-mono text-xs tracking-[0.22em] uppercase disabled:opacity-40 hover:bg-ink/90 transition-colors"
+                className="pressable w-full py-3 bg-ink text-cream font-mono text-xs tracking-[0.22em] uppercase disabled:opacity-40 hover:bg-ink/90"
               >
                 Continue
               </button>

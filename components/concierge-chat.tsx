@@ -158,7 +158,7 @@ export function ConciergeChat() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Ask the Workspace Concierge"
-          className="fixed bottom-6 right-6 z-50 group flex items-center gap-3 bg-ink text-cream border border-ink px-4 py-3 shadow-[4px_5px_0_0_rgba(26,22,18,0.35)] transition-all hover:-translate-y-0.5 hover:shadow-[5px_7px_0_0_rgba(26,22,18,0.4)]"
+          className="pressable fixed bottom-6 right-6 z-50 group flex items-center gap-3 bg-ink text-cream border border-ink px-4 py-3 shadow-[4px_5px_0_0_rgba(26,22,18,0.35)] hover:-translate-y-0.5 hover:shadow-[5px_7px_0_0_rgba(26,22,18,0.4)]"
         >
           <span className="flex h-7 w-7 items-center justify-center bg-express font-display font-black text-[16px] text-cream">
             ?
@@ -175,15 +175,28 @@ export function ConciergeChat() {
         </button>
       )}
 
-      {/* Drawer — same right-drawer idiom as the café detail. */}
-      {open && (
-        <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Workspace concierge">
+      {/* Drawer — same right-drawer idiom as the café detail: always
+          mounted, slide-in/out on a transform transition so it plays both
+          directions and stays interruptible mid-flight. */}
+      <div
+        aria-hidden={!open}
+        className={`fixed inset-0 z-[60] ${open ? "" : "pointer-events-none"}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Workspace concierge"
+      >
           <div
-            className="absolute inset-0 bg-ink/40 backdrop-blur-[2px] transition-opacity"
+            className={`absolute inset-0 bg-ink/40 backdrop-blur-[2px] transition-opacity duration-300 ${
+              open ? "opacity-100" : "opacity-0"
+            }`}
             onClick={() => setOpen(false)}
             aria-hidden
           />
-          <div className="absolute right-0 top-0 flex h-full w-full max-w-[420px] flex-col border-l border-ink/80 bg-cream shadow-[-12px_0_40px_rgba(26,22,18,0.25)]">
+          <div
+            className={`absolute right-0 top-0 flex h-full w-full max-w-[420px] flex-col border-l border-ink/80 bg-cream shadow-[-12px_0_40px_rgba(26,22,18,0.25)] transition-transform duration-300 ease-out ${
+              open ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
             {/* Header */}
             <div className="flex items-center justify-between gap-3 border-b border-ink/15 px-5 py-4">
               <div className="flex items-center gap-3">
@@ -321,7 +334,6 @@ export function ConciergeChat() {
             </form>
           </div>
         </div>
-      )}
     </>
   );
 }

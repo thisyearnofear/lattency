@@ -20,6 +20,16 @@
   --font-display: var(--font-big-shoulders), "Helvetica Neue Condensed", "Arial Narrow", sans-serif;
   --font-mono:    var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
   --font-serif:   var(--font-fraunces), "Times New Roman", serif;
+
+  /* Motion tokens — one signature ease-out (fast arrive, gentle settle),
+     an accelerating ease-in reserved for exits, and a tight duration scale.
+     Everything interactive should reference these, not ad-hoc values. */
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-soft:  cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
 }
 
 html, body {
@@ -105,8 +115,9 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 .transit-svg g.station {
-  opacity: 0;
-  animation: station-pop 400ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  /* `backwards` fill (not `forwards`) so the pop-in stagger plays but the
+     hover scale isn't frozen by the animation's final keyframe. */
+  animation: station-pop 400ms var(--ease-out-soft) backwards;
 }
 
 /* Masthead reveal. */
@@ -146,8 +157,10 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 .station-card {
-  opacity: 0;
-  animation: card-rise 600ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  /* `backwards` fill keeps the delayed stagger hidden until the animation
+     starts but does NOT freeze the final keyframe, so hover lifts still
+     work after the entrance (a `forwards` fill would override transforms). */
+  animation: card-rise 600ms var(--ease-out-soft) backwards;
 }
 
 /* Legend mini-lines draw in when their row enters the viewport. */
@@ -317,7 +330,7 @@ body {
 .station-arrive {
   transform-box: fill-box;
   transform-origin: center;
-  animation: station-pop 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: station-pop 500ms var(--ease-out-soft) backwards;
 }
 
 /* Ghost pin — a dashed roundel breathing to invite the first mapping. */
@@ -367,6 +380,125 @@ body {
   to   { width: 10%; }
 }
 
+/* ── Interaction motion ─────────────────────────────────────────────────── */
+
+/* Springy press — interactive elements give under the finger, then settle
+   back. Uses the native `scale` property so it composes with translate /
+   transform-based hover lifts instead of overwriting them. Subtle: 0.98
+   dip, never below 0.95. */
+.pressable {
+  transition-property: scale, transform, translate, box-shadow, border-color,
+    background-color, color, opacity;
+  transition-duration: var(--duration-fast);
+  /* Only `scale` settles with a springy overshoot; colour/shadow fades stay
+     smooth (an overshooting colour reads as a glitch). */
+  transition-timing-function: var(--ease-spring), var(--ease-out-soft),
+    var(--ease-out-soft), var(--ease-out-soft), var(--ease-out-soft),
+    var(--ease-out-soft), var(--ease-out-soft), var(--ease-out-soft);
+}
+.pressable:active {
+  scale: 0.98;
+  transition-duration: 70ms;
+}
+
+/* Exits — the missing half of every entrance. Overlay surfaces (drawers,
+   dropdowns, toasts, modals) unmount, so their exit plays as a one-shot
+   keyframe gated by a phase class the owner flips right before unmount. */
+@keyframes drawer-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(16px); }
+}
+.drawer-closing {
+  animation: drawer-out var(--duration-base) var(--ease-in-soft) both;
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.backdrop-closing {
+  animation: fade-out var(--duration-fast) var(--ease-in-soft) both;
+}
+@keyframes flap-out {
+  from { opacity: 1; transform: rotateX(0); }
+  to   { opacity: 0; transform: rotateX(-50deg); }
+}
+.board-closing {
+  transform-origin: top center;
+  animation: flap-out var(--duration-base) var(--ease-in-soft) both;
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0) rotate(0); }
+  to   { opacity: 0; transform: translateY(-8px) rotate(-1deg); }
+}
+.toast-out {
+  animation: toast-out var(--duration-base) var(--ease-in-soft) both;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-entering {
+  animation: modal-in var(--duration-slow) var(--ease-out-soft) both;
+}
+@keyframes modal-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+.modal-closing {
+  animation: modal-out var(--duration-base) var(--ease-in-soft) both;
+}
+
+/* Tab panel switch inside the café drawer — the container persists, only
+   the content swaps, so a short rise-in is the right "same place" signal. */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.panel-in {
+  animation: panel-in var(--duration-base) var(--ease-out-soft) both;
+}
+/* Rows (bounties, directory filters) cascade in with a small stagger.
+   `backwards` fill so hover lifts are never frozen by the entrance. */
+.rise-row {
+  animation: panel-in var(--duration-base) var(--ease-out-soft) backwards;
+}
+
+/* Navigation — the native View Transitions API crossfades the whole
+   document by default; give the old page a quicker departure so the new
+   one owns attention, and keep the sticky nav anchored as the spatial
+   reference point while content moves beneath it. */
+::view-transition-old(root) {
+  animation: vt-fade-out 120ms var(--ease-in-soft) both;
+}
+::view-transition-new(root) {
+  animation: vt-fade-in 200ms var(--ease-out-soft) both;
+}
+@keyframes vt-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* Named surfaces (the station card → venue-page hero pair) morph between
+   their old and new position/size instead of crossfading in place. */
+::view-transition-old(card-hero),
+::view-transition-new(card-hero) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-group(site-nav) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-nav) {
+  display: none;
+}
+::view-transition-new(site-nav) {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .transit-svg .line-track,
   .transit-svg g.station,
@@ -388,7 +520,15 @@ body {
   .tier-flash,
   .sb-ripple,
   .sb-station-pulse,
-  .sb-line-grow {
+  .sb-line-grow,
+  .panel-in,
+  .rise-row,
+  .drawer-closing,
+  .backdrop-closing,
+  .board-closing,
+  .toast-out,
+  .modal-entering,
+  .modal-closing {
     animation: none;
     opacity: 1;
     stroke-dashoffset: 0;
@@ -396,4 +536,12 @@ body {
   }
   .transit-svg .line-track.is-suspended { stroke-dasharray: 14 10; }
   .transit-svg .cm-line-suspended      { stroke-dasharray: 14 9; }
+  .pressable { transition: none; }
+  .pressable:active { scale: none; }
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
 }

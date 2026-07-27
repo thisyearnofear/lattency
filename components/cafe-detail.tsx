@@ -10,6 +10,8 @@ import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
 import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
 import { AiVenueSummary } from "./ai-venue-summary";
+import { TickNumber } from "./tick-number";
+import { VTLink } from "./vt-link";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -104,14 +106,24 @@ function Distribution({ detail }: { detail: CafeDetail }) {
   );
 }
 
-function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
+function Stat({
+  label,
+  value,
+  unit,
+  decimals = 0,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  decimals?: number;
+}) {
   return (
     <div>
       <div className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
         {label}
       </div>
       <div className="font-display font-black text-3xl text-ink leading-none mt-1 tabular-nums">
-        {value}
+        <TickNumber value={value} decimals={decimals} />
         <span className="font-mono text-[10px] text-ink-faint ml-1 align-top">{unit}</span>
       </div>
     </div>
@@ -269,12 +281,12 @@ export function CafeDetail({
                 {TIER_LABEL[d.tier]}
               </span>
               <div className="flex items-center gap-3">
-                <a
+                <VTLink
                   href={`/cafes/${slugify(d.name)}`}
-                  className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1"
+                  className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft hover:text-ink inline-flex items-center gap-1"
                 >
                   Open page <span aria-hidden>↗</span>
-                </a>
+                </VTLink>
                 <button
                   type="button"
                   onClick={onClose}
@@ -321,9 +333,9 @@ export function CafeDetail({
             </div>
 
             <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-ink/15">
-              <Stat label="Down" value={String(Math.round(d.medianDownMbps))} unit="Mbps" />
-              <Stat label="Up" value={d.medianUpMbps.toFixed(1)} unit="Mbps" />
-              <Stat label="Ping" value={String(Math.round(d.medianLatencyMs))} unit="ms" />
+              <Stat label="Down" value={Math.round(d.medianDownMbps)} unit="Mbps" />
+              <Stat label="Up" value={d.medianUpMbps} unit="Mbps" decimals={1} />
+              <Stat label="Ping" value={Math.round(d.medianLatencyMs)} unit="ms" />
             </div>
 
             <div className="mt-4 pt-3 border-t border-ink/10">
@@ -454,7 +466,7 @@ function DrawerTabs({
               id={`drawer-tab-${t.id}`}
               onClick={() => setActive(t.id)}
               className={[
-                "font-mono text-[10px] tracking-[0.2em] uppercase px-3 py-2 transition-colors",
+                "pressable font-mono text-[10px] tracking-[0.2em] uppercase px-3 py-2",
                 isActive
                   ? "bg-ink text-cream"
                   : t.primary
@@ -479,9 +491,11 @@ function DrawerTabs({
       </div>
 
       <div
+        key={activeTab.id}
         role="tabpanel"
         id={`drawer-panel-${activeTab.id}`}
         aria-labelledby={`drawer-tab-${activeTab.id}`}
+        className="panel-in"
       >
         {activeTab.content}
       </div>
@@ -509,7 +523,7 @@ function EmptyTab({
           const trigger = document.getElementById(`drawer-tab-${targetTab}`);
           trigger?.click();
         }}
-        className="bg-ink text-cream font-mono text-[10px] tracking-[0.22em] uppercase px-4 py-2 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-4"
+        className="pressable bg-ink text-cream font-mono text-[10px] tracking-[0.22em] uppercase px-4 py-2 inline-flex items-center gap-1.5 hover:bg-ink/90 mt-4"
       >
         <span aria-hidden>+</span> {ctaLabel}
       </button>

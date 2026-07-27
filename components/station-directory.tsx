@@ -65,8 +65,8 @@ function StationCard({
     <button
       type="button"
       onClick={onOpen}
-      className="station-card group relative block w-full text-left bg-cream border border-ink/15 hover:border-ink/60 hover:-translate-y-1 hover:shadow-[6px_8px_0_0_var(--color-ink)] focus-visible:border-ink focus-visible:shadow-[6px_8px_0_0_var(--color-ink)] outline-none transition-[transform,border-color,box-shadow] duration-300"
-      style={{ animationDelay: `${Math.min(index * 90, 720)}ms` }}
+      className="pressable station-card group relative block w-full text-left bg-cream border border-ink/15 hover:border-ink/60 hover:-translate-y-1 hover:shadow-[6px_8px_0_0_var(--color-ink)] focus-visible:border-ink focus-visible:shadow-[6px_8px_0_0_var(--color-ink)] outline-none"
+      style={{ animationDelay: `${Math.min(index * 40, 400)}ms` }}
     >
       <div className="relative aspect-[5/3] overflow-hidden bg-cream-edge">
         <div className="absolute inset-0 flex items-center justify-center">

@@ -23,6 +23,8 @@ export interface MapToastItem {
   tier?: Tier;
   title: string;
   body?: string;
+  /** True during the exit phase, right before unmount. */
+  leaving?: boolean;
 }
 
 const ToastContext = createContext<(t: Omit<MapToastItem, "id">) => void>(
@@ -33,6 +35,9 @@ export function useMapToast() {
   return useContext(ToastContext);
 }
 
+const TOAST_LIFE_MS = 3600;
+const TOAST_EXIT_MS = 220;
+
 export function MapToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<MapToastItem[]>([]);
   const idRef = useRef(0);
@@ -40,9 +45,14 @@ export function MapToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((t: Omit<MapToastItem, "id">) => {
     const id = ++idRef.current;
     setItems((prev) => [...prev.slice(-2), { ...t, id }]);
+    // Two-phase dismissal: flip into the exit phase first (plays toast-out),
+    // then unmount once the animation has landed.
     setTimeout(() => {
-      setItems((prev) => prev.filter((x) => x.id !== id));
-    }, 3600);
+      setItems((prev) => prev.map((x) => (x.id === id ? { ...x, leaving: true } : x)));
+      setTimeout(() => {
+        setItems((prev) => prev.filter((x) => x.id !== id));
+      }, TOAST_EXIT_MS);
+    }, TOAST_LIFE_MS);
   }, []);
 
   return (
@@ -56,7 +66,7 @@ export function MapToastProvider({ children }: { children: ReactNode }) {
         {items.map((t) => (
           <div
             key={t.id}
-            className="toast-in relative bg-cream border border-ink/80 shadow-[4px_5px_0_0_var(--color-ink)] pl-4 pr-3 py-2.5 overflow-hidden"
+            className={`${t.leaving ? "toast-out" : "toast-in"} relative bg-cream border border-ink/80 shadow-[4px_5px_0_0_var(--color-ink)] pl-4 pr-3 py-2.5 overflow-hidden`}
           >
             {/* Tier accent bar */}
             <span

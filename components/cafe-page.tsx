@@ -8,6 +8,8 @@ import Link from "next/link";
 import type { CafeDetail as CafeDetailType, Tier, TimeBucket } from "@/lib/types";
 import { cityPath, CITIES } from "@/lib/cities";
 import { MeasurementForm } from "./measurement-form";
+import { TickNumber } from "./tick-number";
+import { VTLink } from "./vt-link";
 import { CopyShareLink } from "./copy-share-link";
 import { SignalQuality } from "./signal-quality";
 import { VibeChips } from "./vibe-chips";
@@ -114,14 +116,24 @@ function DistributionChart({ detail }: { detail: CafeDetailType }) {
   );
 }
 
-function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
+function Stat({
+  label,
+  value,
+  unit,
+  decimals = 0,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  decimals?: number;
+}) {
   return (
     <div>
       <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
         {label}
       </div>
       <div className="font-display font-black text-4xl md:text-5xl text-ink leading-none mt-1 tabular-nums">
-        {value}
+        <TickNumber value={value} decimals={decimals} />
         <span className="font-mono text-[11px] text-ink-faint ml-1.5 align-top">
           {unit}
         </span>
@@ -137,12 +149,12 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
     <main className="mx-auto max-w-[1200px] px-6 md:px-12 pt-8 pb-24">
       {/* Breadcrumb + share */}
       <div className="flex items-center justify-between gap-4 mb-6">
-        <Link
+        <VTLink
           href={cityPath(cafe.city)}
-          className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
+          className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink inline-flex items-center gap-1.5"
         >
           <span aria-hidden>←</span> All stations
-        </Link>
+        </VTLink>
         <CopyShareLink />
       </div>
 
@@ -218,9 +230,9 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
           </div>
 
           <div className="grid grid-cols-3 gap-3 pt-4 border-t border-ink/15">
-            <Stat label="Down" value={String(Math.round(cafe.medianDownMbps))} unit="Mbps" />
-            <Stat label="Up" value={cafe.medianUpMbps.toFixed(1)} unit="Mbps" />
-            <Stat label="Ping" value={String(Math.round(cafe.medianLatencyMs))} unit="ms" />
+            <Stat label="Down" value={Math.round(cafe.medianDownMbps)} unit="Mbps" />
+            <Stat label="Up" value={cafe.medianUpMbps} unit="Mbps" decimals={1} />
+            <Stat label="Ping" value={Math.round(cafe.medianLatencyMs)} unit="ms" />
           </div>
           <div className="pt-3 border-t border-ink/10">
             <SignalQuality

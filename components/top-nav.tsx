@@ -34,6 +34,7 @@ export function TopNav({
     <nav
       className="sticky top-0 z-40 border-b border-ink/15 bg-cream/90 backdrop-blur-md"
       aria-label="Primary"
+      style={{ viewTransitionName: "site-nav" }}
     >
       <div className="mx-auto max-w-[1440px] px-6 md:px-12 h-14 flex items-center justify-between gap-6">
         <div className="flex items-center gap-5 md:gap-8 min-w-0">
@@ -88,7 +89,7 @@ export function TopNav({
           {/* Primary CTA — ink-filled so it reads as the action of the nav. */}
           <Link
             href={contributeHref}
-            className="bg-ink text-cream hover:bg-ink/90 transition-colors px-3 py-1.5 inline-flex items-center gap-1.5"
+            className="pressable bg-ink text-cream hover:bg-ink/90 px-3 py-1.5 inline-flex items-center gap-1.5"
           >
             <span aria-hidden>+</span>
             <span className="hidden sm:inline">Map a café</span>

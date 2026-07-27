@@ -4,11 +4,11 @@
 // lib/cities.ts; adding a city there automatically surfaces it here.
 // "Coming soon" slots are static teases of the global expansion story.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { CITIES, CITY_ORDER, cityPath } from "@/lib/cities";
 import type { CityId } from "@/lib/types";
+import { VTLink } from "./vt-link";
 
 type SoonCity = {
   id: CityId;
@@ -27,10 +27,25 @@ const SOON_CITIES: SoonCity[] = [
 export function CitySwitcher({ current }: { current?: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Board stays mounted while closing so the split-flap exit plays before
+  // unmounting.
+  const [mounted, setMounted] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeName =
     (current && CITIES[current]?.name) ?? CITIES[CITY_ORDER[0]]?.name ?? "Cities";
   const liveCount = CITY_ORDER.length;
+
+  const openBoard = useCallback(() => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setMounted(true);
+    setOpen(true);
+  }, []);
+
+  const closeBoard = useCallback(() => {
+    setOpen(false);
+    closeTimer.current = setTimeout(() => setMounted(false), 220);
+  }, []);
 
   // Warm the other cities' pages the moment the board opens, so switching
   // feels like a departure-board flip instead of a page load.
@@ -45,10 +60,10 @@ export function CitySwitcher({ current }: { current?: string }) {
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!wrapRef.current?.contains(e.target as Node)) closeBoard();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") closeBoard();
     };
     window.addEventListener("mousedown", onClick);
     window.addEventListener("keydown", onKey);
@@ -56,16 +71,16 @@ export function CitySwitcher({ current }: { current?: string }) {
       window.removeEventListener("mousedown", onClick);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, closeBoard]);
 
   return (
     <div ref={wrapRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? closeBoard() : openBoard())}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors"
+        className="pressable inline-flex items-center gap-1.5 font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink"
       >
         {activeName}
         <span
@@ -78,11 +93,13 @@ export function CitySwitcher({ current }: { current?: string }) {
         </span>
       </button>
 
-      {open && (
+      {mounted && (
         <div
           role="listbox"
           aria-label="Switch city"
-          className="absolute right-0 mt-3 w-72 bg-cream border border-ink/80 shadow-[6px_8px_0_0_var(--color-ink)] z-50"
+          className={`absolute right-0 mt-3 w-72 bg-cream border border-ink/80 shadow-[6px_8px_0_0_var(--color-ink)] z-50 ${
+            open ? "" : "board-closing"
+          }`}
         >
           <div className="px-4 py-3 border-b border-ink/15">
             <p className="stamp">
@@ -100,11 +117,11 @@ export function CitySwitcher({ current }: { current?: string }) {
               const isCurrent = cityId === current;
               return (
                 <li key={cityId} className="flap-row" style={{ animationDelay: `${i * 45}ms` }}>
-                  <Link
+                  <VTLink
                     href={cityPath(cityId)}
-                    onClick={() => setOpen(false)}
+                    onClick={() => closeBoard()}
                     aria-current={isCurrent ? "page" : undefined}
-                    className={`w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left transition-colors ${
+                    className={`pressable w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left ${
                       isCurrent ? "bg-cream-edge" : "bg-cream hover:bg-cream-edge"
                     }`}
                   >
@@ -119,7 +136,7 @@ export function CitySwitcher({ current }: { current?: string }) {
                     <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-express">
                       {isCurrent ? "Active" : "Live"}
                     </span>
-                  </Link>
+                  </VTLink>
                 </li>
               );
             })}
