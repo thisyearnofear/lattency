@@ -27,6 +27,26 @@ export const TIER_TINT: Record<Tier, string> = {
   suspended: "#DDA0A4",
 };
 
+// What each line actually means for a person trying to work. Surfaced inline
+// on station cards and schematic badges so the metro metaphor needs no legend.
+export const TIER_USE: Record<Tier, string> = {
+  express: "video calls OK",
+  local: "email & browsing",
+  suspended: "avoid for calls",
+};
+
+// Numeric rank used to detect tier promotions (suspended < local < express).
+export const TIER_RANK: Record<Tier, number> = {
+  express: 2,
+  local: 1,
+  suspended: 0,
+};
+
+/** Client-safe tier derivation — the same thresholds the backend uses. */
+export function tierForDown(downMbps: number): Tier {
+  return downMbps >= 50 ? "express" : downMbps >= 10 ? "local" : "suspended";
+}
+
 // ── Neighbourhoods ────────────────────────────────────────────────────────────
 
 export type Hood = {

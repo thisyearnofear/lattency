@@ -20,6 +20,7 @@ import {
 } from "@/lib/cafe-metadata";
 import { CITIES, DEFAULT_CITY_ID } from "@/lib/cities";
 import { postWithRetry } from "@/lib/fetch-retry";
+import { TIER_COLOUR, TIER_USE, tierForDown } from "@/lib/map-data";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
 
@@ -147,12 +148,25 @@ export function CafeContributionForm({
   onClose,
   onSuccess,
   currentCity = DEFAULT_CITY_ID,
+  onCreated,
 }: {
   onClose: () => void;
   onSuccess: (slug: string) => void;
   /** Lowercase city id matching the page the form was opened from. Used
    *  to pre-fill `form.city` so contributions inherit the active city. */
   currentCity?: string;
+  /** Fired optimistically the moment the reading is ready, before the
+   *  POST round-trips — lets the map drop the pin instantly. */
+  onCreated?: (input: {
+    name: string;
+    lat: number;
+    lng: number;
+    neighbourhood: string;
+    downMbps: number;
+    upMbps: number;
+    latencyMs: number;
+    photo?: string | null;
+  }) => void;
 }) {
   const [step, setStep] = useState<Step>("location");
   const [form, setForm] = useState<FormState>(() => initialState(currentCity));
@@ -277,6 +291,21 @@ export function CafeContributionForm({
       photo: form.photo,
       measurement: form.measurement,
     };
+
+    // Optimistic pin drop — let the map place the station immediately,
+    // before the API round-trips. The real refetch reconciles afterwards.
+    if (form.lat != null && form.lng != null) {
+      onCreated?.({
+        name: form.name.trim(),
+        lat: form.lat,
+        lng: form.lng,
+        neighbourhood: form.neighbourhood.trim(),
+        downMbps: form.measurement.downMbps,
+        upMbps: form.measurement.upMbps,
+        latencyMs: form.measurement.latencyMs,
+        photo: form.photo,
+      });
+    }
 
     try {
       const res = await postWithRetry("/api/cafes", {
@@ -607,6 +636,31 @@ export function CafeContributionForm({
 
               {testState === "done" && form.measurement && (
                 <div className="space-y-3">
+                  {/* Tier verdict — the payoff, shown before the photo step. */}
+                  {(() => {
+                    const tier = tierForDown(form.measurement.downMbps);
+                    return (
+                      <div
+                        className="flex items-center gap-3 px-3.5 py-3 border border-ink/20"
+                        style={{ background: `${TIER_COLOUR[tier]}14` }}
+                      >
+                        <span
+                          className="font-display font-black text-2xl w-10 h-12 flex items-center justify-center text-cream shrink-0"
+                          style={{ background: TIER_COLOUR[tier] }}
+                        >
+                          {tier[0].toUpperCase()}
+                        </span>
+                        <div>
+                          <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink">
+                            You&rsquo;re on the {tier} line
+                          </p>
+                          <p className="font-serif italic text-[13px] leading-snug mt-0.5" style={{ color: TIER_COLOUR[tier] }}>
+                            {TIER_USE[tier]}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <Stat label="DOWN" value={`${Math.round(form.measurement.downMbps)}`} unit="Mbps" />
                     <Stat label="UP" value={`${form.measurement.upMbps.toFixed(1)}`} unit="Mbps" />

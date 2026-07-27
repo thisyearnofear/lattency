@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
 import { CITIES, cityPath } from "@/lib/cities";
+import { TIER_USE } from "@/lib/map-data";
 import { CafeDetail } from "./cafe-detail";
 import { SignalQuality } from "./signal-quality";
 import { VibeChips } from "./vibe-chips";
@@ -89,6 +90,11 @@ function StationCard({
           className={`${TIER_BG[cafe.tier]} absolute top-0 right-0 px-3 py-1.5 text-cream font-mono text-[10px] tracking-[0.2em] uppercase`}
         >
           {TIER_LABEL[cafe.tier]}
+        </div>
+
+        {/* Inline translation — what this line means, no legend required. */}
+        <div className="absolute bottom-0 right-0 px-2.5 py-1 bg-cream/95 border-l border-t border-ink/20 font-serif italic text-[12px] leading-none text-ink-soft">
+          {TIER_USE[cafe.tier]}
         </div>
 
         {distance !== undefined && (

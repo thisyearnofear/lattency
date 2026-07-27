@@ -12,23 +12,28 @@
 // "Find me" locates the user; if they're far from the active city,
 // it offers neighbourhood quick-picks to explore from.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
 import {
   TIER_COLOUR,
   TIER_PATH,
+  TIER_RANK,
   TIER_TINT,
+  TIER_USE,
   VIEW_H,
   VIEW_W,
   splitName,
+  tierForDown,
   waypointsForCity,
 } from "@/lib/map-data";
 import { CITIES } from "@/lib/cities";
 import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
 import { CafeDetail } from "./cafe-detail";
 import { CafeContributionForm } from "./cafe-contribution-form";
+import { useMapToast } from "./map-toast";
+import { usePersonalTrail } from "@/hooks/use-personal-trail";
 
 // Anything farther than this from the active city's centre is treated as
 // "demo from afar" and the neighbourhood quick-picks stay visible.
@@ -50,14 +55,33 @@ function haversineKm(
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-// Leaflet pulls in window; ssr: false keeps it client-only.
+// Leaflet pulls in window; ssr: false keeps it client-only. While it loads we
+// paint the schematic grid (the tier lines come from city config, not data)
+// so the map reads as a network immediately instead of a blank spinner.
 const MapLeaflet = dynamic(() => import("./map-leaflet"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[72vh] max-h-[640px] bg-cream-deep grid place-items-center">
-      <p className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-faint">
-        loading map…
-      </p>
+    <div className="relative w-full h-[72vh] max-h-[640px] bg-cream overflow-hidden">
+      <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice" aria-hidden>
+        {TIER_ORDER.map((tier) => (
+          <path
+            key={tier}
+            d={TIER_PATH[tier]}
+            fill="none"
+            stroke={TIER_COLOUR[tier]}
+            strokeWidth={tier === "suspended" ? 14 : 16}
+            strokeLinecap={tier === "suspended" ? "butt" : "round"}
+            strokeLinejoin="round"
+            strokeDasharray={tier === "suspended" ? "14 10" : undefined}
+            opacity={0.14}
+          />
+        ))}
+      </svg>
+      <div className="absolute inset-0 grid place-items-center">
+        <p className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-faint">
+          plotting stations…
+        </p>
+      </div>
     </div>
   ),
 });
@@ -109,11 +133,16 @@ function SchematicLayer({
   waypoints,
   activeTiers,
   onSelect,
+  trailPoints,
+  arrivalId,
 }: {
   cafes: CafeStation[];
   waypoints: ReturnType<typeof waypointsForCity>;
   activeTiers: Set<Tier>;
   onSelect: (cafe: CafeStation) => void;
+  trailPoints?: Array<{ x: number; y: number }>;
+  /** Cafe id that just arrived — gets an arrival ring + pop. */
+  arrivalId?: string | null;
 }) {
   return (
     <svg
@@ -121,7 +150,7 @@ function SchematicLayer({
       className="w-full h-auto max-h-[72vh] bg-cream"
       preserveAspectRatio="xMidYMid meet"
       role="img"
-      aria-label="Schematic network — twelve stations across three speed tiers"
+      aria-label="Schematic network — stations across three speed tiers"
     >
       {/* Three line tracks — inactive tiers fade to a hint of themselves */}
       {TIER_ORDER.map((tier) => {
@@ -142,7 +171,23 @@ function SchematicLayer({
         );
       })}
 
-      {/* Tier badges + thresholds — slightly faded when their tier is off */}
+      {/* Personal trail — the contributor's own line, drawn under the
+          stations they've mapped, in ink with a dotted cadence. */}
+      {trailPoints && trailPoints.length >= 2 && (
+        <path
+          d={trailPath(trailPoints)}
+          fill="none"
+          stroke="var(--color-ink)"
+          strokeWidth={3}
+          strokeDasharray="2 6"
+          strokeLinecap="round"
+          opacity={0.55}
+          style={{ pointerEvents: "none" }}
+        />
+      )}
+
+      {/* Tier badges + thresholds + inline "what this line means" copy —
+          slightly faded when their tier is off */}
       {TIER_ORDER.map((tier, i) => {
         const y = 220 + i * 160;
         const active = activeTiers.has(tier);
@@ -174,6 +219,17 @@ function SchematicLayer({
             >
               {TIER_BADGE[tier]}
             </text>
+            {/* Inline translation — what the line means, no legend needed. */}
+            <text
+              x={96}
+              y={y - 2}
+              fontFamily="var(--font-serif)"
+              fontStyle="italic"
+              fontSize={14}
+              fill="var(--color-ink-soft)"
+            >
+              {TIER_USE[tier]}
+            </text>
             <text
               x={1408}
               y={y + 4}
@@ -190,6 +246,27 @@ function SchematicLayer({
         );
       })}
 
+      {/* Ghost pin — when a tier has zero visible stations, invite the
+          first mapping right on the line where it's missing. */}
+      {TIER_ORDER.filter((t) => activeTiers.has(t)).map((tier) => {
+        const hasStation = cafes.some((c) => c.tier === tier);
+        if (hasStation) return null;
+        const ghost = ghostForTier(tier);
+        return (
+          <g
+            key={`ghost-${tier}`}
+            transform={`translate(${ghost.x},${ghost.y})`}
+            className="ghost-pin"
+            style={{ pointerEvents: "none" }}
+          >
+            <circle r={12} fill="none" stroke={TIER_COLOUR[tier]} strokeWidth={2.5} strokeDasharray="4 4" />
+            <text x={0} y={-20} textAnchor="middle" fontFamily="var(--font-mono)" fontSize={10} letterSpacing="0.14em" fill={TIER_COLOUR[tier]}>
+              BE THE FIRST →
+            </text>
+          </g>
+        );
+      })}
+
       {/* Stations — filtered out entirely when their tier is off */}
       {cafes.filter((c) => activeTiers.has(c.tier)).map((cafe) => {
         const pos = waypoints[cafe.name];
@@ -199,6 +276,7 @@ function SchematicLayer({
             ? "var(--color-suspended-ink)"
             : "var(--color-ink)";
         const tint = TIER_TINT[cafe.tier];
+        const justArrived = arrivalId === cafe.id;
         return (
           <g
             key={cafe.id}
@@ -209,8 +287,19 @@ function SchematicLayer({
             tabIndex={0}
             aria-label={`Open ${cafe.name} details`}
             style={{ cursor: "pointer" }}
-            className="group"
+            className={`group ${justArrived ? "station-arrive" : ""}`}
           >
+            {/* Arrival ring — radiates once when this station just landed. */}
+            {justArrived && (
+              <circle
+                r={12}
+                fill="none"
+                stroke={TIER_COLOUR[cafe.tier]}
+                strokeWidth={3}
+                className="arrival-ring"
+                style={{ pointerEvents: "none" }}
+              />
+            )}
             <circle r={26} fill="transparent" stroke="transparent" />
             <circle
               r={18}
@@ -239,6 +328,11 @@ function SchematicLayer({
               className="transition-transform duration-200 group-hover:scale-110"
               style={{ transformOrigin: "0 0", transformBox: "fill-box" }}
             />
+            {/* Personal-trail marker — a small ink square so the contributor
+                recognises their own stops at a glance. */}
+            {trailPoints?.some((p) => p.x === pos.x && p.y === pos.y) && (
+              <rect x={-3.5} y={-3.5} width={7} height={7} fill="var(--color-ink)" style={{ pointerEvents: "none" }} />
+            )}
             {/* Stability ring — visible only when auto-test data exists.
                 Green = stable, amber = variable, red = unstable. */}
             {(() => {
@@ -263,6 +357,26 @@ function SchematicLayer({
   );
 }
 
+// Smooth path through the contributor's trail points (west-to-east).
+function trailPath(points: Array<{ x: number; y: number }>): string {
+  const sorted = [...points].sort((a, b) => a.x - b.x);
+  if (sorted.length < 2) return "";
+  let d = `M ${sorted[0].x} ${sorted[0].y}`;
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    const cx = (prev.x + curr.x) / 2;
+    d += ` Q ${prev.x} ${prev.y}, ${cx} ${(prev.y + curr.y) / 2}`;
+  }
+  d += ` T ${sorted[sorted.length - 1].x} ${sorted[sorted.length - 1].y}`;
+  return d;
+}
+
+// Where to drop the "be the first" ghost pin for an empty tier.
+function ghostForTier(tier: Tier): { x: number; y: number } {
+  return { express: { x: 720, y: 410 }, local: { x: 660, y: 460 }, suspended: { x: 720, y: 500 } }[tier];
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 type LocateStatus = "idle" | "pending" | "here" | "far" | "denied" | "unavailable";
@@ -275,18 +389,97 @@ export function MapShell({
   city?: CityId;
 }) {
   const cityConfig = CITIES[city];
-  const waypoints = useMemo(() => waypointsForCity(cafes, city), [cafes, city]);
-
-  const [view, setView] = useState<ViewMode>("schematic");
-  const [selected, setSelected] = useState<CafeStation | null>(null);
-  const [focus, setFocus] = useState<{ lat: number; lng: number; label: string } | null>(null);
-  const [locStatus, setLocStatus] = useState<LocateStatus>("idle");
-  const [distanceKm, setDistanceKm] = useState<number | null>(null);
-  const [activeTiers, setActiveTiers] = useState<Set<Tier>>(
-    () => new Set(["express", "local", "suspended"]),
-  );
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useMapToast();
+  const { trail, addToTrail } = usePersonalTrail();
+
+  // Optimistic stations — dropped onto the map the moment a contribution is
+  // submitted, before the API round-trips. Merged with the prop cafés.
+  const [optimistic, setOptimistic] = useState<CafeStation[]>([]);
+  const [arrivalId, setArrivalId] = useState<string | null>(null);
+
+  const allCafes = useMemo(
+    () => (optimistic.length ? [...cafes, ...optimistic] : cafes),
+    [cafes, optimistic],
+  );
+  const waypoints = useMemo(() => waypointsForCity(allCafes, city), [allCafes, city]);
+
+  // `?hood=<id>` deep link — start on the geographic view focused on that
+  // neighbourhood. Resolved at render time (lazy init) so no post-mount
+  // setState is needed.
+  const hoodFocus = useMemo(() => {
+    const hood = searchParams.get("hood");
+    if (!hood) return null;
+    const match = cityConfig.demoLocations.find(
+      (d) => d.id === hood || d.name.toLowerCase() === hood.toLowerCase(),
+    );
+    return match ? { lat: match.lat, lng: match.lng, label: match.name } : null;
+  }, [searchParams, cityConfig.demoLocations]);
+  const [view, setView] = useState<ViewMode>(() => (hoodFocus ? "geographic" : "schematic"));
+  const [selected, setSelected] = useState<CafeStation | null>(null);
+  const [focus, setFocus] = useState<{ lat: number; lng: number; label: string } | null>(hoodFocus);
+  const [locStatus, setLocStatus] = useState<LocateStatus>("idle");
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  // URL-as-state: a `?tier=` deep link pre-filters the map to a single line.
+  const [activeTiers, setActiveTiers] = useState<Set<Tier>>(() => {
+    const t = searchParams.get("tier");
+    if (t === "express" || t === "local" || t === "suspended") return new Set([t]);
+    return new Set(["express", "local", "suspended"]);
+  });
+
+  // Mirror the active tier filter back into the URL so the view is shareable.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (activeTiers.size === 3) url.searchParams.delete("tier");
+    else url.searchParams.set("tier", [...activeTiers][0] ?? "");
+    window.history.replaceState({}, "", url.toString());
+  }, [activeTiers]);
+
+  // The contributor's own line, resolved to schematic waypoint coords.
+  const trailPoints = useMemo(() => {
+    const mine = trail[city] ?? [];
+    return mine.flatMap((p) => {
+      const w = waypoints[p.name];
+      return w ? [{ x: w.x, y: w.y }] : [];
+    });
+  }, [trail, city, waypoints]);
+
+  // ── Arrival & promotion detection ────────────────────────────────────────
+  // When the prop cafés change (realtime refetch), diff against the previous
+  // snapshot: a brand-new venue gets an arrival ring; a venue whose tier
+  // climbed (more readings pushed its median up) gets a promotion toast —
+  // the "this station just got an express upgrade" ceremony.
+  const prevCafesRef = useRef<Map<string, CafeStation> | null>(null);
+  useEffect(() => {
+    const prev = prevCafesRef.current;
+    prevCafesRef.current = new Map(cafes.map((c) => [c.id, c]));
+    if (!prev || cafes.length === 0) return;
+
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    for (const cafe of cafes) {
+      const was = prev.get(cafe.id);
+      if (!was) {
+        // New station that arrived via the live stream (not our own
+        // optimistic drop — those are tracked separately).
+        setArrivalId(cafe.id);
+        toast({
+          tier: cafe.tier,
+          title: `New station · ${cafe.name}`,
+          body: `${Math.round(cafe.medianDownMbps)} Mbps just logged in ${cafe.neighbourhood}`,
+        });
+      } else if (TIER_RANK[cafe.tier] > TIER_RANK[was.tier]) {
+        toast({
+          tier: cafe.tier,
+          title: `${cafe.name} upgraded`,
+          body: `Enough readings — now riding the ${cafe.tier} line`,
+        });
+        setArrivalId(cafe.id);
+      }
+    }
+    timers.push(setTimeout(() => setArrivalId(null), 1400));
+    return () => timers.forEach(clearTimeout);
+  }, [cafes, toast]);
 
   // Open the contribution modal automatically when the page is reached via
   // the top-nav "+ Map a café" CTA (?contribute=1). The open state is
@@ -320,9 +513,57 @@ export function MapShell({
     setActiveTiers(new Set(["express", "local", "suspended"]));
   }
 
+  // Optimistic pin drop — called by the contribution form the moment the
+  // speed test reading is in hand, BEFORE the POST /api/cafes round-trips.
+  // The station appears on the map instantly (client-side), gets an arrival
+  // ring, and is recorded on the contributor's personal trail. On API
+  // success the real refetch replaces it; nothing is lost either way.
+  const handleCafeCreated = useCallback(
+    (input: {
+      name: string;
+      lat: number;
+      lng: number;
+      neighbourhood: string;
+      downMbps: number;
+      upMbps: number;
+      latencyMs: number;
+      photo?: string | null;
+    }) => {
+      const tier = tierForDown(input.downMbps);
+      const id = `optimistic-${Date.now()}`;
+      const station: CafeStation = {
+        id,
+        name: input.name,
+        neighbourhood: input.neighbourhood,
+        lat: input.lat,
+        lng: input.lng,
+        tier,
+        medianDownMbps: input.downMbps,
+        medianUpMbps: input.upMbps,
+        medianLatencyMs: input.latencyMs,
+        medianJitterMs: 0,
+        medianLossPct: 0,
+        measurementCount: 1,
+        latestPhotoUrl: input.photo ?? null,
+        vibe: "just mapped by you",
+        city,
+      };
+      setOptimistic((prev) => [...prev, station]);
+      setArrivalId(id);
+      addToTrail(city, input.name, input.lat, input.lng);
+      toast({
+        tier,
+        title: `${input.name} is on the map`,
+        body: `${Math.round(input.downMbps)} Mbps · now riding the ${tier} line`,
+      });
+      setTimeout(() => setArrivalId(null), 1400);
+    },
+    [city, addToTrail, toast],
+  );
+
   const tierCounts = TIER_ORDER.reduce<Record<Tier, number>>(
     (acc, t) => {
-      acc[t] = cafes.filter((c) => c.tier === t).length;
+      acc[t] = allCafes.filter((c) => c.tier === t).length;
       return acc;
     },
     { express: 0, local: 0, suspended: 0 },
@@ -443,14 +684,16 @@ export function MapShell({
 
       {view === "schematic" ? (
         <SchematicLayer
-          cafes={cafes}
+          cafes={allCafes}
           waypoints={waypoints}
           activeTiers={activeTiers}
           onSelect={setSelected}
+          trailPoints={trailPoints}
+          arrivalId={arrivalId}
         />
       ) : (
         <MapLeaflet
-          cafes={cafes}
+          cafes={allCafes}
           onSelectStation={setSelected}
           focusOn={focus}
           activeTiers={activeTiers}
@@ -564,9 +807,14 @@ export function MapShell({
         <CafeContributionForm
           currentCity={city}
           onClose={() => setShowContribution(false)}
+          onCreated={handleCafeCreated}
           onSuccess={(slug) => {
             setShowContribution(false);
-            router.push(`/cafes/${slug}`);
+            // Linger on the map so the contributor sees their pin land
+            // (already dropped optimistically), then take them to the
+            // new venue page.
+            toast({ title: "Reading verified", body: "Opening your new station…" });
+            setTimeout(() => router.push(`/cafes/${slug}`), 1200);
           }}
         />
       )}

@@ -8,6 +8,8 @@ import { TopNav } from "@/components/top-nav";
 import { LiveMap } from "@/components/live-map";
 import { StationDirectory } from "@/components/station-directory";
 import { BountiesBoard } from "@/components/bounties-board";
+import { MapToastProvider } from "@/components/map-toast";
+import { OnboardingOverlay } from "@/components/onboarding-overlay";
 
 export const revalidate = 60;
 
@@ -43,7 +45,7 @@ export default async function CityHome({
   const otherCities = Object.values(CITIES).filter((c) => c.id !== city);
 
   return (
-    <>
+    <MapToastProvider>
       <TopNav current="app" currentCity={city} />
 
       <main className="mx-auto max-w-[1440px] px-6 md:px-12">
@@ -135,6 +137,8 @@ export default async function CityHome({
           </Link>
         </footer>
       </main>
-    </>
+
+      <OnboardingOverlay cityName={cityConfig.name} />
+    </MapToastProvider>
   );
 }

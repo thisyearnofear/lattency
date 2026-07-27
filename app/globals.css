@@ -284,6 +284,63 @@ body {
 .think-dot:nth-child(3) { animation-delay: 0.36s; }
 .think-dot:nth-child(4) { animation-delay: 0.54s; }
 
+/* Map toast — a ticket thudding in from the top-right. */
+@keyframes toast-thud {
+  0%   { opacity: 0; transform: translateY(-10px) rotate(-1.5deg); }
+  60%  { opacity: 1; transform: translateY(2px) rotate(0.6deg); }
+  100% { opacity: 1; transform: translateY(0) rotate(0); }
+}
+.toast-in {
+  animation: toast-thud 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* City switcher rows — a quick split-flap cascade when the board opens. */
+@keyframes flap-in {
+  0%   { opacity: 0; transform: rotateX(-70deg); }
+  100% { opacity: 1; transform: rotateX(0); }
+}
+.flap-row {
+  transform-origin: top center;
+  animation: flap-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* New / promoted station — a single arrival ring radiates out. */
+@keyframes arrival-ring {
+  0%   { r: 12; opacity: 0.9; }
+  100% { r: 44; opacity: 0; }
+}
+.arrival-ring {
+  animation: arrival-ring 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* A newly-arrived station pops into place once. */
+.station-arrive {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: station-pop 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Ghost pin — a dashed roundel breathing to invite the first mapping. */
+@keyframes ghost-breathe {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.8; }
+}
+.ghost-pin { animation: ghost-breathe 2.2s ease-in-out infinite; }
+
+/* First-visit spotlight pulse on the element being coached. */
+@keyframes coach-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--color-express), 0 0 0 10px rgba(0,109,69,0.18); }
+  50%      { box-shadow: 0 0 0 3px var(--color-express), 0 0 0 16px rgba(0,109,69,0.32); }
+}
+.coach-target { animation: coach-pulse 1.6s ease-in-out infinite; }
+
+/* Tier-up flash on a station card / badge when its line is promoted. */
+@keyframes tier-flash {
+  0%   { background-color: var(--color-express); color: var(--color-cream); }
+  100% { background-color: transparent; }
+}
+.tier-flash { animation: tier-flash 1.4s ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
   .transit-svg .line-track,
   .transit-svg g.station,
@@ -296,7 +353,13 @@ body {
   .lattency-focus-halo .halo-ring,
   .legend-line,
   .msg-in,
-  .think-dot {
+  .think-dot,
+  .toast-in,
+  .flap-row,
+  .arrival-ring,
+  .ghost-pin,
+  .coach-target,
+  .tier-flash {
     animation: none;
     opacity: 1;
     stroke-dashoffset: 0;

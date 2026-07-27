@@ -5,6 +5,8 @@
 // "Coming soon" slots are static teases of the global expansion story.
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { CITIES, CITY_ORDER, cityPath } from "@/lib/cities";
 import type { CityId } from "@/lib/types";
 
@@ -23,11 +25,21 @@ const SOON_CITIES: SoonCity[] = [
 ];
 
 export function CitySwitcher({ current }: { current?: string }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeName =
     (current && CITIES[current]?.name) ?? CITIES[CITY_ORDER[0]]?.name ?? "Cities";
   const liveCount = CITY_ORDER.length;
+
+  // Warm the other cities' pages the moment the board opens, so switching
+  // feels like a departure-board flip instead of a page load.
+  useEffect(() => {
+    if (!open) return;
+    for (const cityId of CITY_ORDER) {
+      if (cityId !== current) router.prefetch(cityPath(cityId));
+    }
+  }, [open, current, router]);
 
   // Click-outside to close.
   useEffect(() => {
@@ -83,13 +95,14 @@ export function CitySwitcher({ current }: { current?: string }) {
           </div>
 
           <ul className="max-h-[60vh] overflow-y-auto">
-            {CITY_ORDER.map((cityId) => {
+            {CITY_ORDER.map((cityId, i) => {
               const city = CITIES[cityId];
               const isCurrent = cityId === current;
               return (
-                <li key={cityId}>
-                  <a
+                <li key={cityId} className="flap-row" style={{ animationDelay: `${i * 45}ms` }}>
+                  <Link
                     href={cityPath(cityId)}
+                    onClick={() => setOpen(false)}
                     aria-current={isCurrent ? "page" : undefined}
                     className={`w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left transition-colors ${
                       isCurrent ? "bg-cream-edge" : "bg-cream hover:bg-cream-edge"
@@ -106,7 +119,7 @@ export function CitySwitcher({ current }: { current?: string }) {
                     <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-express">
                       {isCurrent ? "Active" : "Live"}
                     </span>
-                  </a>
+                  </Link>
                 </li>
               );
             })}
