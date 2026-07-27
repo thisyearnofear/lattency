@@ -1,15 +1,15 @@
-# Lattency Vision: Shoreditch → Nimiq Mini App
+# Lattency Vision: Multi-city network → Nimiq Mini App
 
 > A metro map of the best places to get coffee and get online.
-> Starting in Shoreditch, London.
+> Live in London, Nairobi, and San Francisco.
 
 ---
 
 ## Why we’re doing this
 
-The original Lattency was built for Nairobi. It was a strong hackathon project, but the builder is in London. The most valuable thing we can do is **solve our own problem** in the place where we actually live, work, and can recruit users by hand.
+The original Lattency was built for Nairobi. It was a strong hackathon project. The most valuable thing we could do next was **prove the engine is city-agnostic** by putting three real boards on it — London, Nairobi, and San Francisco — and letting anyone switch between them as first-class network nodes, not fallbacks.
 
-For the Nimiq Mini Apps Competition, that means: build the definitive map of Shoreditch’s laptop-friendly venues, reward contributors with NIM, and prove the model works before expanding.
+For the Nimiq Mini Apps Competition, that means: a live, multi-city map of laptop-friendly venues, rewarding contributors with NIM, with the model proven across three very different cities.
 
 ---
 
@@ -34,7 +34,7 @@ We are not building an "AI agent." We are building the **ground-truth layer that
 
 We started with cafés, but the better category is **"anywhere you can get coffee and work"**.
 
-| Venue type | Why it belongs | Example in Shoreditch |
+| Venue type | Why it belongs | Example |
 |---|---|---|
 | Café | Core use case | Ozone Coffee Roasters |
 | Coworking | Dedicated workspace | WeWork Old Street |
@@ -66,16 +66,15 @@ These are all observable. A new contributor can walk in and fill the form in 60 
 
 ---
 
-## Market: why Shoreditch
+## Market: why three cities
 
-Shoreditch is ideal for v1 because:
+Three very different cities prove the engine from day one:
 
-1. **High density of remote workers** — tech, media, freelancers.
-2. **Mix of cafés and coworking spaces** — lets us test the expanded venue taxonomy immediately.
-3. **Walkable** — a contributor can cover 10 venues in an afternoon.
-4. **Builder is there** — we can do Paul Graham-style unscalable things: hand-recruit venues, run tests ourselves, talk to users.
+1. **London** — high density of remote workers, cafés + coworking, walkable, builder is there.
+2. **Nairobi** — fast-growing remote-work scene, mobile-first, the original board.
+3. **San Francisco** — mature tech hub, the stress-test for a third geography.
 
-After Shoreditch, the next stops are Hoxton, Old Street, Dalston, then the rest of London. The engine is city-agnostic.
+Adding a fourth city is one entry in the `CITIES` registry — no new code, no new routes. The engine is genuinely city-agnostic.
 
 ---
 
@@ -84,7 +83,7 @@ After Shoreditch, the next stops are Hoxton, Old Street, Dalston, then the rest 
 The Mini App runs inside Nimiq Pay. The transaction layer is the product, not a bolt-on.
 
 1. **Sponsor funds a bounty in NIM.**
-   - Example: *"5 verified tests at quiet coworking spaces in Shoreditch"*
+   - Example: *"5 verified tests at quiet coworking spaces in London"*/
 2. **Contributor opens the Mini App.**
 3. **Contributor finds a venue matching the bounty, runs the in-browser speed test.**
 4. **On a verified, non-outlier reading, the bounty pays NIM to the contributor’s Nimiq Pay wallet.**
@@ -110,7 +109,7 @@ Distribution is engineered into the product:
 |---|---|
 | **Design & UX** | Clean, mobile-first, obvious to a new user |
 | **Functionality** | Speed test works; NIM bounties pay out |
-| **Usefulness** | 20+ Shoreditch venues with verified readings |
+| **Usefulness** | 30+ venues across 3 cities with verified readings |
 | **Marketing** | 50+ unique Nimiq wallets interact with the Mini App |
 | **Bonus** | NIM is the default reward token |
 
@@ -120,27 +119,26 @@ Distribution is engineered into the product:
 
 ### Week 1: Foundation
 - Update data model for venue types and workspace metadata ✅
-- Seed Shoreditch with 6–10 real venues ✅
-- Expose `/api/shoreditch/llm` as a physical-world oracle for agents ✅
-- Scaffold the Automated Bounty Agent ✅
+- Seed London, Nairobi, and SF with real venues ✅
+- Migrate backend to Base44 (entities + functions + agents + automations) ✅
 - Integrate `@nimiq/mini-app-sdk` ✅
 - NIM payout flow for completed bounties ✅
 
-### Week 2: Nimiq loop
-- Sponsor-funded bounties ✅
-- Sponsor dashboard at /partners to create + fund bounties in NIM ✅
+### Week 2: Multi-city + UX
+- Multi-city dynamic routing (`app/[city]/page.tsx`, SSG) ✅
+- Split-flap city switcher, optimistic pins, personal trail ✅
+- URL-as-state deep links, first-visit coach ✅
+- Self-running product reel on /tour ✅
 - NIM payout on verified speed test ✅
-- Mobile-first Mini App polish
-- Replace mock payout (`lib/nimiq-payout.ts`) with real on-chain broadcast using a secure signer / escrow wallet ✅
 
 ### Week 3: Users
-- Recruit contributors in Shoreditch
+- Recruit contributors across all three cities
 - Run real speed tests
 - Drive Nimiq wallet interactions
 
 ### Week 4: Polish + submit
 - Demo video
-- Submission package (see `docs/nimiq-pitch.md`)
+- Submission package (see `docs/base44-submission.md`)
 - Community engagement
 
 ---
@@ -156,8 +154,9 @@ We are building the **ground-truth data layer that agents consume**.
 - Lattency's dataset is a physical-world oracle.
 
 ### What we ship now
-- `/api/shoreditch/llm` — LLM-readable verified workspace data
-- `scripts/bounty-agent.ts` — identifies gaps and suggests/deploys NIM bounties
+- AI concierge agent (Base44 `workspace_concierge`) — reads the whole dataset, answers "where should I work?"
+- `generate-venue-summary` — LLM-written editorial one-liners, cached per venue
+- City-aware bounty system with automated progress tracking and expiry
 
 ### What comes later
 - Agent-to-agent bounty negotiation
@@ -168,4 +167,4 @@ We are building the **ground-truth data layer that agents consume**.
 
 ## One-liner for the submission form
 
-> Lattency is a metro map of Shoreditch’s laptop-friendly coffee spots. Contributors run verified speed tests and earn NIM from sponsor-funded bounties. It’s the first crypto-incentivized ground-truth network for workspace quality — starting with one London neighbourhood, built to map every city next.
+> Lattency is a metro map of laptop-friendly coffee spots, live in London, Nairobi, and San Francisco. Contributors run verified speed tests and earn NIM from sponsor-funded bounties. It's the first crypto-incentivized ground-truth network for workspace quality, and a physical-world oracle for the agentic era.

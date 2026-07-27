@@ -1,7 +1,7 @@
 # Lattency
 
 > A metro map of the best places to get coffee and get online.
-> Starting with Shoreditch, London.
+> Live in London, Nairobi, and San Francisco.
 
 Built for the [Nimiq Pay Mini Apps Competition](https://miniappscompetition.com).
 
@@ -11,7 +11,7 @@ Built for the [Nimiq Pay Mini Apps Competition](https://miniappscompetition.com)
 
 Lattency is a crowdsourced metro map of **workable coffee spots** — cafés, coworking spaces, hotel lobbies, and anywhere else you can sit down with a coffee and a laptop. Venues are stations. The three lines are speed tiers: **Express** (≥50 Mbps), **Local** (10–49 Mbps), and **Suspended** (<10 Mbps).
 
-We’re starting in **Shoreditch, London**, because that’s where the builder is. The engine works everywhere, but London is the first board.
+The engine works everywhere. The first three boards are **London**, **Nairobi**, and **San Francisco** — switch cities from the nav or deep-link directly to `/london`, `/nairobi`, or `/sf`.
 
 ---
 
@@ -20,7 +20,7 @@ We’re starting in **Shoreditch, London**, because that’s where the builder i
 | Layer        | Choice                                                              | Why                                                                      |
 | ------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Backend      | **Base44** (entities, auth, Deno functions)                         | Free backend with built-in auth, DB, and hosting — no infra to manage    |
-| Frontend     | **Next.js 16.3** on **Vercel** (static export, App Router)          | Cinematic scroll-driven SVG map (GSAP) over a static shell               |
+| Frontend     | **Next.js 16.3** on **Vercel** (App Router, RSC, ISR)               | Multi-city SSG, schematic/geographic map, realtime Base44 subscriptions |
 | Network      | Base44 SDK via `@base44/sdk`                                        | Serverless-safe — the SDK client is shared across invocations            |
 | Payments     | **Nimiq Pay** via `@nimiq/mini-app-sdk`                             | Contributors earn NIM for verified speed tests; sponsors fund bounties    |
 
@@ -28,7 +28,7 @@ We’re starting in **Shoreditch, London**, because that’s where the builder i
 
 ## What we’re building for the Nimiq Mini Apps Competition
 
-A finished Mini App inside Nimiq Pay where anyone in Shoreditch can:
+A finished Mini App inside Nimiq Pay where anyone in a live city can:
 
 1. Open the map of nearby coffee spots.
 2. Tap a venue to see live wifi speed + stability.
@@ -70,16 +70,19 @@ Lattency is a **physical-world oracle** for the agentic era. We don't build the 
 
 ```
 app/
-├── page.tsx                  # Shoreditch home: hero + MapShell + StationDirectory
-├── sf/                       # Legacy San Francisco demo route
-├── tour/                     # Cinematic scroll experience
+├── page.tsx                  # Root redirect → /london (carries query params)
+├── [city]/page.tsx           # Dynamic city route (London / Nairobi / SF), SSG
+├── tour/                     # Story page + self-running product-loop reel
 ├── cafes/[slug]/             # Per-venue standalone page
-├── partners/                 # Sponsorship / business model pitch
-├── me/                       # Logged-in contributor dashboard
+├── partners/                 # Sponsorship / bounty dashboard
+├── me/                       # Contributor profile + payout rail
+├── opengraph-image.tsx       # OG image (1200×630, "Live in 3 cities")
 ├── api/cafes/                # POST /api/cafes (create venue + first measurement)
 ├── api/cafes/near            # GET nearby venues (Haversine filter)
 ├── api/cafes/[id]            # GET venue detail + stats
-└── api/measurements          # POST /api/measurements
+├── api/measurements          # POST /api/measurements
+├── api/bounties/claim/       # NIM payout flow
+└── api/speedtest/            # download.bin, upload sink, whereami
 
 base44/                       # Base44 backend config
 ├── entities/
@@ -87,31 +90,44 @@ base44/                       # Base44 backend config
 │   ├── Measurement.json      # Speed measurement schema
 │   ├── Sponsorship.json      # Sponsor schema
 │   └── Bounty.json           # Bounty schema
-└── functions/
-    ├── get-cafes-near.ts     # Haversine geo-filter
-    └── get-cafe-stats.ts     # Median + distribution computation
+├── functions/                # 7 Deno backend functions (service role)
+└── agents/
+    └── workspace_concierge.jsonc  # AI concierge agent
 
 components/
-├── top-nav.tsx               # Sticky nav
-├── map-shell.tsx             # SVG schematic ↔ Leaflet geographic map
+├── top-nav.tsx               # Sticky nav (multi-city links)
+├── map-shell.tsx             # SVG schematic ↔ Leaflet geographic map, optimistic pins, trail
+├── live-map.tsx              # Realtime wrapper (Measurement.subscribe)
+├── city-switcher.tsx         # Split-flap multi-city selector
 ├── station-directory.tsx     # List + filter + geolocation
 ├── cafe-detail.tsx           # Venue detail drawer
 ├── cafe-page.tsx             # Per-venue page
-├── cafe-contribution-form.tsx # Add a new venue flow
+├── cafe-contribution-form.tsx # Add a new venue flow + immediate tier verdict
 ├── measurement-form.tsx      # In-browser speed test
-├── bounties-board.tsx        # Sponsor-funded bounties
-└── cafe-metadata-display.tsx # Workspace metadata chips/rows
+├── bounties-board.tsx        # City-aware sponsor-funded bounties
+├── concierge-chat.tsx        # AI oracle drawer
+├── ai-venue-summary.tsx      # Auto-generated editorial one-liner
+├── map-toast.tsx             # Shared toast system (arrival, promotion)
+├── onboarding-overlay.tsx    # First-visit coach ticket
+└── loop-storyboard.tsx       # Self-running product reel (SVG animation)
 
 lib/
-├── base44.ts                 # Base44 SDK client
+├── base44.ts                 # Base44 SDK client singleton
+├── base44-data.ts            # Data-access layer
 ├── cafes.ts                  # Read path + mock fallback
-├── cities.ts                 # City registry (now includes London/Shoreditch)
+├── cities.ts                 # City registry (London, Nairobi, SF)
 ├── cafe-metadata.ts          # Workspace metadata vocabulary
+├── map-data.ts               # Tier paths, waypoints, TIER_USE, tierForDown()
 ├── measurements.ts           # Shared insert path
 ├── rate-limit.ts             # Rate-limiting + outlier logic
 ├── speedtest.ts              # In-browser speed test
-├── mock-cafes.ts             # Shoreditch seed data + legacy fallback
+├── bounties.ts               # City-aware bounty logic
+├── mock-cafes.ts             # Bundled fallback (33 stations, 3 cities)
 └── types.ts                  # Shared types
+
+hooks/
+├── use-personal-trail.ts     # localStorage per-city contributed stations
+└── use-realtime-cafes.ts     # Measurement.subscribe wrapper
 ```
 
 ---

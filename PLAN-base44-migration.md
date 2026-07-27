@@ -1,3 +1,5 @@
+> **COMPLETED & SUPERSEDED.** This was the working plan for migrating off Aurora to Base44. The migration is done: Aurora is retired, the entire backend is Base44, and the app is multi-city. Kept for history only. Current architecture lives in `AGENTS.md`.
+
 # Base44 Migration Plan — Lattency
 
 **Deadline:** July 28 (6 days)

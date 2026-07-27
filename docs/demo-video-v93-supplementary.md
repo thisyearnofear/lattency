@@ -1,3 +1,5 @@
+> **SUPERSEDED.** This supplementary clip targeted the v9/v9.3 Aurora-era build. The backend is now entirely Base44 and the app is multi-city. Kept for history only. See `docs/base44-submission.md` for the current package.
+
 # Supplementary clip: v9.3 update demo (60–90 seconds)
 
 This is the **second** video, not a replacement for the submitted one. Goal: show the work that landed between v9 (submitted) and v9.3 — the contribution flow, the bounty board, the contributor dashboard — without re-explaining the product, the Aurora stack, or the cinematic.

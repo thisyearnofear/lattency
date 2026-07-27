@@ -6,10 +6,11 @@ bar. OBS or Screen Studio recommended.
 
 **Pre-flight (do this before you hit record):**
 - Confirm Base44 is deployed and `NEXT_PUBLIC_BASE44_APP_ID` is set in `.env.local`.
-- Run `pnpm seed` so there are 15+ venues with measurements on the map.
-- Open https://lattency.vercel.app and confirm the map renders with stations,
-  the "live · listening for readings" pill is visible, and the "Ask the Oracle"
-  button is bottom-right.
+- Run `pnpm seed` so there are 30+ venues with measurements across the three cities.
+- Open https://lattency.vercel.app and confirm it redirects to /london, the map
+  renders with stations, the "live · listening for readings" pill is visible,
+  and the "Ask the Oracle" button is bottom-right.
+- Have London, Nairobi, and SF each open once so the city switcher is warm.
 - Have a second browser window (or incognito) ready to submit a speed test
   simultaneously, so you can show the realtime update live on camera.
 - Close all browser extensions, hide bookmarks bar.
@@ -18,17 +19,21 @@ bar. OBS or Screen Studio recommended.
 
 ## 0:00–0:12 · HOOK
 
-**On screen:** The map, fully loaded, stations colour-coded by tier. Slow
+**On screen:** The London map, fully loaded, stations colour-coded by tier. Slow
 push-in (Screen Studio zoom or OBS crop keyframe). The "live" pill pulses
 top-left of the map section.
 
 **Say:**
-> "This is Lattency. A live metro map of every workspace in Shoreditch with
-> verified wifi. Contributors run speed tests and earn crypto. An AI reads the
-> whole network. And the map updates the instant anyone, anywhere, submits a
-> reading."
+> "This is Lattency. A live metro map of every workspace with verified wifi —
+> right now in London, Nairobi, and San Francisco, on one engine. Contributors
+> run speed tests and earn crypto. An AI reads the whole network. And the map
+> updates the instant anyone, anywhere, submits a reading."
 
 Pause one beat. Let the map breathe.
+
+**Action:** Open the city switcher (top nav) and flip to Nairobi — split-flap
+animation, new board loads. Then back to London. Two seconds, don't narrate it;
+the visual does the work.
 
 ---
 

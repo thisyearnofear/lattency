@@ -1,3 +1,5 @@
+> **SUPERSEDED.** This script was written for the earlier Vercel/AWS Aurora hackathon and references the retired Postgres/Aurora stack and a single Nairobi board. It is kept for history only. For current recording, use `docs/base44-demo-video.md`.
+
 # Demo video script
 
 A 3-minute storyboard. Read it once, then record. Each block lists what's on screen, what you say, and the camera/mouse moves that have to happen.
