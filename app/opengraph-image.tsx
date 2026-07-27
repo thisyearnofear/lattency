@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Lattency — a metro map of the city's wifi, brewed in Nairobi";
+export const alt = "Lattency — a metro map of the city's wifi, live in 3 cities";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -39,8 +39,7 @@ export default function OpenGraphImage() {
         >
           <span>Edition 01 · 2026 · Vol I</span>
           <span>
-            Nairobi · Live from{" "}
-            <span style={{ color: "#006D45" }}>PG_DB</span>
+            Live in <span style={{ color: "#006D45" }}>3 cities</span>
           </span>
         </div>
 
@@ -76,7 +75,7 @@ export default function OpenGraphImage() {
               marginTop: 12,
             }}
           >
-            {"a metro map of the city\u2019s wifi · brewed in nairobi"}
+            {"a metro map of the city\u2019s wifi"}
           </div>
           <div
             style={{
@@ -89,7 +88,7 @@ export default function OpenGraphImage() {
               flexDirection: "column",
             }}
           >
-            {"Twelve cafés. Three lines. Speed measurements crowdsourced from anyone with a connection — turned into the only metro map of Nairobi where the stations don\u2019t move but the lines do."}
+            {"Cafés and coworking spots in London, Nairobi & San Francisco, mapped like a metro network — the lines are speed tiers, verified by anyone who runs a real speed test from where they\u2019re sitting."}
           </div>
         </div>
 

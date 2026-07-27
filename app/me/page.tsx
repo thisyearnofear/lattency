@@ -136,8 +136,9 @@ export default async function MePage() {
         </h1>
         <p className="font-serif italic text-ink-soft text-xl mt-4 max-w-2xl">
           Every reading you&rsquo;ve logged and every café you&rsquo;ve put
-          on the map. When the bounty payout rail ships, this view also
-          surfaces what you&rsquo;ve earned.
+          on the map. When a reading closes a bounty, the NIM payout lands
+          in your Nimiq Pay wallet — this view surfaces what you&rsquo;ve
+          earned.
         </p>
 
         {/* Stat summary band */}
@@ -163,9 +164,9 @@ export default async function MePage() {
               Coffees earned
             </p>
             <p className="font-display font-black text-4xl text-ink-faint mt-1 tabular-nums">
-              —
+              0
               <span className="font-mono text-[10px] text-ink-faint ml-2 align-middle normal-case tracking-normal">
-                payout rail in v9.3
+                NIM · via Nimiq Pay
               </span>
             </p>
           </div>
@@ -178,7 +179,7 @@ export default async function MePage() {
               Your readings
             </h2>
             <Link
-              href="/?contribute=1"
+              href={`${cityPath(DEFAULT_CITY_ID)}?contribute=1`}
               className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
             >
               Map another café <span aria-hidden>→</span>
@@ -194,7 +195,7 @@ export default async function MePage() {
                 moment it commits.
               </p>
               <Link
-                href="/?contribute=1"
+                href={`${cityPath(DEFAULT_CITY_ID)}?contribute=1`}
                 className="bg-ink text-cream font-mono text-xs tracking-[0.22em] uppercase px-4 py-3 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-5"
               >
                 <span aria-hidden>+</span> Map a café
@@ -247,7 +248,7 @@ export default async function MePage() {
           </Link>{" "}
           ·{" "}
           <Link
-            href={pathForCity("nairobi")}
+            href={pathForCity(DEFAULT_CITY_ID)}
             className="underline underline-offset-4 hover:text-ink"
           >
             Back to the map →
