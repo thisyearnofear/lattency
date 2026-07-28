@@ -51,3 +51,20 @@ public/speedtest/
 # Base44 — app link (credentials) and generated types are local-only
 base44/.app.jsonc
 base44/.types/
+
+# AI tooling — local working/config dirs, not part of the codebase.
+# (Editor agents, taste profiles, scratch sessions.) Add new tool dirs here.
+.commandcode/
+
+# Video / media scratch projects — large reproducible exports, not source.
+# A scratch render lives in its own dir with its own node_modules; the
+# shipped demo assets under public/demo/ are already covered explicitly
+# above. Force-add with `git add -f` if a file ever needs to ship in-repo.
+/trailer/
+*.m4a
+*.mp3
+*.wav
+*.mp4
+*.mov
+*.webm
+*.mkv
