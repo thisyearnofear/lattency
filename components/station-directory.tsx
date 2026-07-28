@@ -9,6 +9,7 @@ import { SignalQuality } from "./signal-quality";
 import { VibeChips } from "./vibe-chips";
 import { SponsorBadge } from "./sponsor-badge";
 import { CafeMetadataChips } from "./cafe-metadata-display";
+import { useOverlay } from "@/components/overlay-context";
 
 const TIER_BG: Record<Tier, string> = {
   express: "bg-express",
@@ -181,6 +182,7 @@ export function StationDirectory({
   city?: CityId;
 }) {
   const cityConfig = CITIES[city];
+  const { active, open, close } = useOverlay();
   const [selected, setSelected] = useState<CafeStation | null>(null);
   const [filter, setFilter] = useState<Tier | "all">("all");
   const [hasFiltered, setHasFiltered] = useState(false);
@@ -369,14 +371,23 @@ export function StationDirectory({
               cafe={cafe}
               index={i}
               distance={distance}
-              onOpen={() => setSelected(cafe)}
+              onOpen={() => {
+                setSelected(cafe);
+                open("cafe");
+              }}
               animate={!hasFiltered}
             />
           ))}
         </div>
       )}
 
-      <CafeDetail station={selected} onClose={() => setSelected(null)} />
+      <CafeDetail
+        station={active === "cafe" ? selected : null}
+        onClose={() => {
+          setSelected(null);
+          close();
+        }}
+      />
     </section>
   );
 }

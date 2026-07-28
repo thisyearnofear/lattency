@@ -5,7 +5,7 @@
 // straight through without being told what to do; the ticket is a nudge,
 // not a gate. Shows once per browser. Newsprint ticket aesthetic.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useOverlay } from "@/components/overlay-context";
 
@@ -20,28 +20,47 @@ export function OnboardingOverlay({ cityName }: { cityName: string }) {
   const { active } = useOverlay();
   const isAnyOverlayOpen = active !== null;
 
+  // Refs so the suppression effect can read current values without depending
+  // on them in its dep array. The previous version depended on `phase`, which
+  // meant setting phase to "leaving" reran the effect, ran the cleanup, and
+  // cancelled the very timeout that was supposed to advance to "hidden". The
+  // ticket then stayed mounted, transparent (toast-out's final frame), and
+  // pointer-events-auto at z-[600] — an invisible 290px click blocker.
+  const phaseRef = useRef(phase);
+  const overlayOpenRef = useRef(isAnyOverlayOpen);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+  useEffect(() => {
+    overlayOpenRef.current = isAnyOverlayOpen;
+  }, [isAnyOverlayOpen]);
+
+  // Entrance — runs once on mount. Checks the ref at fire time so we don't
+  // slide the ticket in if an overlay opened during the 900ms delay.
   useEffect(() => {
     try {
       if (localStorage.getItem(STORAGE_KEY)) return;
     } catch {
       /* storage unavailable — show the coach anyway */
     }
-    // Let the map settle before sliding the ticket in.
-    const t = setTimeout(() => setPhase("entering"), 900);
+    const t = setTimeout(() => {
+      if (!overlayOpenRef.current) setPhase("entering");
+    }, 900);
     return () => clearTimeout(t);
   }, []);
 
-  // Close the ticket gracefully when another overlay opens. This is a
-  // transient animation phase, not a derived state, so it needs setState.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // Suppression — fires only when the overlay state *changes*. Reads the
+  // current phase from a ref, so changing phase to "leaving" does NOT rerun
+  // this effect and cancel the exit timeout.
   useEffect(() => {
-    if (!isAnyOverlayOpen || (phase !== "entering" && phase !== "visible")) return;
+    if (!isAnyOverlayOpen) return;
+    if (phaseRef.current === "hidden" || phaseRef.current === "leaving") return;
     setPhase("leaving");
     const t = setTimeout(() => setPhase("hidden"), EXIT_MS);
     return () => clearTimeout(t);
-  }, [isAnyOverlayOpen, phase]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }, [isAnyOverlayOpen]);
 
+  // Entering → visible (after the slide-in animation completes).
   useEffect(() => {
     if (phase === "entering") {
       const t = setTimeout(() => setPhase("visible"), 380);
@@ -63,8 +82,8 @@ export function OnboardingOverlay({ cityName }: { cityName: string }) {
 
   return (
     <div
-      className={`fixed bottom-28 right-4 sm:right-6 z-[600] w-[290px] max-w-[86vw] pointer-events-auto ${
-        phase === "leaving" ? "toast-out" : "toast-in"
+      className={`fixed bottom-28 right-4 sm:right-6 z-[600] w-[290px] max-w-[86vw] ${
+        phase === "leaving" ? "pointer-events-none toast-out" : "pointer-events-auto toast-in"
       }`}
       role="region"
       aria-label="Getting started with Lattency"

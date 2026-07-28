@@ -585,6 +585,11 @@ export function MapShell({
 
   function ensureGeographic() {
     if (view !== "geographic") setView("geographic");
+    // Leaflet is lazy-mounted on first switch to geographic. The view
+    // toggle handles this in its onClick, but ensureGeographic() is also
+    // called from locateMe() and jumpTo() — without this, those paths
+    // switch to geographic but leave a blank viewport (no Leaflet).
+    setLeafletEverMounted(true);
   }
 
   function locateMe() {
@@ -694,6 +699,13 @@ export function MapShell({
             would just clutter the filter row and recreate the overlap. */}
       </div>
 
+      {/* Map viewport + all map-local overlays — wrapped in one relative
+          container so absolute-positioned controls (locate panel, bottom
+          rail, tap hint) resolve against the viewport, not the outer
+          MapShell which includes the filter row above. Without this wrapper
+          the locate panel's top-2 was the top of the filter row, not the
+          top of the map, overlapping chips on mobile. */}
+      <div className="relative">
       {/* Shared map viewport — both modes render inside one fixed-height
           frame (see .map-viewport) so switching never resizes the page. The
           two layers overlap and crossfade instead of being swapped out, which
@@ -851,7 +863,7 @@ export function MapShell({
             className="pointer-events-none inline-flex items-center gap-2 border border-express bg-express text-cream px-2.5 py-1.5 shadow-[3px_4px_0_0_var(--color-ink)] transition-all duration-300"
           >
             <span className="inline-block h-1.5 w-1.5 bg-cream" aria-hidden />
-            <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
+            <span className="font-mono text-[9px] uppercase tracking-[0.18em] max-w-[42vw] sm:max-w-[220px] truncate">
               {readingFlashText}
             </span>
           </div>
@@ -867,6 +879,7 @@ export function MapShell({
       >
         {view === "schematic" ? "tap any station →" : "tap any pin →"}
       </p>
+      </div>
 
       <CafeDetail
         station={active === "cafe" ? selected : null}

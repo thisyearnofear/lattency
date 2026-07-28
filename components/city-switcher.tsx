@@ -97,7 +97,7 @@ export function CitySwitcher({ current }: { current?: string }) {
         <div
           role="listbox"
           aria-label="Switch city"
-          className={`absolute right-0 mt-3 w-72 bg-cream border border-ink/80 shadow-[6px_8px_0_0_var(--color-ink)] z-50 ${
+          className={`fixed left-2 right-2 top-14 w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-72 bg-cream border border-ink/80 shadow-[6px_8px_0_0_var(--color-ink)] z-50 ${
             open ? "" : "board-closing"
           }`}
         >

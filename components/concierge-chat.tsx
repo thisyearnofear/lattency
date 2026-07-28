@@ -154,7 +154,11 @@ export function ConciergeChat() {
   return (
     <>
       {/* Launcher — a ticket, not a chat bubble. Tier-square glyph + pulsing
-          live dot, hard shadow, lifts on hover like the bounty cards. */}          {!open && (
+          live dot, hard shadow, lifts on hover like the bounty cards.
+          Hides while *any* overlay is active — not just the concierge.
+          Previously `!open` (concierge-not-active) let the launcher sit
+          above café drawers and the contribution modal. */}
+          {active === null && (
         <button
           type="button"
           onClick={() => openOverlay("concierge")}
