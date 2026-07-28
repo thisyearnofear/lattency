@@ -102,7 +102,7 @@ export default async function CafeOGImage({
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 16, letterSpacing: "4px", textTransform: "uppercase", color: "#8A7F6B", borderTop: "1px solid #D4C9B0", paddingTop: 16 }}>
           <span>lattency.vercel.app/cafes/{slug}</span>
-          <span>Live from PG_DB</span>
+          <span>Live · Lattency</span>
         </div>
       </div>
     ),

@@ -26,12 +26,12 @@ const serif = Fraunces({
 });
 
 const description =
-  "A crowdsourced metro map of café wifi speeds across Nairobi. Cafés become stations; speed tiers become transit lines. Anyone with a connection can map the network.";
+  "A crowdsourced metro map of café wifi speeds. Cafés become stations; speed tiers become transit lines. Anyone with a connection can map the network — live in London, Nairobi & San Francisco.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://lattency.vercel.app"),
   title: {
-    default: "Lattency · Nairobi WiFi Lines",
+    default: "Lattency · café wifi, mapped like transit",
     template: "%s · Lattency",
   },
   description,
@@ -39,27 +39,29 @@ export const metadata: Metadata = {
   authors: [{ name: "Lattency" }],
   creator: "Lattency",
   keywords: [
-    "Nairobi",
     "wifi",
     "internet speed",
     "cafés",
+    "coworking",
     "metro map",
     "latency",
     "crowdsourced",
     "transit map",
-    "Kenya",
     "speed test",
+    "London",
+    "Nairobi",
+    "San Francisco",
   ],
   openGraph: {
     type: "website",
     locale: "en_US",
     siteName: "Lattency",
-    title: "Lattency · Nairobi WiFi Lines",
+    title: "Lattency · café wifi, mapped like transit",
     description,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lattency · Nairobi WiFi Lines",
+    title: "Lattency · café wifi, mapped like transit",
     description,
   },
   category: "technology",

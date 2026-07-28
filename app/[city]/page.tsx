@@ -27,9 +27,22 @@ export async function generateMetadata({
   const config = CITIES[city];
   if (!config) return { title: "City not found · Lattency" };
 
+  const description = `Where can you work in ${config.name} today? Verified wifi speeds for cafés, coworking spaces, and hotel lobbies — mapped like a metro network.`;
+
   return {
-    title: `${config.name} · Lattency`,
-    description: `Where can you work in ${config.name} today? Verified wifi speeds for cafés, coworking spaces, and hotel lobbies — mapped like a metro network.`,
+    title: `${config.name} wifi`,
+    description,
+    openGraph: {
+      type: "website",
+      siteName: "Lattency",
+      title: `${config.name} wifi · Lattency`,
+      description,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${config.name} wifi · Lattency`,
+      description,
+    },
   };
 }
 
