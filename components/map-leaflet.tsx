@@ -5,7 +5,7 @@
 // polylines connecting same-tier stations sorted west-to-east.
 // Loaded only on the client (Leaflet needs `window`) via next/dynamic.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   Map as LeafletMap,
   Marker as LeafletMarker,
@@ -42,6 +42,12 @@ export default function MapLeaflet({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const focusMarkerRef = useRef<LeafletMarker | null>(null);
+  // Bumps to a new value each time the async Leaflet map finishes
+  // initializing. The focus and tier-filter effects include this in their
+  // deps so they rerun after init — otherwise they run while mapRef.current
+  // is still null (the await import("leaflet") hasn't resolved), return
+  // early, and never apply the initial focusOn / activeTiers.
+  const [mapReady, setMapReady] = useState(0);
   // Layers grouped by tier so we can toggle visibility without re-creating the map.
   const tierLayersRef = useRef<Record<Tier, LeafletLayer[]>>({
     express: [],
@@ -156,6 +162,12 @@ export default function MapLeaflet({
           tierLayersRef.current[cafe.tier].push(ring);
         }
       }
+
+      // Signal that the map + all layers are ready. The focus and
+      // tier-filter effects include mapReady in their deps, so they
+      // rerun now and apply the current focusOn / activeTiers instead
+      // of returning early when mapRef.current was still null.
+      setMapReady((n) => n + 1);
     })();
 
     return () => {
@@ -176,7 +188,9 @@ export default function MapLeaflet({
   }, [cafes]);
 
   // Reactive: when the activeTiers set changes, add or remove the layers
-  // for each tier from the map without rebuilding it.
+  // for each tier from the map without rebuilding it. Also reruns after the
+  // map finishes async init (mapReady bump), so the initial tier filter
+  // applies even if this effect first ran while mapRef.current was null.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -187,9 +201,11 @@ export default function MapLeaflet({
         else if (!want && map.hasLayer(layer)) layer.removeFrom(map);
       }
     }
-  }, [activeTiers]);
+  }, [activeTiers, mapReady]);
 
-  // Reactive: handle focus marker / pan whenever focusOn changes.
+  // Reactive: handle focus marker / pan whenever focusOn changes. Also
+  // reruns after async map init (mapReady bump) so the initial ?hood= focus
+  // applies even if this effect first ran while mapRef.current was null.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -260,7 +276,7 @@ export default function MapLeaflet({
     return () => {
       cancelled = true;
     };
-  }, [focusOn, cafes]);
+  }, [focusOn, cafes, mapReady]);
 
   // Cleanup the halo when focus marker is removed (covers cleanup ref above).
   useEffect(() => {

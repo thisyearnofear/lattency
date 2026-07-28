@@ -480,13 +480,18 @@ body {
 .animate-panel-out {
   animation: panel-cross-out var(--duration-base) var(--ease-in-soft) both;
 }
-/* Reduced motion: avoid both animations and the final opacity state of the
-   exit keyframe by disabling animation entirely. */
+/* Reduced motion: disable animations entirely. The incoming panel stays
+   fully visible; the outgoing panel is hidden immediately (opacity: 0)
+   rather than left at opacity: 1, which would visually mask the incoming
+   content for the 220ms it stays mounted during the transition. */
 @media (prefers-reduced-motion: reduce) {
-  .animate-panel-in,
-  .animate-panel-out {
+  .animate-panel-in {
     animation: none;
     opacity: 1;
+  }
+  .animate-panel-out {
+    animation: none;
+    opacity: 0;
   }
 }
 /* Rows (bounties, directory filters) cascade in with a small stagger.

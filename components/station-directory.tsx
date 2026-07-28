@@ -373,7 +373,7 @@ export function StationDirectory({
               distance={distance}
               onOpen={() => {
                 setSelected(cafe);
-                open("cafe");
+                open("directory-cafe");
               }}
               animate={!hasFiltered}
             />
@@ -382,7 +382,7 @@ export function StationDirectory({
       )}
 
       <CafeDetail
-        station={active === "cafe" ? selected : null}
+        station={active === "directory-cafe" ? selected : null}
         onClose={() => {
           setSelected(null);
           close();

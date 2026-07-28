@@ -51,14 +51,31 @@ export function OnboardingOverlay({ cityName }: { cityName: string }) {
 
   // Suppression — fires only when the overlay state *changes*. Reads the
   // current phase from a ref, so changing phase to "leaving" does NOT rerun
-  // this effect and cancel the exit timeout.
+  // this effect and cancel the exit timeout. The timer lives in a ref so
+  // that if the overlay closes within EXIT_MS, the effect's cleanup does
+  // NOT cancel it — without this, the coach would be stuck in "leaving"
+  // forever (mounted, transparent, no longer blocking but never returning).
+  const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!isAnyOverlayOpen) return;
     if (phaseRef.current === "hidden" || phaseRef.current === "leaving") return;
     setPhase("leaving");
-    const t = setTimeout(() => setPhase("hidden"), EXIT_MS);
-    return () => clearTimeout(t);
+    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
+    suppressTimerRef.current = setTimeout(() => {
+      suppressTimerRef.current = null;
+      setPhase("hidden");
+    }, EXIT_MS);
+    // No cleanup returned — the timer must survive this effect's rerun
+    // when the overlay closes. It's cleared only on replacement (above)
+    // or unmount (below).
   }, [isAnyOverlayOpen]);
+
+  // Clear the suppression timer only on unmount.
+  useEffect(() => {
+    return () => {
+      if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
+    };
+  }, []);
 
   // Entering → visible (after the slide-in animation completes).
   useEffect(() => {

@@ -8,12 +8,23 @@
 // concierge launcher, the onboarding coach) suppress themselves while any
 // surface is active.
 //
+// The "cafe" surface is owner-specific: "map-cafe" and "directory-cafe"
+// distinguish which component owns the drawer. Without this, both the map
+// and the directory could render their CafeDetail simultaneously when
+// active === "cafe" — a stale selection in one would leak through when the
+// other opened a café.
+//
 // Layers (see AGENTS.md design language):
 //   40 navigation · 50 backdrop · 60 drawer/modal content · 70 toasts
 
 import { createContext, useCallback, useContext, useState } from "react";
 
-export type OverlaySurface = "cafe" | "contribute" | "concierge" | null;
+export type OverlaySurface =
+  | "map-cafe"
+  | "directory-cafe"
+  | "contribute"
+  | "concierge"
+  | null;
 
 interface OverlayState {
   active: OverlaySurface;

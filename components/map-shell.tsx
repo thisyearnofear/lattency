@@ -724,7 +724,7 @@ export function MapShell({
               cafes={allCafes}
               onSelectStation={(cafe) => {
                 setSelected(cafe);
-                open("cafe");
+                open("map-cafe");
               }}
               focusOn={focus}
               activeTiers={activeTiers}
@@ -746,7 +746,7 @@ export function MapShell({
             activeTiers={activeTiers}
             onSelect={(cafe) => {
               setSelected(cafe);
-              open("cafe");
+              open("map-cafe");
             }}
             trailPoints={trailPoints}
             arrivalId={arrivalId}
@@ -850,13 +850,25 @@ export function MapShell({
                   : "text-ink-soft hover:text-ink"
               }`}
             >
-              {mode}
+              {/* Full labels on sm+, abbreviations on the narrowest
+                  phones — "schematic" and "geographic" are ~10 chars
+                  each and consume the full 272px available at 320px
+                  before the status slot even renders. */}
+              <span className="hidden sm:inline">{mode}</span>
+              <span className="sm:hidden">
+                {mode === "schematic" ? "Map" : "Geo"}
+              </span>
             </button>
           ))}
         </div>
 
         {/* Live status slot — the flash ticket takes over while a reading is
-            landing; otherwise the resting badge (or nothing, when offline). */}
+            landing; otherwise the resting badge (or nothing, when offline).
+            The resting badge is hidden below sm to preserve rail width on
+            the narrowest phones; the flash ticket still shows because it's
+            important realtime feedback. min-w-0 lets the slot shrink rather
+            than push the rail past the viewport edge. */}
+        <div className="min-w-0">
         {readingFlash ? (
           <div
             aria-live="polite"
@@ -868,8 +880,11 @@ export function MapShell({
             </span>
           </div>
         ) : (
-          <LiveNetworkBadge variant="map" />
+          <div className="hidden sm:block">
+            <LiveNetworkBadge variant="map" />
+          </div>
         )}
+        </div>
       </div>
 
       {/* Tap-target hint, bottom-right */}
@@ -882,7 +897,7 @@ export function MapShell({
       </div>
 
       <CafeDetail
-        station={active === "cafe" ? selected : null}
+        station={active === "map-cafe" ? selected : null}
         onClose={() => {
           setSelected(null);
           close();
