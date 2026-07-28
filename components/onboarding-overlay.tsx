@@ -7,11 +7,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useOverlay } from "@/components/overlay-context";
 
 const STORAGE_KEY = "lattency:onboarded:v1";
 
+const EXIT_MS = 260;
+
+type Phase = "hidden" | "entering" | "visible" | "leaving";
+
 export function OnboardingOverlay({ cityName }: { cityName: string }) {
-  const [visible, setVisible] = useState(false);
+  const [phase, setPhase] = useState<Phase>("hidden");
+  const { active } = useOverlay();
+  const isAnyOverlayOpen = active !== null;
 
   useEffect(() => {
     try {
@@ -20,24 +27,45 @@ export function OnboardingOverlay({ cityName }: { cityName: string }) {
       /* storage unavailable — show the coach anyway */
     }
     // Let the map settle before sliding the ticket in.
-    const t = setTimeout(() => setVisible(true), 900);
+    const t = setTimeout(() => setPhase("entering"), 900);
     return () => clearTimeout(t);
   }, []);
 
+  // Close the ticket gracefully when another overlay opens. This is a
+  // transient animation phase, not a derived state, so it needs setState.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!isAnyOverlayOpen || (phase !== "entering" && phase !== "visible")) return;
+    setPhase("leaving");
+    const t = setTimeout(() => setPhase("hidden"), EXIT_MS);
+    return () => clearTimeout(t);
+  }, [isAnyOverlayOpen, phase]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (phase === "entering") {
+      const t = setTimeout(() => setPhase("visible"), 380);
+      return () => clearTimeout(t);
+    }
+  }, [phase]);
+
   function dismiss() {
-    setVisible(false);
+    setPhase("leaving");
     try {
       localStorage.setItem(STORAGE_KEY, "1");
     } catch {
       /* non-fatal */
     }
+    setTimeout(() => setPhase("hidden"), EXIT_MS);
   }
 
-  if (!visible) return null;
+  if (phase === "hidden") return null;
 
   return (
     <div
-      className="toast-in fixed bottom-28 right-4 sm:right-6 z-[600] w-[290px] max-w-[86vw] pointer-events-auto"
+      className={`fixed bottom-28 right-4 sm:right-6 z-[600] w-[290px] max-w-[86vw] pointer-events-auto ${
+        phase === "leaving" ? "toast-out" : "toast-in"
+      }`}
       role="region"
       aria-label="Getting started with Lattency"
     >

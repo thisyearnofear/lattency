@@ -275,7 +275,7 @@ export default function MapLeaflet({
   return (
     <div
       ref={containerRef}
-      className="w-full h-[72vh] max-h-[640px] bg-cream"
+      className="w-full h-full bg-cream"
       style={{ background: "#F4ECD8" }}
     />
   );

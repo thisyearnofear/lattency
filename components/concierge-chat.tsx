@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { base44Configured, getBase44 } from "@/lib/base44";
 import type { AgentConversation, AgentMessage } from "@base44/sdk";
+import { useOverlay } from "@/components/overlay-context";
 
 interface ChatMessage {
   id: string;
@@ -44,7 +45,8 @@ const DEPARTURES: Array<{ dest: string; query: string }> = [
 ];
 
 export function ConciergeChat() {
-  const [open, setOpen] = useState(false);
+  const { active, open: openOverlay, close } = useOverlay();
+  const open = active === "concierge";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -100,11 +102,11 @@ export function ConciergeChat() {
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") close();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, close]);
 
   const send = useCallback(
     async (text: string) => {
@@ -152,11 +154,10 @@ export function ConciergeChat() {
   return (
     <>
       {/* Launcher — a ticket, not a chat bubble. Tier-square glyph + pulsing
-          live dot, hard shadow, lifts on hover like the bounty cards. */}
-      {!open && (
+          live dot, hard shadow, lifts on hover like the bounty cards. */}          {!open && (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => openOverlay("concierge")}
           aria-label="Ask the Workspace Concierge"
           className="pressable fixed bottom-6 right-6 z-50 group flex items-center gap-3 bg-ink text-cream border border-ink px-4 py-3 shadow-[4px_5px_0_0_rgba(26,22,18,0.35)] hover:-translate-y-0.5 hover:shadow-[5px_7px_0_0_rgba(26,22,18,0.4)]"
         >
@@ -189,11 +190,11 @@ export function ConciergeChat() {
             className={`absolute inset-0 bg-ink/40 backdrop-blur-[2px] transition-opacity duration-300 ${
               open ? "opacity-100" : "opacity-0"
             }`}
-            onClick={() => setOpen(false)}
+            onClick={() => close()}
             aria-hidden
           />
           <div
-            className={`absolute right-0 top-0 flex h-full w-full max-w-[420px] flex-col border-l border-ink/80 bg-cream shadow-[-12px_0_40px_rgba(26,22,18,0.25)] transition-transform duration-300 ease-out ${
+            className={`absolute right-0 top-0 flex full-dvh w-full max-w-[420px] flex-col border-l border-ink/80 bg-cream shadow-[-12px_0_40px_rgba(26,22,18,0.25)] transition-transform duration-300 ease-out pb-[env(safe-area-inset-bottom)] ${
               open ? "translate-x-0" : "translate-x-full"
             }`}
           >
@@ -212,7 +213,7 @@ export function ConciergeChat() {
               </div>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => close()}
                 aria-label="Close"
                 className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-soft transition-colors hover:text-ink"
               >

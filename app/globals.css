@@ -448,19 +448,51 @@ body {
   animation: modal-out var(--duration-base) var(--ease-in-soft) both;
 }
 
-/* Tab panel switch inside the café drawer — the container persists, only
-   the content swaps, so a short rise-in is the right "same place" signal. */
-@keyframes panel-in {
+/* Shared map viewport — both schematic and geographic modes render inside
+   one bounded frame so switching modes never resizes the page (the old
+   schematic was ~164px tall on mobile while Leaflet demanded 72vh). */
+.map-viewport {
+  height: clamp(320px, 62dvh, 640px);
+}
+
+/* Mobile viewport height helpers — dvh with vh fallback so overlay panels
+   track the dynamic mobile viewport (URL bar, keyboard) where supported. */
+.full-dvh { height: 100vh; height: 100dvh; }
+.max-h-90dvh { max-height: 90vh; max-height: 90dvh; }
+
+/* Horizontally scrollable rows (drawer tabs on narrow phones) without a
+   visible scrollbar — wrapping tab rows made content jump on every switch. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Crossfade panels — paired enter/exit so keyed content no longer flashes. */
+@keyframes panel-cross-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.panel-in {
-  animation: panel-in var(--duration-base) var(--ease-out-soft) both;
+@keyframes panel-cross-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-6px); }
+}
+.animate-panel-in {
+  animation: panel-cross-in var(--duration-base) var(--ease-out-soft) both;
+}
+.animate-panel-out {
+  animation: panel-cross-out var(--duration-base) var(--ease-in-soft) both;
+}
+/* Reduced motion: avoid both animations and the final opacity state of the
+   exit keyframe by disabling animation entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-panel-in,
+  .animate-panel-out {
+    animation: none;
+    opacity: 1;
+  }
 }
 /* Rows (bounties, directory filters) cascade in with a small stagger.
    `backwards` fill so hover lifts are never frozen by the entrance. */
 .rise-row {
-  animation: panel-in var(--duration-base) var(--ease-out-soft) backwards;
+  animation: panel-cross-in var(--duration-base) var(--ease-out-soft) backwards;
 }
 
 /* Live network badge — the "the network is on" signal. A soft steady
@@ -566,7 +598,6 @@ body {
   .sb-ripple,
   .sb-station-pulse,
   .sb-line-grow,
-  .panel-in,
   .rise-row,
   .drawer-closing,
   .backdrop-closing,

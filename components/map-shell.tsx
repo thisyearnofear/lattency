@@ -35,6 +35,7 @@ import { CafeContributionForm } from "./cafe-contribution-form";
 import { useMapToast } from "./map-toast";
 import { LiveNetworkBadge } from "./live-network-badge";
 import { usePersonalTrail } from "@/hooks/use-personal-trail";
+import { useOverlay } from "./overlay-context";
 
 // Anything farther than this from the active city's centre is treated as
 // "demo from afar" and the neighbourhood quick-picks stay visible.
@@ -62,7 +63,7 @@ function haversineKm(
 const MapLeaflet = dynamic(() => import("./map-leaflet"), {
   ssr: false,
   loading: () => (
-    <div className="relative w-full h-[72vh] max-h-[640px] bg-cream overflow-hidden">
+    <div className="absolute inset-0 w-full h-full bg-cream overflow-hidden">
       <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice" aria-hidden>
         {TIER_ORDER.map((tier) => (
           <path
@@ -148,7 +149,7 @@ function SchematicLayer({
   return (
     <svg
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      className="w-full h-auto max-h-[72vh] bg-cream"
+      className="w-full h-full bg-cream"
       preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label="Schematic network — stations across three speed tiers"
@@ -385,9 +386,16 @@ type LocateStatus = "idle" | "pending" | "here" | "far" | "denied" | "unavailabl
 export function MapShell({
   cafes,
   city = "nairobi",
+  readingFlash = false,
+  readingFlashText = "",
 }: {
   cafes: CafeStation[];
   city?: CityId;
+  /** When a realtime reading lands, LiveMap briefly swaps the resting live
+      badge in the bottom rail for a flash ticket — the flash *replaces* the
+      badge instead of overlaying it, so the corner never stacks. */
+  readingFlash?: boolean;
+  readingFlashText?: string;
 }) {
   const cityConfig = CITIES[city];
   const router = useRouter();
@@ -417,7 +425,15 @@ export function MapShell({
     );
     return match ? { lat: match.lat, lng: match.lng, label: match.name } : null;
   }, [searchParams, cityConfig.demoLocations]);
+  const { active, open, close } = useOverlay();
   const [view, setView] = useState<ViewMode>(() => (hoodFocus ? "geographic" : "schematic"));
+  // Leaflet initialisation is heavy, so we lazy-mount it on first switch to
+  // geographic and keep it alive afterwards. Keeping both layers mounted
+  // (rather than swapping them) is what lets the mode switch crossfade
+  // instead of hard-cutting between two differently-sized roots.
+  const [leafletEverMounted, setLeafletEverMounted] = useState(
+    () => view === "geographic",
+  );
   const [selected, setSelected] = useState<CafeStation | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number; label: string } | null>(hoodFocus);
   const [locStatus, setLocStatus] = useState<LocateStatus>("idle");
@@ -483,23 +499,18 @@ export function MapShell({
   }, [cafes, toast]);
 
   // Open the contribution modal automatically when the page is reached via
-  // the top-nav "+ Map a café" CTA (?contribute=1). The open state is
-  // derived directly from the URL at render time so we avoid the
-  // cascading-render warning that synchronous setState in useEffect
-  // would trigger. The effect below cleans the URL once on mount.
+  // the top-nav "+ Map a café" CTA (?contribute=1). We react to the query
+  // whenever it appears so same-page links also open the modal, then remove
+  // it from the URL so a refresh does not re-trigger the modal.
   const shouldAutoOpen = searchParams.get("contribute") === "1";
-  const [showContribution, setShowContribution] = useState(shouldAutoOpen);
 
   useEffect(() => {
-    if (shouldAutoOpen) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("contribute");
-      window.history.replaceState({}, "", url.toString());
-    }
-    // shouldAutoOpen is read once on mount; we intentionally don't
-    // resubscribe if the URL changes mid-session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!shouldAutoOpen) return;
+    open("contribute");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("contribute");
+    window.history.replaceState({}, "", url.toString());
+  }, [shouldAutoOpen, open]);
 
   function toggleTier(tier: Tier) {
     setActiveTiers((prev) => {
@@ -683,25 +694,53 @@ export function MapShell({
             would just clutter the filter row and recreate the overlap. */}
       </div>
 
-      {view === "schematic" ? (
-        <SchematicLayer
-          cafes={allCafes}
-          waypoints={waypoints}
-          activeTiers={activeTiers}
-          onSelect={setSelected}
-          trailPoints={trailPoints}
-          arrivalId={arrivalId}
-        />
-      ) : (
-        <MapLeaflet
-          cafes={allCafes}
-          onSelectStation={setSelected}
-          focusOn={focus}
-          activeTiers={activeTiers}
-          centre={cityConfig.centre}
-          zoom={cityConfig.zoom}
-        />
-      )}
+      {/* Shared map viewport — both modes render inside one fixed-height
+          frame (see .map-viewport) so switching never resizes the page. The
+          two layers overlap and crossfade instead of being swapped out, which
+          removes the hard cut the reviewer flagged as the main transition
+          problem on mobile. Schematic sits on top (z-10) but becomes
+          pointer-transparent when geographic is active so the Leaflet map
+          underneath stays interactive. */}
+      <div className="map-viewport relative w-full overflow-hidden bg-cream">
+        {leafletEverMounted && (
+          <div
+            className={`absolute inset-0 transition-opacity duration-300 ${
+              view === "geographic" ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <MapLeaflet
+              cafes={allCafes}
+              onSelectStation={(cafe) => {
+                setSelected(cafe);
+                open("cafe");
+              }}
+              focusOn={focus}
+              activeTiers={activeTiers}
+              centre={cityConfig.centre}
+              zoom={cityConfig.zoom}
+            />
+          </div>
+        )}
+        <div
+          className={`absolute inset-0 z-10 transition-opacity duration-300 ${
+            view === "schematic"
+              ? "opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
+        >
+          <SchematicLayer
+            cafes={allCafes}
+            waypoints={waypoints}
+            activeTiers={activeTiers}
+            onSelect={(cafe) => {
+              setSelected(cafe);
+              open("cafe");
+            }}
+            trailPoints={trailPoints}
+            arrivalId={arrivalId}
+          />
+        </div>
+      </div>
 
       {noneActive && (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none z-[400]">
@@ -768,12 +807,17 @@ export function MapShell({
         </div>
       </div>
 
-      {/* View toggle — bottom-left */}
-      <div className="absolute bottom-4 left-4 z-[500] pointer-events-auto">
+      {/* Bottom control rail — view toggle + live status share one strip.
+          Previously the toggle, the live badge, and the realtime flash all
+          used the same bottom-left coordinates and stacked on top of each
+          other. Now they live in a single flex row. When a reading lands,
+          the flash ticket replaces the resting badge in the same slot rather
+          than overlaying it, so nothing ever collides. */}
+      <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-[500] flex items-end gap-2 pointer-events-none">
         <div
           role="tablist"
           aria-label="Map view"
-          className="flex items-center gap-1 bg-cream/95 border border-ink/80 p-1 font-mono text-[10px] tracking-[0.2em] uppercase shadow-sm"
+          className="pointer-events-auto flex items-center gap-1 bg-cream/95 border border-ink/80 p-1 font-mono text-[10px] tracking-[0.2em] uppercase shadow-sm"
         >
           {(["schematic", "geographic"] as const).map((mode) => (
             <button
@@ -781,7 +825,13 @@ export function MapShell({
               type="button"
               role="tab"
               aria-selected={view === mode}
-              onClick={() => setView(mode)}
+              onClick={() => {
+                setView(mode);
+                // Lazy-mount Leaflet on first switch to geographic (kept
+                // alive afterwards); driven from the click, not an effect,
+                // to avoid a cascading render.
+                if (mode === "geographic") setLeafletEverMounted(true);
+              }}
               className={`px-2.5 py-1.5 transition-colors ${
                 view === mode
                   ? "bg-ink text-cream"
@@ -792,12 +842,22 @@ export function MapShell({
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Live network stamp, bottom-left — proof the map is backed by a
-          live backend, not a frozen demo. Hidden entirely when offline/mock. */}
-      <div className="absolute bottom-4 left-4 z-[500] pointer-events-none">
-        <LiveNetworkBadge variant="map" />
+        {/* Live status slot — the flash ticket takes over while a reading is
+            landing; otherwise the resting badge (or nothing, when offline). */}
+        {readingFlash ? (
+          <div
+            aria-live="polite"
+            className="pointer-events-none inline-flex items-center gap-2 border border-express bg-express text-cream px-2.5 py-1.5 shadow-[3px_4px_0_0_var(--color-ink)] transition-all duration-300"
+          >
+            <span className="inline-block h-1.5 w-1.5 bg-cream" aria-hidden />
+            <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
+              {readingFlashText}
+            </span>
+          </div>
+        ) : (
+          <LiveNetworkBadge variant="map" />
+        )}
       </div>
 
       {/* Tap-target hint, bottom-right */}
@@ -808,15 +868,21 @@ export function MapShell({
         {view === "schematic" ? "tap any station →" : "tap any pin →"}
       </p>
 
-      <CafeDetail station={selected} onClose={() => setSelected(null)} />
+      <CafeDetail
+        station={active === "cafe" ? selected : null}
+        onClose={() => {
+          setSelected(null);
+          close();
+        }}
+      />
 
-      {showContribution && (
+      {active === "contribute" && (
         <CafeContributionForm
           currentCity={city}
-          onClose={() => setShowContribution(false)}
+          onClose={close}
           onCreated={handleCafeCreated}
           onSuccess={(slug) => {
-            setShowContribution(false);
+            close();
             // Linger on the map so the contributor sees their pin land
             // (already dropped optimistically), then take them to the
             // new venue page.

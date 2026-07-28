@@ -37,41 +37,47 @@ export function TopNav({
       aria-label="Primary"
       style={{ viewTransitionName: "site-nav" }}
     >
-      <div className="mx-auto max-w-[1440px] px-6 md:px-12 h-14 flex items-center justify-between gap-6">
-        <div className="flex items-center gap-5 md:gap-8 min-w-0">
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 md:px-12 h-14 flex items-center justify-between gap-3 sm:gap-6">
+        <div className="flex items-center gap-3 sm:gap-5 md:gap-8 min-w-0">
           <Link
             href={cityHome}
             aria-label="Lattency home"
             className="flex items-center gap-2 font-display font-black uppercase text-[22px] leading-none tracking-[-0.02em] text-ink shrink-0"
           >
             <BrandMark size={26} decorative />
-            <span>Lattency</span>
+            {/* On the narrowest phones only the mark shows — the wordmark
+                costs ~90px that the action group needs. */}
+            <span className="hidden min-[400px]:inline">Lattency</span>
           </Link>
-          <span aria-hidden className="text-ink-faint hidden md:inline">·</span>
-          <div className="hidden md:block">
-            <CitySwitcher current={currentCity} />
-          </div>
+          <span aria-hidden className="text-ink-faint hidden sm:inline">·</span>
+          <CitySwitcher current={currentCity} />
+          {/* The live status dot is ambient nav chrome — hide it below md to
+              preserve room for the actions on small screens. */}
           <span aria-hidden className="text-ink-faint hidden md:inline">·</span>
           <div className="hidden md:block">
             <LiveNetworkBadge variant="nav" />
           </div>
         </div>
 
-        <div className="flex items-center gap-3 md:gap-5 font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase">
+        <div className="flex items-center gap-2.5 sm:gap-3 md:gap-5 font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase">
           {current === "tour" ? (
             <Link
               href={cityHome}
-              className="text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
+              className="text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
             >
-              <span aria-hidden>←</span> Back to map
+              <span aria-hidden>←</span>
+              <span className="hidden sm:inline">Back to map</span>
+              <span className="sm:hidden">Back</span>
             </Link>
           ) : (
+            // Redundant while we're already on the map — hiding it on the
+            // smallest screens reclaims space without losing a destination.
             <Link
               href={cityHome}
               className={
                 current === "app"
-                  ? "text-ink"
-                  : "text-ink-soft hover:text-ink transition-colors"
+                  ? "hidden sm:inline-flex text-ink"
+                  : "text-ink-soft hover:text-ink transition-colors inline-flex"
               }
             >
               Map

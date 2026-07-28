@@ -10,6 +10,7 @@ import { StationDirectory } from "@/components/station-directory";
 import { BountiesBoard } from "@/components/bounties-board";
 import { MapToastProvider } from "@/components/map-toast";
 import { OnboardingOverlay } from "@/components/onboarding-overlay";
+import { OverlayProvider } from "@/components/overlay-context";
 
 export const revalidate = 60;
 
@@ -46,6 +47,7 @@ export default async function CityHome({
 
   return (
     <MapToastProvider>
+      <OverlayProvider>
       <TopNav current="app" currentCity={city} />
 
       <main className="mx-auto max-w-[1440px] px-6 md:px-12">
@@ -139,6 +141,7 @@ export default async function CityHome({
       </main>
 
       <OnboardingOverlay cityName={cityConfig.name} />
+      </OverlayProvider>
     </MapToastProvider>
   );
 }

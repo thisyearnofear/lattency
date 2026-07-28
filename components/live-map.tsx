@@ -59,41 +59,19 @@ export function LiveMap({ initialCafes, city }: LiveMapProps) {
 
   return (
     <>
-      <div className="relative">
-        <MapShell cafes={cafes} city={city} />
-
-        {/* Live-board stamp — sits on the map's bottom-left corner. */}
-        {live && (
-          <div
-            className="pointer-events-none absolute bottom-3 left-3 z-[450]"
-            aria-live="polite"
-          >
-            <div
-              className={`inline-flex items-center gap-2.5 border px-3 py-2 shadow-[3px_4px_0_0_var(--color-ink)] transition-all duration-300 ${
-                flash
-                  ? "border-express bg-express text-cream"
-                  : "border-ink/80 bg-cream/95 text-ink-soft"
-              }`}
-            >
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                  flash ? "bg-cream" : "bg-express animate-pulse"
-                }`}
-                aria-hidden
-              />
-              {flash && lastReading ? (
-                <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
-                  {lastReading.down} mbps logged · {lastReading.name}
-                </span>
-              ) : (
-                <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
-                  live · listening for readings
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* The realtime flash ticket now lives inside MapShell's bottom control
+          rail (it replaces the resting live badge while a reading lands), so
+          this wrapper no longer paints its own fixed ticket over the corner. */}
+      <MapShell
+        cafes={cafes}
+        city={city}
+        readingFlash={live && flash && Boolean(lastReading)}
+        readingFlashText={
+          lastReading
+            ? `${lastReading.down} mbps logged · ${lastReading.name}`
+            : ""
+        }
+      />
 
       <ConciergeChat />
     </>

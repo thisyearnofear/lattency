@@ -54,19 +54,23 @@ function StationCard({
   index,
   distance,
   onOpen,
+  animate,
 }: {
   cafe: CafeStation;
   index: number;
   distance?: number;
   onOpen: () => void;
+  animate?: boolean;
 }) {
   const ord = String(index + 1).padStart(2, "0");
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="pressable station-card group relative block w-full text-left bg-cream border border-ink/15 hover:border-ink/60 hover:-translate-y-1 hover:shadow-[6px_8px_0_0_var(--color-ink)] focus-visible:border-ink focus-visible:shadow-[6px_8px_0_0_var(--color-ink)] outline-none"
-      style={{ animationDelay: `${Math.min(index * 40, 400)}ms` }}
+      className={`pressable group relative block w-full text-left bg-cream border border-ink/15 hover:border-ink/60 hover:-translate-y-1 hover:shadow-[6px_8px_0_0_var(--color-ink)] focus-visible:border-ink focus-visible:shadow-[6px_8px_0_0_var(--color-ink)] outline-none ${
+        animate ? "station-card" : ""
+      }`}
+      style={animate ? { animationDelay: `${Math.min(index * 40, 400)}ms` } : undefined}
     >
       <div className="relative aspect-[5/3] overflow-hidden bg-cream-edge">
         <div className="absolute inset-0 flex items-center justify-center">
@@ -179,6 +183,7 @@ export function StationDirectory({
   const cityConfig = CITIES[city];
   const [selected, setSelected] = useState<CafeStation | null>(null);
   const [filter, setFilter] = useState<Tier | "all">("all");
+  const [hasFiltered, setHasFiltered] = useState(false);
   const [geo, setGeo] = useState<GeoState>({ kind: "idle" });
 
   const origin = geo.kind === "located" ? geo.origin : null;
@@ -309,7 +314,10 @@ export function StationDirectory({
             <button
               key={f.key}
               type="button"
-              onClick={() => setFilter(f.key)}
+              onClick={() => {
+                setFilter(f.key);
+                setHasFiltered(true);
+              }}
               className={`font-mono text-[10px] tracking-[0.2em] uppercase px-3 py-1.5 border transition-colors ${
                 filter === f.key
                   ? "bg-ink text-cream border-ink"
@@ -362,6 +370,7 @@ export function StationDirectory({
               index={i}
               distance={distance}
               onOpen={() => setSelected(cafe)}
+              animate={!hasFiltered}
             />
           ))}
         </div>

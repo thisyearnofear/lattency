@@ -21,6 +21,7 @@ import {
 import { CITIES, DEFAULT_CITY_ID } from "@/lib/cities";
 import { postWithRetry } from "@/lib/fetch-retry";
 import { TIER_COLOUR, TIER_USE, tierForDown } from "@/lib/map-data";
+import { CrossfadePanel } from "@/components/crossfade-panel";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
 
@@ -364,7 +365,7 @@ export function CafeContributionForm({
       onClick={closeWithExit}
     >
       <div
-        className={`relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-cream border border-ink shadow-[6px_8px_0_0_var(--color-ink)] ${
+        className={`relative w-full max-w-lg max-h-90dvh overflow-y-auto bg-cream border border-ink shadow-[6px_8px_0_0_var(--color-ink)] pb-[env(safe-area-inset-bottom)] ${
           closing ? "modal-closing" : "modal-entering"
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -425,8 +426,8 @@ export function CafeContributionForm({
           )}
         </div>
 
-        <div key={step} className="px-6 py-5 panel-in">
-          {step === "location" && (
+        <CrossfadePanel activeKey={step} className="px-6 py-5" render={(renderStep) => (<>
+          {renderStep === "location" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
                 Map a café you&rsquo;re sitting in right now. We&rsquo;ll use your
@@ -464,7 +465,7 @@ export function CafeContributionForm({
             </div>
           )}
 
-          {step === "details" && (
+          {renderStep === "details" && (
             <div className="space-y-4">
               <Field label="Café name">
                 <input
@@ -519,7 +520,7 @@ export function CafeContributionForm({
             </div>
           )}
 
-          {step === "metadata" && (
+          {renderStep === "metadata" && (
             <div className="space-y-5">
               <Field label="Price tier">
                 <div className="flex gap-2">
@@ -621,7 +622,7 @@ export function CafeContributionForm({
             </div>
           )}
 
-          {step === "speedtest" && (
+          {renderStep === "speedtest" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
                 Run a speed test from where you&rsquo;re sitting. This is
@@ -703,7 +704,7 @@ export function CafeContributionForm({
             </div>
           )}
 
-          {step === "photo" && (
+          {renderStep === "photo" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
                 Add a café photo — your coffee, the counter, the laptop view.
@@ -767,7 +768,7 @@ export function CafeContributionForm({
             </div>
           )}
 
-          {step === "submitting" && (
+          {renderStep === "submitting" && (
             <div className="py-12 text-center">
               <p className="font-mono text-xs tracking-[0.22em] uppercase text-ink-soft">
                 Mapping your café…
@@ -775,7 +776,7 @@ export function CafeContributionForm({
             </div>
           )}
 
-          {step === "done" && (
+          {renderStep === "done" && (
             <div className="py-12 text-center space-y-3">
               <p className="font-display font-black text-2xl text-express uppercase">
                 Mapped!
@@ -786,7 +787,7 @@ export function CafeContributionForm({
             </div>
           )}
 
-          {step === "error" && (
+          {renderStep === "error" && (
             <div className="py-8 text-center space-y-4">
               <p className="font-mono text-xs text-suspended">{errorMsg}</p>
               <button
@@ -798,7 +799,7 @@ export function CafeContributionForm({
               </button>
             </div>
           )}
-        </div>
+        </>)} />
       </div>
     </div>
   );

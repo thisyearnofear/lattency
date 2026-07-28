@@ -12,6 +12,7 @@ import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
 import { AiVenueSummary } from "./ai-venue-summary";
 import { TickNumber } from "./tick-number";
 import { VTLink } from "./vt-link";
+import { CrossfadePanel } from "@/components/crossfade-panel";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -267,7 +268,7 @@ export function CafeDetail({
         aria-modal="true"
         aria-label={d ? `${d.name} details` : "Café details"}
         tabIndex={-1}
-        className={`absolute right-0 top-0 h-full w-full max-w-[440px] bg-cream border-l border-ink/80 shadow-[-12px_0_40px_rgba(26,22,18,0.25)] overflow-y-auto outline-none transition-transform duration-300 ease-out ${
+        className={`absolute right-0 top-0 full-dvh w-full max-w-[440px] bg-cream border-l border-ink/80 shadow-[-12px_0_40px_rgba(26,22,18,0.25)] overflow-y-auto outline-none transition-transform duration-300 ease-out pb-[env(safe-area-inset-bottom)] ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -452,7 +453,7 @@ function DrawerTabs({
       <div
         role="tablist"
         aria-label="Café detail sections"
-        className="flex flex-wrap items-center gap-1 mb-5"
+        className="flex flex-nowrap items-center gap-1 overflow-x-auto no-scrollbar mb-5 pb-px"
       >
         {tabs.map((t) => {
           const isActive = t.id === activeTab.id;
@@ -490,15 +491,22 @@ function DrawerTabs({
         })}
       </div>
 
-      <div
-        key={activeTab.id}
-        role="tabpanel"
-        id={`drawer-panel-${activeTab.id}`}
-        aria-labelledby={`drawer-tab-${activeTab.id}`}
-        className="panel-in"
-      >
-        {activeTab.content}
-      </div>
+      <CrossfadePanel
+        activeKey={activeTab.id}
+        className="min-h-[180px]"
+        render={(tabId) => {
+          const tab = tabs.find((t) => t.id === tabId);
+          return (
+            <div
+              role="tabpanel"
+              id={`drawer-panel-${tabId}`}
+              aria-labelledby={`drawer-tab-${tabId}`}
+            >
+              {tab?.content ?? null}
+            </div>
+          );
+        }}
+      />
     </div>
   );
 }
