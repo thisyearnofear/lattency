@@ -463,6 +463,51 @@ body {
   animation: panel-in var(--duration-base) var(--ease-out-soft) backwards;
 }
 
+/* Live network badge — the "the network is on" signal. A soft steady
+   heartbeat keeps it alive without demanding attention; on the first
+   successful connect in a session it plays one celebratory ring, then
+   settles. Square dot (not a rounded one) to match the newsprint identity. */
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: var(--color-express);
+  animation: live-heartbeat 2.4s ease-in-out infinite;
+}
+@keyframes live-heartbeat {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.live-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-ink);
+  box-shadow: 3px 4px 0 0 var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-express);
+}
+.live-stamp .live-dot { width: 6px; height: 6px; }
+/* One-shot celebration ring — fires once on first handshake per session. */
+@keyframes live-celebrate {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 109, 69, 0.45); }
+  70%  { box-shadow: 0 0 0 10px rgba(0, 109, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 109, 69, 0); }
+}
+.live-dot.live-celebrate {
+  animation:
+    live-celebrate 1.2s var(--ease-out-soft) both,
+    live-heartbeat 2.4s ease-in-out infinite;
+}
+.live-stamp.live-celebrate {
+  animation: live-celebrate 1.2s var(--ease-out-soft) both;
+}
+
 /* Navigation — the native View Transitions API crossfades the whole
    document by default; give the old page a quicker departure so the new
    one owns attention, and keep the sticky nav anchored as the spatial
@@ -528,7 +573,9 @@ body {
   .board-closing,
   .toast-out,
   .modal-entering,
-  .modal-closing {
+  .modal-closing,
+  .live-dot,
+  .live-dot.live-celebrate {
     animation: none;
     opacity: 1;
     stroke-dashoffset: 0;

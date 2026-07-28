@@ -12,7 +12,7 @@ import { slugify } from "@/lib/slug";
 import type { CafeCreationInput } from "@/lib/types";
 import { auth, authConfigured } from "@/auth";
 import { log, reqIdFrom } from "@/lib/log";
-import { base44Configured, b44CreateCafe } from "@/lib/base44-data";
+import { base44Configured, b44CreateCafe, b44ListCafes } from "@/lib/base44-data";
 import { getBase44 } from "@/lib/base44";
 
 // Force dynamic — each POST runs as a function.
@@ -20,6 +20,28 @@ export const dynamic = "force-dynamic";
 
 function badRequest(message: string): Response {
   return Response.json({ error: message }, { status: 400 });
+}
+
+// GET /api/cafes
+// Lightweight liveness probe for the "the network is on" badge. Returns the
+// real station count from Base44 so the client can celebrate a live handshake
+// instead of advertising a frozen demo. When Base44 is unconfigured (mock
+// snapshot) it reports `live: false` and the badge stays hidden — honesty over
+// a pretty number.
+export async function GET() {
+  if (!base44Configured) {
+    return Response.json({ count: 0, live: false });
+  }
+  try {
+    const cafes = await b44ListCafes({});
+    return Response.json({ count: cafes.length, live: true });
+  } catch (err) {
+    log.warn("liveness probe failed", {
+      scope: "cafes.get",
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return Response.json({ count: 0, live: false });
+  }
 }
 
 // POST /api/cafes

@@ -33,6 +33,7 @@ import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
 import { CafeDetail } from "./cafe-detail";
 import { CafeContributionForm } from "./cafe-contribution-form";
 import { useMapToast } from "./map-toast";
+import { LiveNetworkBadge } from "./live-network-badge";
 import { usePersonalTrail } from "@/hooks/use-personal-trail";
 
 // Anything farther than this from the active city's centre is treated as
@@ -791,6 +792,12 @@ export function MapShell({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Live network stamp, bottom-left — proof the map is backed by a
+          live backend, not a frozen demo. Hidden entirely when offline/mock. */}
+      <div className="absolute bottom-4 left-4 z-[500] pointer-events-none">
+        <LiveNetworkBadge variant="map" />
       </div>
 
       {/* Tap-target hint, bottom-right */}

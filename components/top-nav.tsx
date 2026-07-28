@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CitySwitcher } from "./city-switcher";
 import { BrandMark } from "./brand-mark";
 import { AuthSlot } from "./auth-slot";
+import { LiveNetworkBadge } from "./live-network-badge";
 import { CITIES, cityPath, DEFAULT_CITY_ID } from "@/lib/cities";
 
 /**
@@ -49,6 +50,10 @@ export function TopNav({
           <span aria-hidden className="text-ink-faint hidden md:inline">·</span>
           <div className="hidden md:block">
             <CitySwitcher current={currentCity} />
+          </div>
+          <span aria-hidden className="text-ink-faint hidden md:inline">·</span>
+          <div className="hidden md:block">
+            <LiveNetworkBadge variant="nav" />
           </div>
         </div>
 
