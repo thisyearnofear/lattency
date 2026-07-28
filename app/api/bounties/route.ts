@@ -1,8 +1,17 @@
 import { NextRequest } from "next/server";
-import { createBounty, type BountyCreationInput } from "@/lib/bounties";
+import { createBounty, getBounties, type BountyCreationInput } from "@/lib/bounties";
 import { log, reqIdFrom } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
+
+// GET /api/bounties?city=london
+// Returns open bounties, optionally filtered by city.
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const city = url.searchParams.get("city") ?? undefined;
+  const bounties = await getBounties(city ?? undefined);
+  return Response.json({ bounties });
+}
 
 // POST /api/bounties
 // Body: { goal, area, target, rewardNim, sponsor, sponsorKind, kind, expiresAt }

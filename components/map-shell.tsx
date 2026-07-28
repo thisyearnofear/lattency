@@ -29,6 +29,8 @@ import {
   waypointsForCity,
 } from "@/lib/map-data";
 import { CITIES } from "@/lib/cities";
+import { stalenessOpacity, needsFreshTest } from "@/lib/staleness";
+import { useCheckins } from "@/hooks/use-checkins";
 import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
 import { CafeDetail } from "./cafe-detail";
 import { CafeContributionForm } from "./cafe-contribution-form";
@@ -137,6 +139,7 @@ function SchematicLayer({
   onSelect,
   trailPoints,
   arrivalId,
+  checkins,
 }: {
   cafes: CafeStation[];
   waypoints: ReturnType<typeof waypointsForCity>;
@@ -145,6 +148,8 @@ function SchematicLayer({
   trailPoints?: Array<{ x: number; y: number }>;
   /** Cafe id that just arrived — gets an arrival ring + pop. */
   arrivalId?: string | null;
+  /** Check-in data for verification indicators. */
+  checkins?: Record<string, { verified: boolean }>;
 }) {
   return (
     <svg
@@ -279,6 +284,9 @@ function SchematicLayer({
             : "var(--color-ink)";
         const tint = TIER_TINT[cafe.tier];
         const justArrived = arrivalId === cafe.id;
+        const staleOpacity = stalenessOpacity(cafe.lastReadingAt);
+        const isStale = needsFreshTest(cafe.lastReadingAt);
+        const hasCheckIn = checkins?.[cafe.id]?.verified ?? false;
         return (
           <g
             key={cafe.id}
@@ -288,7 +296,7 @@ function SchematicLayer({
             role="button"
             tabIndex={0}
             aria-label={`Open ${cafe.name} details`}
-            style={{ cursor: "pointer" }}
+            style={{ cursor: "pointer", opacity: staleOpacity, transition: "opacity 400ms" }}
             className={`group ${justArrived ? "station-arrive" : ""}`}
           >
             {/* Arrival ring — radiates once when this station just landed. */}
@@ -351,6 +359,31 @@ function SchematicLayer({
                 />
               );
             })()}
+            {/* Verification indicator — a small check mark when the user
+                has checked in at this station (local data only). */}
+            {hasCheckIn && (
+              <g style={{ pointerEvents: "none" }}>
+                <circle cx={10} cy={-10} r={6} fill="var(--color-express)" />
+                <text x={10} y={-7} textAnchor="middle" fontFamily="var(--font-mono)" fontWeight={700} fontSize={9} fill="var(--color-cream)">✓</text>
+              </g>
+            )}
+            {/* Staleness watermark — "stale" text when the station needs
+                a fresh test. */}
+            {isStale && (
+              <text
+                x={0}
+                y={42}
+                textAnchor="middle"
+                fontFamily="var(--font-mono)"
+                fontSize={8}
+                letterSpacing="0.14em"
+                fill="var(--color-suspended)"
+                opacity={0.6}
+                style={{ pointerEvents: "none" }}
+              >
+                STALE
+              </text>
+            )}
             <NameLabel name={cafe.name} x={0} y={30} />
           </g>
         );
@@ -402,6 +435,7 @@ export function MapShell({
   const searchParams = useSearchParams();
   const toast = useMapToast();
   const { trail, addToTrail } = usePersonalTrail();
+  const checkinData = useCheckins();
 
   // Optimistic stations — dropped onto the map the moment a contribution is
   // submitted, before the API round-trips. Merged with the prop cafés.
@@ -750,6 +784,7 @@ export function MapShell({
             }}
             trailPoints={trailPoints}
             arrivalId={arrivalId}
+            checkins={checkinData.checkins}
           />
         </div>
       </div>

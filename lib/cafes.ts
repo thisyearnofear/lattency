@@ -482,7 +482,12 @@ export async function getCafeById(id: string): Promise<CafeDetail | null> {
     downMbps: Number(r.down_mbps),
   }));
 
-  return { ...station, distribution, recent };
+  // Derive lastReadingAt from the most recent measurement (already ordered
+  // DESC by measured_at). Falls back to the station's lastReadingAt if no
+  // recent readings exist.
+  const lastReadingAt = recent.length > 0 ? recent[0].measuredAt : station.lastReadingAt;
+
+  return { ...station, distribution, recent, lastReadingAt };
 }
 
 /**

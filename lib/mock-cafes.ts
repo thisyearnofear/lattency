@@ -728,3 +728,16 @@ export const MOCK_CAFES: CafeStation[] = [
     city: "sf",
   },
 ];
+
+// Assign varied lastReadingAt timestamps so the staleness feature is visible
+// on the demo map. Stations with more measurements get fresher dates; those
+// with 0 measurements get no timestamp (unknown staleness).
+const _now = Date.now();
+const _day = 24 * 60 * 60 * 1000;
+MOCK_CAFES.forEach((c, i) => {
+  if (c.measurementCount === 0) return;
+  // Spread across 0-45 days, weighted so higher-measurement cafés are fresher.
+  const maxAge = Math.max(2, 45 - c.measurementCount * 4);
+  const ageDays = (i * 7 + 3) % maxAge;
+  c.lastReadingAt = new Date(_now - ageDays * _day).toISOString();
+});

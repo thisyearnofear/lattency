@@ -136,6 +136,10 @@ export interface CafeStation {
   /** Active sponsorship for this venue, joined from `sponsorships`. Null when
    *  no sponsor is currently attached. */
   sponsor?: Sponsor | null;
+  /** ISO timestamp of the most recent measurement. Used for staleness decay
+   *  — stations visually fade after 14 days without a fresh reading. Optional
+   *  because mock data backfills it but the DB path may not return it yet. */
+  lastReadingAt?: string;
 }
 
 // One active sponsor per café (the partial unique index in migration 0007

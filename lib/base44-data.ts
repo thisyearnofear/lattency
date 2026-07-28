@@ -80,6 +80,7 @@ export async function b44GetCafeById(id: string): Promise<CafeDetail | null> {
     },
     photoUrl: (cafe.photo_url as string) ?? null,
     sponsor: null,
+    lastReadingAt: recent.length > 0 ? recent[0].measuredAt : undefined,
   };
 
   return { ...station, distribution, recent };

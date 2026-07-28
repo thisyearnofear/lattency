@@ -13,6 +13,8 @@ import { AiVenueSummary } from "./ai-venue-summary";
 import { TickNumber } from "./tick-number";
 import { VTLink } from "./vt-link";
 import { CrossfadePanel } from "@/components/crossfade-panel";
+import { useCheckins } from "@/hooks/use-checkins";
+import { stalenessLabel, needsFreshTest } from "@/lib/staleness";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -248,6 +250,65 @@ export function CafeDetail({
 
   const open = Boolean(station);
 
+  // ── Check-in state ────────────────────────────────────────────────────
+  const { checkIn, getCheckIn } = useCheckins();
+  const [checkInStatus, setCheckInStatus] = useState<"idle" | "pending" | "verified" | "far" | "denied">("idle");
+  const [checkInDistance, setCheckInDistance] = useState<number | null>(null);
+  const [receiptPhoto, setReceiptPhoto] = useState<string | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+
+  const existingCheckIn = station ? getCheckIn(station.id) : null;
+
+  // Reset check-in UI when the station changes — keyed on station id so
+  // switching between cafés resets the form without an effect.
+  const stationKey = station?.id ?? "";
+  const [prevStationKey, setPrevStationKey] = useState(stationKey);
+  if (stationKey !== prevStationKey) {
+    setPrevStationKey(stationKey);
+    setCheckInStatus(existingCheckIn?.verified ? "verified" : "idle");
+    setCheckInDistance(null);
+    setReceiptPhoto(existingCheckIn?.receiptPhoto ?? null);
+  }
+
+  function handleReceiptSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 800;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setReceiptPhoto(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleCheckIn() {
+    if (!station) return;
+    setCheckInStatus("pending");
+    try {
+      const { verified, distanceM } = await checkIn(
+        station.id,
+        station.lat,
+        station.lng,
+        receiptPhoto,
+      );
+      setCheckInDistance(Math.round(distanceM));
+      setCheckInStatus(verified ? "verified" : "far");
+    } catch {
+      setCheckInStatus("denied");
+    }
+  }
+
   return (
     <div
       aria-hidden={!open}
@@ -261,16 +322,20 @@ export function CafeDetail({
         }`}
       />
 
-      {/* Drawer */}
+      {/* Panel — centered overlay on desktop, bottom sheet on mobile */}
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={d ? `${d.name} details` : "Café details"}
         tabIndex={-1}
-        className={`absolute right-0 top-0 full-dvh w-full max-w-[440px] bg-cream border-l border-ink/80 shadow-[-12px_0_40px_rgba(26,22,18,0.25)] overflow-y-auto outline-none transition-transform duration-300 ease-out pb-[env(safe-area-inset-bottom)] ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`absolute bg-cream border-ink/80 shadow-[6px_8px_0_0_var(--color-ink)] overflow-y-auto outline-none transition-all duration-300 ease-out pb-[env(safe-area-inset-bottom)] ${
+          open
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none"
+        } max-h-[90dvh] w-full max-w-[640px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border ${
+          open ? "scale-100" : "scale-95"
+        } max-md:bottom-0 max-md:top-auto max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:max-h-[88dvh] max-md:w-full max-md:rounded-t-none`}
       >
         {d && (
           <div className="p-6 md:p-8">
@@ -348,6 +413,9 @@ export function CafeDetail({
             {d.measurementCount > 0 ? (
               <p className="font-mono text-[10px] tracking-[0.15em] uppercase text-ink-faint mt-3">
                 {d.measurementCount} measurements on file
+                {stalenessLabel(d.lastReadingAt) && (
+                  <span className="ml-2">· last: {stalenessLabel(d.lastReadingAt)}</span>
+                )}
                 {loading && <span className="ml-2 text-ink-faint/60">· syncing…</span>}
               </p>
             ) : (
@@ -356,6 +424,37 @@ export function CafeDetail({
                 <span className="ml-1 text-ink-faint">be the first under Contribute ↓</span>
               </p>
             )}
+
+            {/* Staleness banner — when a station hasn't been tested recently. */}
+            {needsFreshTest(d.lastReadingAt) && (
+              <div className="mt-3 border border-suspended/40 bg-suspended/5 px-4 py-2.5 flex items-center gap-3">
+                <span className="bg-suspended text-cream font-display font-black text-lg w-8 h-10 flex items-center justify-center shrink-0">
+                  !
+                </span>
+                <div>
+                  <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-suspended">
+                    This station needs a fresh test
+                  </p>
+                  <p className="font-serif italic text-[13px] text-ink-soft mt-0.5">
+                    Last reading {stalenessLabel(d.lastReadingAt)} — re-test to keep this station on the {d.tier} line.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Check-in — "I was here" confirmation. Geolocation proximity
+                check + optional receipt photo. Privacy-preserving: only the
+                verified boolean and photo are stored locally, never the
+                user's exact coordinates. */}
+            <CheckInSection
+              status={checkInStatus}
+              distance={checkInDistance}
+              receiptPhoto={receiptPhoto}
+              receiptInputRef={receiptInputRef}
+              onReceiptSelect={handleReceiptSelect}
+              onCheckIn={handleCheckIn}
+              existingCheckIn={existingCheckIn}
+            />
 
             {/* Tabbed sections — keeps the headline (tier + identity +
                 stats + signal quality) always visible while letting the
@@ -535,6 +634,167 @@ function EmptyTab({
       >
         <span aria-hidden>+</span> {ctaLabel}
       </button>
+    </div>
+  );
+}
+
+// ── Check-in section ──────────────────────────────────────────────────────
+// Privacy-preserving "I was here" confirmation. Verifies the user's
+// geolocation is within ~150m of the café, stores only the boolean result
+// + optional receipt photo locally. Never stores exact coordinates.
+
+type CheckInStatus = "idle" | "pending" | "verified" | "far" | "denied";
+
+function CheckInSection({
+  status,
+  distance,
+  receiptPhoto,
+  receiptInputRef,
+  onReceiptSelect,
+  onCheckIn,
+  existingCheckIn,
+}: {
+  status: CheckInStatus;
+  distance: number | null;
+  receiptPhoto: string | null;
+  receiptInputRef: React.RefObject<HTMLInputElement | null>;
+  onReceiptSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onCheckIn: () => void;
+  existingCheckIn: { verified: boolean; at: string; receiptPhoto?: string | null } | null;
+}) {
+  const alreadyCheckedIn = existingCheckIn?.verified ?? false;
+
+  return (
+    <div className="mt-5 pt-4 border-t border-ink/15">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="stamp">Check in here</p>
+        {alreadyCheckedIn && (
+          <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-express inline-flex items-center gap-1">
+            <span aria-hidden>✓</span> Verified visitor
+          </span>
+        )}
+      </div>
+
+      <p className="font-serif italic text-ink-soft text-sm mt-2 leading-snug">
+        Confirm you&rsquo;re at this café right now. We check your device
+        location against the café&rsquo;s coordinates — your exact position
+        is never stored, only the result.
+      </p>
+
+      {/* Receipt photo — optional, client-side resized */}
+      <input
+        ref={receiptInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={onReceiptSelect}
+        className="hidden"
+      />
+
+      {receiptPhoto ? (
+        <div className="mt-3 space-y-2">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Base64 preview */}
+          <img
+            src={receiptPhoto}
+            alt="Receipt or café photo"
+            className="w-full max-h-48 object-cover border border-ink/30"
+          />
+          <button
+            type="button"
+            onClick={() => receiptInputRef.current?.click()}
+            className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft hover:text-ink underline underline-offset-4"
+          >
+            Change photo
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => receiptInputRef.current?.click()}
+          className="mt-3 w-full py-2.5 border border-dashed border-ink/30 font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft hover:border-ink hover:text-ink transition-colors"
+        >
+          + Add receipt photo (optional)
+        </button>
+      )}
+
+      {/* Check-in button */}
+      {status === "idle" && !alreadyCheckedIn && (
+        <button
+          type="button"
+          onClick={onCheckIn}
+          className="mt-3 w-full py-2.5 bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase hover:bg-ink/90 transition-colors"
+        >
+          ◎ Check in here
+        </button>
+      )}
+
+      {status === "pending" && (
+        <button
+          type="button"
+          disabled
+          className="mt-3 w-full py-2.5 bg-ink/60 text-cream font-mono text-[11px] tracking-[0.22em] uppercase"
+        >
+          Checking your location…
+        </button>
+      )}
+
+      {status === "verified" && (
+        <div className="mt-3 border border-express/40 bg-express/5 px-4 py-3 flex items-center gap-3">
+          <span className="bg-express text-cream font-display font-black text-xl w-9 h-11 flex items-center justify-center shrink-0">
+            ✓
+          </span>
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-express">
+              Verified — you&rsquo;re here
+            </p>
+            <p className="font-serif italic text-[13px] text-ink-soft mt-0.5">
+              {distance !== null && `${distance}m from the pin · `}
+              Check-in stamped. Your exact location was not stored.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {status === "far" && (
+        <div className="mt-3 border border-local/40 bg-local/5 px-4 py-3 flex items-center gap-3">
+          <span className="bg-local text-cream font-display font-black text-xl w-9 h-11 flex items-center justify-center shrink-0">
+            !
+          </span>
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-local">
+              {distance !== null ? `${distance}m away` : "Too far"}
+            </p>
+            <p className="font-serif italic text-[13px] text-ink-soft mt-0.5">
+              You&rsquo;re more than 150m from this café. Try checking in
+              when you&rsquo;re inside.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {status === "denied" && (
+        <div className="mt-3 border border-suspended/40 bg-suspended/5 px-4 py-3">
+          <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-suspended">
+            Location permission denied
+          </p>
+          <p className="font-serif italic text-[13px] text-ink-soft mt-0.5">
+            Enable location access to verify your visit.
+          </p>
+        </div>
+      )}
+
+      {alreadyCheckedIn && status !== "verified" && (
+        <div className="mt-3 border border-express/30 bg-express/5 px-4 py-2.5 flex items-center gap-2">
+          <span aria-hidden className="text-express">✓</span>
+          <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft">
+            You checked in here{" "}
+            {new Date(existingCheckIn!.at).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

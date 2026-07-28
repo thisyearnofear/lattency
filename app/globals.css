@@ -333,6 +333,17 @@ body {
   animation: station-pop 500ms var(--ease-out-soft) backwards;
 }
 
+/* Celebration stamp — the post-contribution payoff. The tier badge
+   drops in with a bounce, like a passport stamp hitting the page. */
+@keyframes celebration-stamp {
+  0%   { transform: scale(2.2) rotate(-12deg); opacity: 0; }
+  60%  { transform: scale(0.92) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-3deg); opacity: 1; }
+}
+.celebration-stamp {
+  animation: celebration-stamp 600ms var(--ease-spring) both;
+}
+
 /* Ghost pin — a dashed roundel breathing to invite the first mapping. */
 @keyframes ghost-breathe {
   0%, 100% { opacity: 0.35; }
@@ -611,7 +622,8 @@ body {
   .modal-entering,
   .modal-closing,
   .live-dot,
-  .live-dot.live-celebrate {
+  .live-dot.live-celebrate,
+  .celebration-stamp {
     animation: none;
     opacity: 1;
     stroke-dashoffset: 0;

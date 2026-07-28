@@ -22,6 +22,7 @@ import { CITIES, DEFAULT_CITY_ID } from "@/lib/cities";
 import { postWithRetry } from "@/lib/fetch-retry";
 import { TIER_COLOUR, TIER_USE, tierForDown } from "@/lib/map-data";
 import { CrossfadePanel } from "@/components/crossfade-panel";
+import { ContributionCelebration } from "./contribution-celebration";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
 
@@ -180,6 +181,15 @@ export function CafeContributionForm({
   const [debug] = useState(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
   );
+  // Tracks the submission result for the celebration screen.
+  const [submitResult, setSubmitResult] = useState<{
+    slug: string;
+    tier: string;
+    downMbps: number;
+    name: string;
+    neighbourhood: string;
+    city: string;
+  } | null>(null);
 
   function closeWithExit() {
     setClosing(true);
@@ -328,7 +338,15 @@ export function CafeContributionForm({
         return;
       }
       setStep("done");
-      setTimeout(() => onSuccess(data.slug), 1500);
+      const tier = tierForDown(form.measurement.downMbps);
+      setSubmitResult({
+        slug: data.slug,
+        tier,
+        downMbps: form.measurement.downMbps,
+        name: form.name.trim(),
+        neighbourhood: form.neighbourhood.trim(),
+        city: form.city || currentCity,
+      });
     } catch (err) {
       setErrorMsg(`Network error: ${(err as Error).message}`);
       setStep("error");
@@ -776,15 +794,25 @@ export function CafeContributionForm({
             </div>
           )}
 
-          {renderStep === "done" && (
-            <div className="py-12 text-center space-y-3">
-              <p className="font-display font-black text-2xl text-express uppercase">
-                Mapped!
-              </p>
-              <p className="font-serif italic text-ink-soft text-sm">
-                {form.name} is now on the transit map. Redirecting…
-              </p>
-            </div>
+          {renderStep === "done" && submitResult && (
+            <ContributionCelebration
+              cafeName={submitResult.name}
+              neighbourhood={submitResult.neighbourhood}
+              city={submitResult.city}
+              tier={submitResult.tier}
+              downMbps={submitResult.downMbps}
+              onMapAnother={() => {
+                setForm(initialState(currentCity));
+                setTestState("idle");
+                setTestProgress(null);
+                setSubmitResult(null);
+                setStep("location");
+              }}
+              onViewCafe={() => {
+                closeWithExit();
+                setTimeout(() => onSuccess(submitResult.slug), 220);
+              }}
+            />
           )}
 
           {renderStep === "error" && (
