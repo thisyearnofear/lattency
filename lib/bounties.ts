@@ -1,11 +1,18 @@
 // Coffee bounties — pre-funded incentives for verified contributions.
-// Backed by Base44's Bounty entity (see base44/entities/Bounty.json), with
-// an in-memory + bundled fallback so the demo always renders even when
-// Base44 is unconfigured or cold. The fallback IS the seed data, kept in
-// sync by hand — see seeds/sponsorships_bounties.sql.
+//
+// Store layering: the Base44 Bounty entity is the live source of truth.
+// When Base44 is unconfigured (offline demo) or cold we fall back to a
+// bundled snapshot plus any bounties created in this process. Sponsor-created
+// bounties persist to Base44 when it is configured, so they survive
+// serverless cold starts instead of evaporating. Payout safety is enforced
+// by bountyState (durable lock + paid-set in Redis), independent of which
+// read source served the bounty.
 
 import { log } from "./log";
 import { base44Configured, getBase44 } from "./base44";
+import { b44MarkBountyPaid } from "./base44-data";
+import { cityDisplayName } from "./cities";
+import { bountyState } from "./bounty-state";
 
 export type { Bounty, BountyKind, BountyCreationInput } from "./bounty-types";
 export {
@@ -16,8 +23,13 @@ export {
 } from "./bounty-types";
 import type { Bounty, BountyCreationInput } from "./bounty-types";
 
-// Fallback snapshot served when Aurora is cold or returns no rows. Mirrors
-// the seed file so the UI is byte-for-byte the same as a live read.
+/** 1 NIM = 100,000 Lunas. */
+const LUNAS_PER_NIM = 100_000;
+/** Display price of a NIM bounty in USD (coffees). */
+const USD_PER_NIM = 0.05;
+
+// Fallback snapshot served when Base44 is unconfigured or returns no rows.
+// This IS the seed data, kept in sync by hand with the Base44 bounty seeds.
 const FALLBACK_BOUNTIES: Bounty[] = [
   // — London —
   {
@@ -189,52 +201,124 @@ const FALLBACK_BOUNTIES: Bounty[] = [
   },
 ];
 
-interface BountyRow {
+/**
+ * In-process store for sponsor-created bounties. Used ONLY when Base44 is
+ * unconfigured (offline demo) — with Base44 configured, createBounty writes
+ * a real entity instead. This array is process-local and does not survive
+ * cold starts; that is acceptable because it only backs the no-backend demo.
+ */
+const CREATED_BOUNTIES: Bounty[] = [];
+
+// Base44 Bounty entity row shape (snake_case, per base44/entities/Bounty.json).
+interface BountyEntity {
   id: string;
   title: string;
-  description: string | null;
-  reward: string | number;
-  reward_lunas: string | number | null;
-  target_city: string | null;
-  target_neighbourhood: string | null;
-  criteria: string | null;
-  status: string;
-  expires_at: string | null;
-  claimed_by_address: string | null;
-  tx_hash: string | null;
+  description?: string | null;
+  reward?: number;
+  reward_lunas?: number | null;
+  target_city?: string | null;
+  target_neighbourhood?: string | null;
+  criteria?: string | null;
+  target?: number;
+  progress?: number;
+  sponsor_name?: string | null;
+  sponsor_kind?: Bounty["sponsorKind"];
+  kind?: Bounty["kind"];
+  expires_at?: string | null;
+  status?: Bounty["status"];
+  claimed_by_address?: string | null;
+  tx_hash?: string | null;
 }
 
-function rowToBounty(r: BountyRow): Bounty {
+function rowToBounty(r: BountyEntity): Bounty {
+  const rewardNim = r.reward ?? Math.round((r.reward_lunas ?? 0) / LUNAS_PER_NIM);
   return {
     id: r.id,
     goal: r.title,
     area: [r.target_neighbourhood, r.target_city].filter(Boolean).join(" · "),
     city: r.target_city ?? undefined,
-    amountUsd: Math.round(Number(r.reward) * 0.05 * 100) / 100,
-    rewardNim: Number(r.reward),
-    target: 1,
-    progress: r.status === "paid" ? 1 : 0,
-    sponsor: r.description ?? "Anonymous",
-    sponsorKind: "community",
-    kind: "first-in-neighbourhood",
+    amountUsd: Math.round(rewardNim * USD_PER_NIM * 100) / 100,
+    rewardNim,
+    target: r.target ?? 1,
+    progress: r.progress ?? 0,
+    sponsor: r.sponsor_name ?? "Anonymous",
+    sponsorKind: r.sponsor_kind ?? "community",
+    kind: r.kind ?? "first-in-neighbourhood",
     expiresAt: r.expires_at ?? "",
-    status: r.status as Bounty["status"],
+    status: r.status ?? "open",
     claimedByAddress: r.claimed_by_address,
     txHash: r.tx_hash,
   };
 }
 
-/**
- * Returns the open coffee bounties — those not yet paid out. Reads from
- * Base44 when configured; falls back to the bundled snapshot otherwise.
- * Inline expiry: bounties past their expires_at are filtered out at read
- * time, so no cron job is needed to keep the board current.
- * When `city` is provided, only bounties for that city are returned.
- */
-export async function getBounties(city?: string): Promise<Bounty[]> {
-  let dbBounties: Bounty[] = [];
-  const now = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+/** Split an "Area · City" display string into its parts. */
+function splitArea(area: string): { neighbourhood: string; city: string | null } {
+  const parts = area.split("·").map((p) => p.trim());
+  if (parts.length >= 2) {
+    return { neighbourhood: parts[0], city: parts[parts.length - 1].toLowerCase() };
+  }
+  return { neighbourhood: area, city: null };
+}
 
+/** Synthetic founder-bounty id prefix. */
+const FOUNDER_PREFIX = "synth-founder-";
+
+export function buildFounderBounty(city: string): Bounty {
+  const name = cityDisplayName(city);
+  return {
+    id: `${FOUNDER_PREFIX}${city}`,
+    goal: `First café in ${name}`,
+    area: `${name} · Founder reward`,
+    city,
+    amountUsd: 2.5,
+    rewardNim: 50,
+    target: 1,
+    progress: 0,
+    sponsor: "Lattency",
+    sponsorKind: "community",
+    kind: "first-in-neighbourhood",
+    // Never expires — once a city is live the founder opportunity is taken.
+    expiresAt: "2099-12-31",
+    status: "open",
+  };
+}
+
+function injectFounderBounty(
+  bounties: Bounty[],
+  city: string | undefined,
+  cafeCount: number | undefined,
+): Bounty[] {
+  if (!city || cafeCount !== 0) return bounties;
+  const hasReal = bounties.some(
+    (b) => b.city === city && b.kind === "first-in-neighbourhood",
+  );
+  if (hasReal) return bounties;
+  return [buildFounderBounty(city), ...bounties];
+}
+
+/** Today as YYYY-MM-DD for inline expiry comparison. */
+function todayStamp(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** True when a bounty is past its expiry date. */
+function isExpired(bounty: Bounty, now: string): boolean {
+  return Boolean(bounty.expiresAt) && bounty.expiresAt < now;
+}
+
+/**
+ * Returns the open coffee bounties — those not yet paid out or expired.
+ * Reads from Base44 when configured; falls back to the bundled snapshot +
+ * in-process creations otherwise. Inline expiry replaces the legacy
+ * expire-bounties cron automation.
+ * When `city` is provided, only bounties for that city are returned.
+ * When `cafeCount` is 0, a synthetic founder bounty is injected so newly
+ * activated cities still have an incentive to map the first station.
+ */
+export async function getBounties(city?: string, cafeCount?: number): Promise<Bounty[]> {
+  const now = todayStamp();
+
+  let source: Bounty[];
   if (base44Configured) {
     try {
       const rows = (await getBase44().entities.Bounty.filter(
@@ -242,47 +326,54 @@ export async function getBounties(city?: string): Promise<Bounty[]> {
         "-created_date",
         100,
         0,
-      )) as unknown as BountyRow[];
-      dbBounties = rows
-        .map(rowToBounty)
-        // Inline expiry: filter out bounties past their expiry date.
-        // Replaces the legacy expire-bounties cron automation.
-        .filter((b) => !b.expiresAt || b.expiresAt >= now);
+      )) as unknown as BountyEntity[];
+      source = rows.map(rowToBounty);
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      log.warn("getBounties: Base44 read failed, serving fallback", { scope: "bounties", reason });
+      log.warn("getBounties: Base44 read failed, serving fallback", {
+        scope: "bounties",
+        reason: err instanceof Error ? err.message : String(err),
+      });
+      source = [...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES];
     }
+  } else {
+    source = [...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES];
   }
 
-  const merged =
-    dbBounties.length > 0
-      ? [...dbBounties, ...CREATED_BOUNTIES]
-      : [...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES];
+  // Inline expiry applies to every source; paid bounties are filtered via the
+  // durable bountyState set so a claimed bounty stays hidden across instances.
+  const paidIds = new Set(await bountyState.getPaidBounties());
+  const live = source.filter((b) => !isExpired(b, now) && !paidIds.has(b.id));
 
-  // Inline expiry applies to all sources (fallback, created, and Base44).
-  const live = merged.filter((b) => !b.expiresAt || b.expiresAt >= now);
-
-  // City filter: when called from a city page, only show that city's bounties.
-  if (city) return live.filter((b) => !b.city || b.city === city);
+  if (city) {
+    const cityLive = live.filter((b) => !b.city || b.city === city);
+    return injectFounderBounty(cityLive, city, cafeCount);
+  }
   return live;
 }
 
-/**
- * In-memory store for sponsor-created bounties. This lets the /partners
- * dashboard create real bounty entries without a working Aurora/Base44
- * write path. In production this is replaced by a database INSERT.
- */
-const CREATED_BOUNTIES: Bounty[] = [];
+/** Reset mutable bounty state. Exported only for tests. */
+export async function __resetBountyStateForTests(): Promise<void> {
+  await bountyState.resetForTests();
+  CREATED_BOUNTIES.length = 0;
+  for (const b of FALLBACK_BOUNTIES) {
+    b.status = "open";
+    b.claimedByAddress = undefined;
+    b.txHash = undefined;
+  }
+}
 
 /**
- * Create a new bounty. Returns the created bounty with a generated id.
+ * Create a new bounty. When Base44 is configured this persists a real
+ * entity (durable across cold starts); otherwise it lands in the
+ * process-local in-memory store. Returns the created bounty.
  */
 export async function createBounty(input: BountyCreationInput): Promise<Bounty> {
-  const bounty: Bounty = {
-    id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  const area = splitArea(input.area.trim());
+  const base: Omit<Bounty, "id"> = {
     goal: input.goal.trim(),
     area: input.area.trim(),
-    amountUsd: Math.round(input.rewardNim * 0.05 * 100) / 100,
+    city: area.city ?? undefined,
+    amountUsd: Math.round(input.rewardNim * USD_PER_NIM * 100) / 100,
     rewardNim: input.rewardNim,
     target: input.target,
     progress: 0,
@@ -293,29 +384,88 @@ export async function createBounty(input: BountyCreationInput): Promise<Bounty> 
     status: "open",
   };
 
-  CREATED_BOUNTIES.push(bounty);
-  log.info("bounty created", { scope: "bounties.create", bountyId: bounty.id, rewardNim: bounty.rewardNim });
+  if (base44Configured) {
+    try {
+      const created = (await getBase44().entities.Bounty.create({
+        title: base.goal,
+        description: base.sponsor,
+        reward: base.rewardNim,
+        currency: "NIM",
+        reward_lunas: base.rewardNim * LUNAS_PER_NIM,
+        target_city: base.city ?? null,
+        target_neighbourhood: area.neighbourhood,
+        criteria: base.kind,
+        target: base.target,
+        progress: 0,
+        sponsor_name: base.sponsor,
+        sponsor_kind: base.sponsorKind,
+        kind: base.kind,
+        expires_at: base.expiresAt,
+        active: true,
+        status: "open",
+      })) as { id: string };
+      const bounty: Bounty = { ...base, id: created.id };
+      log.info("bounty created (Base44)", {
+        scope: "bounties.create",
+        bountyId: bounty.id,
+        rewardNim: bounty.rewardNim,
+      });
+      return bounty;
+    } catch (err) {
+      // Persist failed — fall back to in-memory so the sponsor still sees a
+      // confirmation. Degrades to the offline-demo behaviour.
+      log.warn("createBounty: Base44 create failed, storing in-memory", {
+        scope: "bounties.create",
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
+  const bounty: Bounty = {
+    ...base,
+    id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  };
+  CREATED_BOUNTIES.push(bounty);
+  log.info("bounty created (in-memory)", {
+    scope: "bounties.create",
+    bountyId: bounty.id,
+    rewardNim: bounty.rewardNim,
+  });
   return bounty;
 }
 
 /**
- * Mark a bounty as paid. Searches the in-memory fallback + created stores.
- * In production this would update the database row.
+ * Persist a bounty as paid. Always records the payout in the durable
+ * bountyState set (the double-claim guard); when Base44 is configured it
+ * also updates the entity. Best-effort: a Base44 failure still marks the
+ * local mirror so the same process can't double-claim while it's down.
  */
 export async function markBountyPaid(
   bountyId: string,
   claimedByAddress: string,
   txHash: string,
 ): Promise<void> {
-  const bounty =
+  // Fallback/created bounties live only in memory; don't waste a Base44 call.
+  const inMemory =
     CREATED_BOUNTIES.find((b) => b.id === bountyId) ??
     FALLBACK_BOUNTIES.find((b) => b.id === bountyId);
-  if (!bounty) return;
 
-  bounty.status = "paid";
-  bounty.claimedByAddress = claimedByAddress;
-  bounty.txHash = txHash;
+  if (!inMemory && base44Configured) {
+    // Persist to Base44 first so the source of truth updates before the
+    // in-memory mirror.
+    const ok = await b44MarkBountyPaid(bountyId, claimedByAddress, txHash);
+    if (!ok) {
+      log.error("Base44 bounty paid update failed", { scope: "bounties.paid", bountyId });
+    }
+  }
+
+  if (inMemory) {
+    inMemory.status = "paid";
+    inMemory.claimedByAddress = claimedByAddress;
+    inMemory.txHash = txHash;
+  }
+
+  await bountyState.markPaid(bountyId);
 
   log.info("bounty marked paid", {
     scope: "bounties.paid",
@@ -323,4 +473,54 @@ export async function markBountyPaid(
     claimedByAddress,
     txHash,
   });
+}
+
+/**
+ * Create a real Base44 Bounty entity representing the founder reward for a
+ * newly activated city. Called when the first café in a city is created.
+ * Idempotent — returns the existing entity id if the founder bounty for
+ * this city already exists. Returns null when Base44 is unavailable.
+ */
+export async function createFounderBountyEntity(city: string): Promise<string | null> {
+  if (!base44Configured) return null;
+  const name = cityDisplayName(city);
+  try {
+    const existing = (await getBase44().entities.Bounty.filter(
+      { target_city: city, criteria: "first-cafe" },
+      "-created_date",
+      1,
+      0,
+    )) as unknown as Array<{ id: string }>;
+    if (existing.length > 0) {
+      return existing[0].id;
+    }
+
+    const created = (await getBase44().entities.Bounty.create({
+      title: `First café in ${name}`,
+      description: `Founder reward for the first café mapped in ${name}`,
+      reward: 50,
+      currency: "NIM",
+      reward_lunas: 50 * LUNAS_PER_NIM,
+      target_city: city,
+      target_neighbourhood: "",
+      criteria: "first-cafe",
+      target: 1,
+      progress: 1,
+      sponsor_name: "Lattency",
+      sponsor_kind: "community",
+      kind: "first-in-neighbourhood",
+      expires_at: "2099-12-31",
+      active: true,
+      status: "open",
+    })) as { id: string };
+    log.info("founder bounty entity created", { scope: "bounties.founder.create", city, bountyId: created.id });
+    return created.id;
+  } catch (err) {
+    log.warn("founder bounty entity creation failed", {
+      scope: "bounties.founder.create",
+      city,
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }

@@ -2,15 +2,16 @@ import { NextRequest, after } from "next/server";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import {
   deviceTypeFromUA,
-  insertMeasurement,
-  refreshStatsView,
+  resolveTestMethod,
   validateMeasurement,
 } from "@/lib/measurements";
 import type { MeasurementInput } from "@/lib/types";
-import { auth, authConfigured } from "@/auth";
 import { log, reqIdFrom } from "@/lib/log";
 import { base44Configured, b44InsertMeasurement } from "@/lib/base44-data";
 import { getBase44 } from "@/lib/base44";
+import { addLocalMeasurement } from "@/lib/local-contributions";
+
+export const dynamic = "force-dynamic";
 
 function badRequest(message: string): Response {
   return Response.json({ error: message }, { status: 400 });
@@ -18,7 +19,8 @@ function badRequest(message: string): Response {
 
 // POST /api/measurements
 // Body: { cafeId, downMbps, upMbps, latencyMs, jitterMs?, lossPct?, measuredAt?, ... }
-// Inserts → rate-limit check → outlier flag → refreshes cafe_speed_stats CONCURRENTLY.
+// Validates → rate-limits → records. device_type and test_method provenance
+// are derived server-side, never trusted from the client.
 export async function POST(req: NextRequest) {
   const reqId = reqIdFrom(req);
   let body: MeasurementInput;
@@ -44,7 +46,8 @@ export async function POST(req: NextRequest) {
     req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip"),
   );
 
-  const allowed = await checkRateLimit(ipHash, { table: "measurements", cafeId: body.cafeId });
+  // One reading per café per IP per 10 minutes. Active on every backend.
+  const allowed = await checkRateLimit(ipHash, { kind: "measurement", cafeId: body.cafeId });
   if (!allowed) {
     return Response.json(
       { error: "Rate limited — you've already logged a reading for this café recently. Try again in a few minutes." },
@@ -53,16 +56,10 @@ export async function POST(req: NextRequest) {
   }
 
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
-  // Legacy Auth.js session hits the dead pg adapter; skip it when Base44 is
-  // the backend (userId attribution is best-effort, not a trust boundary).
-  const session = authConfigured && !base44Configured ? await auth() : null;
-  const userId = session?.user?.id ?? null;
-
   const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
 
-  // Base44 write path — bypasses the dead Postgres MV machinery. The
-  // stats aggregation happens on read (get-cafe-stats function), so there
-  // is no materialized view to refresh.
+  // Base44 write path — stats aggregation happens on read (get-cafe-stats),
+  // so there is no materialized view to refresh.
   if (base44Configured) {
     let measurementId: string;
     try {
@@ -81,7 +78,6 @@ export async function POST(req: NextRequest) {
         downloadBytes: body.downloadBytes ?? null,
         downloadDurationMs: body.downloadDurationMs ?? null,
         contributorIpHash: ipHash,
-        contributorUserId: userId,
       });
     } catch (err) {
       log.error("Base44 measurement insert failed", {
@@ -117,34 +113,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let measurementId: string;
-  try {
-    measurementId = await insertMeasurement(body, ipHash, deviceType, undefined, userId);
-  } catch (err) {
-    const msg = (err as Error).message;
-    if (msg.includes("measurements_cafe_id_fkey")) {
-      return Response.json({ error: "cafe not found" }, { status: 404 });
-    }
-    throw err;
+  // Mock-mode write path: append to the process-local overlay. A null return
+  // means the café id is unknown (neither created here nor in the snapshot).
+  const measurementId = addLocalMeasurement(
+    body.cafeId,
+    body,
+    resolveTestMethod(body),
+  );
+  if (!measurementId) {
+    return Response.json({ error: "cafe not found" }, { status: 404 });
   }
 
-  // Defer the materialized-view refresh until after the response. The
-  // throttle in refreshStatsView() coalesces bursts; Postgres serializes
-  // any genuinely concurrent attempts via the CONCURRENTLY lock.
-  after(async () => {
-    try {
-      await refreshStatsView();
-    } catch (err) {
-      log.warn("MV refresh after measurement insert failed", {
-        reqId,
-        scope: "contribute.measurement",
-        reason: err instanceof Error ? err.message : String(err),
-      });
-    }
-  });
-
   return Response.json(
-    { measurementId, measuredAt: measuredAt.toISOString() },
+    { measurementId, measuredAt: measuredAt.toISOString(), mock: true },
     { status: 201 },
   );
 }

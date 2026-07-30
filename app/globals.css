@@ -85,7 +85,7 @@ body {
 /* Subtle hover for station roundels. */
 .transit-svg g.station {
   cursor: pointer;
-  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 200ms var(--ease-out-soft);
   transform-box: fill-box;
   transform-origin: center;
 }
@@ -126,7 +126,7 @@ body {
   to   { opacity: 1; transform: translateY(0); letter-spacing: -0.02em; }
 }
 .mast-title {
-  animation: mast-rise 800ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: mast-rise 800ms var(--ease-out-soft) both;
 }
 
 /* Drifting steam wisps rising from the masthead title (coffee identity). */
@@ -279,7 +279,7 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 .msg-in {
-  animation: msg-rise 350ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: msg-rise 350ms var(--ease-out-soft) both;
 }
 
 /* Concierge thinking dots — a staggered blink while the oracle consults
@@ -304,7 +304,7 @@ body {
   100% { opacity: 1; transform: translateY(0) rotate(0); }
 }
 .toast-in {
-  animation: toast-thud 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: toast-thud 380ms var(--ease-out-soft) both;
 }
 
 /* City switcher rows — a quick split-flap cascade when the board opens. */
@@ -314,7 +314,7 @@ body {
 }
 .flap-row {
   transform-origin: top center;
-  animation: flap-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: flap-in 260ms var(--ease-out-soft) both;
 }
 
 /* New / promoted station — a single arrival ring radiates out. */
@@ -323,7 +323,7 @@ body {
   100% { r: 44; opacity: 0; }
 }
 .arrival-ring {
-  animation: arrival-ring 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: arrival-ring 1.2s var(--ease-out-soft) both;
 }
 
 /* A newly-arrived station pops into place once. */
@@ -385,7 +385,7 @@ body {
   from { stroke-dasharray: 0 100; }
   to   { stroke-dasharray: 100 0; }
 }
-.sb-line-grow { animation: sb-line-grow 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.sb-line-grow { animation: sb-line-grow 700ms var(--ease-out-soft) both; }
 @keyframes sb-bar-fill {
   from { width: 0%; }
   to   { width: 10%; }

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Map data layer — shared between cinematic-map.tsx and transit-map.tsx.
+// Map data layer — shared between map-shell.tsx and cinematic-map.tsx.
 // Viewbox constants, tier paths, station waypoints, neighbourhoods, and the
 // world-city constellation used by the global finale.
 // ─────────────────────────────────────────────────────────────────────────────

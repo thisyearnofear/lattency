@@ -1,14 +1,9 @@
-// Measurement insert logic — shared between POST /api/measurements and
-// POST /api/cafes (which creates a café + its first measurement in one
-// transaction). Single source of truth for provenance derivation, time
-// bucketing, and the INSERT statement.
-//
-// Extracted from app/api/measurements/route.ts to avoid duplicating the
-// insert + provenance logic across two endpoints.
+// Measurement helpers — provenance derivation + input validation, shared
+// between POST /api/measurements and POST /api/cafes. Server-side only:
+// device class, test-method provenance, and outlier flags are derived
+// here, never trusted from the client.
 
-import { query, type Executor } from "./db";
-import { isOutlierReading } from "./rate-limit";
-import type { MeasurementInput, TestMethod, TimeBucket } from "./types";
+import type { MeasurementInput, TestMethod } from "./types";
 
 // Derives a coarse device class from the User-Agent. Server-side only —
 // the client never sends this, so it can't be spoofed.
@@ -28,19 +23,6 @@ export function resolveTestMethod(body: MeasurementInput): TestMethod {
   return hasAutoMetadata ? "browser-auto" : "manual";
 }
 
-export function deriveTimeBucket(measuredAt: Date): TimeBucket {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Africa/Nairobi",
-      hour: "numeric",
-      hour12: false,
-    }).format(measuredAt),
-  );
-  if (hour < 12) return "morning";
-  if (hour < 17) return "afternoon";
-  return "evening";
-}
-
 export function validateMeasurement(body: MeasurementInput): string | null {
   if (!Number.isFinite(body.downMbps) || body.downMbps < 0 || body.downMbps > 10_000)
     return "downMbps must be a number between 0 and 10000";
@@ -56,100 +38,19 @@ export function validateMeasurement(body: MeasurementInput): string | null {
 }
 
 /**
- * Insert a measurement. Used by both POST /api/measurements and
- * POST /api/cafes. Returns the measurement ID.
+ * Detects whether a reading is a statistical outlier relative to the
+ * café's existing measurements. Flags readings that are >5x or <0.2x the
+ * current median, but only when there are already ≥3 measurements on file.
  *
- * Does NOT do rate-limiting — the caller is responsible for that.
- * Does NOT refresh the materialized view — the caller does that
- * (once, after any additional inserts in the same transaction).
- *
- * Pass `exec` to participate in a surrounding `withTransaction` block; omit
- * it for the simple one-shot insert path used by POST /api/measurements.
- * The outlier check intentionally uses the pool (committed state) because
- * the MV it reads doesn't include the in-flight insert anyway.
+ * Pure — the caller supplies the café's current median + count. Never
+ * rejects — the flag just excludes the reading from aggregate stats.
  */
-export async function insertMeasurement(
-  body: MeasurementInput,
-  ipHash: string | null,
-  deviceType: string | null,
-  exec: Executor = query,
-  contributorUserId: string | null = null,
-): Promise<string> {
-  const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
-  const timeBucket = deriveTimeBucket(measuredAt);
-  const testMethod = resolveTestMethod(body);
-  const outlier = await isOutlierReading(body.cafeId, body.downMbps);
-
-  const insert = await exec<{ id: string }>(
-    `
-    INSERT INTO measurements
-      (cafe_id, down_mbps, up_mbps, latency_ms, jitter_ms, loss_pct,
-       measured_at, time_bucket, contributor_id, photo_url,
-       test_method, target_server, device_type, download_bytes, download_duration_ms,
-       contributor_ip_hash, is_outlier, contributor_user_id)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-    RETURNING id
-    `,
-    [
-      body.cafeId,
-      body.downMbps,
-      body.upMbps,
-      body.latencyMs,
-      body.jitterMs ?? null,
-      body.lossPct ?? null,
-      measuredAt.toISOString(),
-      timeBucket,
-      body.contributorId ?? null,
-      body.photoUrl ?? null,
-      testMethod,
-      body.targetServer ?? null,
-      deviceType,
-      body.downloadBytes ?? null,
-      body.downloadDurationMs ?? null,
-      ipHash,
-      outlier,
-      contributorUserId,
-    ],
-  );
-
-  return insert.rows[0].id;
-}
-
-/**
- * Refresh the materialized view. Called after any measurement / café
- * insert. Within a serverless instance we throttle and coalesce so a
- * burst of writes triggers at most one refresh per window — Postgres
- * still serializes any genuinely concurrent attempts via the CONCURRENTLY
- * lock, but the throttle avoids hammering the lock in the first place.
- *
- * Callers should pair this with `next/server`'s `after()` so the refresh
- * runs after the HTTP response is sent (see app/api/cafes/route.ts).
- */
-const REFRESH_THROTTLE_MS = 15_000;
-let refreshInFlight: Promise<void> | null = null;
-let lastRefreshAt = 0;
-
-export async function refreshStatsView(): Promise<void> {
-  if (refreshInFlight) return refreshInFlight;
-  if (Date.now() - lastRefreshAt < REFRESH_THROTTLE_MS) return;
-
-  refreshInFlight = (async () => {
-    try {
-      await query("REFRESH MATERIALIZED VIEW CONCURRENTLY cafe_speed_stats");
-    } finally {
-      lastRefreshAt = Date.now();
-      refreshInFlight = null;
-    }
-  })();
-  return refreshInFlight;
-}
-
-/** Bypass the throttle — used by the scheduled warmer / debounce cron
- *  when we want the refresh to definitely happen. */
-export async function refreshStatsViewNow(): Promise<void> {
-  try {
-    await query("REFRESH MATERIALIZED VIEW CONCURRENTLY cafe_speed_stats");
-  } finally {
-    lastRefreshAt = Date.now();
-  }
+export function isOutlierReading(
+  medianDownMbps: number,
+  measurementCount: number,
+  downMbps: number,
+): boolean {
+  if (measurementCount < 3) return false;
+  if (!Number.isFinite(medianDownMbps) || medianDownMbps <= 0) return false;
+  return downMbps > medianDownMbps * 5 || downMbps < medianDownMbps * 0.2;
 }

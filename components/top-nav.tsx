@@ -1,34 +1,35 @@
 import Link from "next/link";
 import { CitySwitcher } from "./city-switcher";
 import { BrandMark } from "./brand-mark";
-import { AuthSlot } from "./auth-slot";
 import { LiveNetworkBadge } from "./live-network-badge";
-import { CITIES, cityPath, DEFAULT_CITY_ID } from "@/lib/cities";
+import { cityPath, DEFAULT_CITY_ID, type LiveCity } from "@/lib/cities";
 
 /**
  * Thin sticky nav surfaced on every primary route. Stays a synchronous
- * server component so the pages it sits on can be statically prerendered
- * — the auth-aware UI lives in `<AuthSlot/>`, which fetches the session
- * client-side after hydration.
+ * server component so the pages it sits on can be statically prerendered.
  *
  * - `current` controls the active route highlight
  * - `currentCity` controls the active city in the city switcher dropdown
+ * - `currentCityName` is used when the city is not one of the curated three
+ * - `liveCities` populates the switcher with cities that actually have cafés
  *
  * Layout: BrandMark · wordmark · CitySwitcher  on the left.
- *          Map · Partners · AuthSlot · (+ Map a café CTA) on the right.
+ *          Map · Partners · (+ Map a café CTA) on the right.
  * The CTA links to /{city}?contribute=1 so any city page can open the
  * contribution modal automatically — useful from any sub-route.
  */
 export function TopNav({
   current,
   currentCity = DEFAULT_CITY_ID,
+  currentCityName,
+  liveCities,
 }: {
-  current: "app" | "tour" | "partners" | "me" | "auth";
+  current: "app" | "tour" | "partners";
   currentCity?: string;
+  currentCityName?: string;
+  liveCities?: LiveCity[];
 }) {
-  const cityHome = cityPath(
-    currentCity && CITIES[currentCity] ? currentCity : DEFAULT_CITY_ID,
-  );
+  const cityHome = cityPath(currentCity || DEFAULT_CITY_ID);
   const contributeHref = `${cityHome}?contribute=1`;
 
   return (
@@ -50,7 +51,11 @@ export function TopNav({
             <span className="hidden min-[400px]:inline">Lattency</span>
           </Link>
           <span aria-hidden className="text-ink-faint hidden sm:inline">·</span>
-          <CitySwitcher current={currentCity} />
+          <CitySwitcher
+            current={currentCity}
+            currentName={currentCityName}
+            liveCities={liveCities}
+          />
           {/* The live status dot is ambient nav chrome — hide it below md to
               preserve room for the actions on small screens. */}
           <span aria-hidden className="text-ink-faint hidden md:inline">·</span>
@@ -95,7 +100,12 @@ export function TopNav({
             Partners
           </Link>
 
-          <AuthSlot current={current} />
+          <Link
+            href="/speedtest"
+            className="text-ink-soft hover:text-ink transition-colors hidden sm:inline"
+          >
+            Test my wifi
+          </Link>
 
           {/* Primary CTA — ink-filled so it reads as the action of the nav. */}
           <Link

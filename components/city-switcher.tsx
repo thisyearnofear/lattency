@@ -4,9 +4,9 @@
 // lib/cities.ts; adding a city there automatically surfaces it here.
 // "Coming soon" slots are static teases of the global expansion story.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CITIES, CITY_ORDER, cityPath } from "@/lib/cities";
+import { CITIES, CITY_ORDER, cityPath, type LiveCity } from "@/lib/cities";
 import type { CityId } from "@/lib/types";
 import { VTLink } from "./vt-link";
 
@@ -24,7 +24,15 @@ const SOON_CITIES: SoonCity[] = [
   { id: "kigali", name: "Kigali", country: "Rwanda" },
 ];
 
-export function CitySwitcher({ current }: { current?: string }) {
+export function CitySwitcher({
+  current,
+  currentName,
+  liveCities,
+}: {
+  current?: string;
+  currentName?: string;
+  liveCities?: LiveCity[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   // Board stays mounted while closing so the split-flap exit plays before
@@ -32,9 +40,19 @@ export function CitySwitcher({ current }: { current?: string }) {
   const [mounted, setMounted] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  const cities = useMemo(
+    () => liveCities ?? CITY_ORDER.map((id) => ({ ...CITIES[id], count: 0 })),
+    [liveCities],
+  );
+
   const activeName =
-    (current && CITIES[current]?.name) ?? CITIES[CITY_ORDER[0]]?.name ?? "Cities";
-  const liveCount = CITY_ORDER.length;
+    currentName ??
+    (current && CITIES[current]?.name) ??
+    cities.find((c) => c.id === current)?.name ??
+    CITIES[CITY_ORDER[0]]?.name ??
+    "Cities";
+  const liveCount = cities.filter((c) => c.count > 0 || CITY_ORDER.includes(c.id)).length;
 
   const openBoard = useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -51,10 +69,10 @@ export function CitySwitcher({ current }: { current?: string }) {
   // feels like a departure-board flip instead of a page load.
   useEffect(() => {
     if (!open) return;
-    for (const cityId of CITY_ORDER) {
-      if (cityId !== current) router.prefetch(cityPath(cityId));
+    for (const city of cities) {
+      if (city.id !== current) router.prefetch(cityPath(city.id));
     }
-  }, [open, current, router]);
+  }, [open, current, cities, router]);
 
   // Click-outside to close.
   useEffect(() => {
@@ -112,13 +130,13 @@ export function CitySwitcher({ current }: { current?: string }) {
           </div>
 
           <ul className="max-h-[60vh] overflow-y-auto">
-            {CITY_ORDER.map((cityId, i) => {
-              const city = CITIES[cityId];
-              const isCurrent = cityId === current;
+            {cities.map((city, i) => {
+              const isCurrent = city.id === current;
+              const isCurated = city.id in CITIES;
               return (
-                <li key={cityId} className="flap-row" style={{ animationDelay: `${i * 45}ms` }}>
+                <li key={city.id} className="flap-row" style={{ animationDelay: `${i * 45}ms` }}>
                   <VTLink
-                    href={cityPath(cityId)}
+                    href={cityPath(city.id)}
                     onClick={() => closeBoard()}
                     aria-current={isCurrent ? "page" : undefined}
                     className={`pressable w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left ${
@@ -130,11 +148,11 @@ export function CitySwitcher({ current }: { current?: string }) {
                         {city.name}
                       </p>
                       <p className="font-serif italic text-xs mt-0.5 text-ink-soft">
-                        {city.country}
+                        {isCurated ? CITIES[city.id].country : `${city.count} station${city.count === 1 ? "" : "s"}`}
                       </p>
                     </div>
-                    <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-express">
-                      {isCurrent ? "Active" : "Live"}
+                    <span className={`font-mono text-[9px] tracking-[0.22em] uppercase ${isCurrent ? "text-express" : "text-ink-faint"}`}>
+                      {isCurrent ? "Active" : isCurated ? "Live" : "Live"}
                     </span>
                   </VTLink>
                 </li>
@@ -174,7 +192,7 @@ export function CitySwitcher({ current }: { current?: string }) {
           <div className="px-4 py-3 border-t border-ink/15 bg-cream-edge/40">
             <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
               Your city missing?{" "}
-              <a href={`${cityPath(current && CITIES[current] ? current : CITY_ORDER[0])}?contribute=1`} className="text-ink">
+              <a href={`${cityPath(current || CITY_ORDER[0])}?contribute=1`} className="text-ink">
                 Map a café →
               </a>
             </p>

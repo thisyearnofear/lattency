@@ -8,6 +8,7 @@
 // check-ins are local to the device, keyed by café id.
 
 import { useCallback, useState } from "react";
+import { haversineKm } from "@/lib/geo";
 
 const STORAGE_KEY = "lattency:checkins:v1";
 
@@ -33,22 +34,6 @@ function readCheckIns(): CheckInMap {
 
 const PROXIMITY_THRESHOLD_M = 150;
 
-function haversineMeters(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-): number {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
 export function useCheckins() {
   const [checkins, setCheckins] = useState<CheckInMap>(readCheckIns);
 
@@ -61,10 +46,11 @@ export function useCheckins() {
         }
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            const distanceM = haversineMeters(
-              { lat: pos.coords.latitude, lng: pos.coords.longitude },
-              { lat: cafeLat, lng: cafeLng },
-            );
+            const distanceM =
+              haversineKm(
+                { lat: pos.coords.latitude, lng: pos.coords.longitude },
+                { lat: cafeLat, lng: cafeLng },
+              ) * 1000;
             const verified = distanceM <= PROXIMITY_THRESHOLD_M;
             const entry: CheckIn = {
               cafeId,

@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getCafes } from "@/lib/cafes";
-import { CITIES, isCuratedCity } from "@/lib/cities";
+import { resolveCityConfig } from "@/lib/cities";
 import type { Tier } from "@/lib/types";
 
 export const alt = "Lattency — city wifi map";
@@ -25,18 +25,8 @@ export default async function CityOGImage({
   params: Promise<{ city: string }>;
 }) {
   const { city } = await params;
-  const config = isCuratedCity(city) ? CITIES[city] : null;
-  if (!config) {
-    return new ImageResponse(
-      (
-        <div style={{ width: "100%", height: "100%", background: "#F4ECD8", color: "#1A1612", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif" }}>
-          <span style={{ fontSize: 72, fontWeight: 900 }}>City not found</span>
-        </div>
-      ),
-      { ...size },
-    );
-  }
-
+  const allCafes = await getCafes({ all: true });
+  const config = resolveCityConfig(city, allCafes);
   const cafes = await getCafes({ city });
   const tierCounts: Record<Tier, number> = { express: 0, local: 0, suspended: 0 };
   for (const c of cafes) tierCounts[c.tier]++;
@@ -69,7 +59,7 @@ export default async function CityOGImage({
           }}
         >
           <span>Lattency · Metro Map</span>
-          <span>{config.country}</span>
+          <span>{config.country || "Global Network"}</span>
         </div>
 
         {/* Top hairline */}

@@ -9,7 +9,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Local development
 
 - **Always run the dev server on a random high port** (e.g. `PORT=$(( (RANDOM % 20000) + 40000 )) pnpm dev`), never the default 3000. Multiple projects share this machine and fixed ports collide; a random port avoids serving the wrong app. Echo the chosen port so it's discoverable.
-- The homepage (`/`) redirects to `/london` (the default city in `lib/cities.ts`). Each curated city is served by the dynamic route `app/[city]/page.tsx`. The app degrades gracefully to bundled mock data (`lib/mock-cafes.ts`) when Base44 is unconfigured (`NEXT_PUBLIC_BASE44_APP_ID` unset), so `pnpm dev` works without any backend. Set the app ID in `.env.local` to talk to the live Base44 backend.
+- The homepage (`/`) redirects to `/london` (the default city in `lib/cities.ts`). Each curated city is served by the dynamic route `app/[city]/page.tsx`. The app degrades gracefully to bundled mock data (`lib/mock-cafes.ts`) when Base44 is unconfigured (`NEXT_PUBLIC_BASE44_APP_ID` unset), so `pnpm dev` works without any backend — including the full contribution flow (writes land in the process-local overlay, `lib/local-contributions.ts`). Set the app ID in `.env.local` to talk to the live Base44 backend.
 - **`app/opengraph-image.tsx` is `force-dynamic`** — the Turbopack build-time prerender of `next/og` (satori) crashes on this Next.js 16.3 preview. Deferring to runtime keeps `next build` green and the OG image renders correctly on-demand (1200×630 PNG). When editing the OG image JSX, avoid `undefined` CSS values (satori calls `.trim()` on them — use conditional spread instead) and ensure every multi-child `<div>` has `display: flex`.
 
 ## Speed test infrastructure
@@ -17,13 +17,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `pnpm dev` and `pnpm build` both run `scripts/gen-speedtest-blobs.ts` first, which generates `public/speedtest/download.bin` (10 MB random blob). This file is gitignored — it's reproducible from the script. If you see a "download.bin not found" error, run `pnpm exec tsx scripts/gen-speedtest-blobs.ts` manually.
 - The in-browser speed test (`lib/speedtest.ts`) is client-side only. It hits three endpoints: `GET /speedtest/download.bin` (static), `POST /api/speedtest/upload` (discard), and HEAD requests to the blob for ping/jitter/loss.
 - `GET /api/speedtest/whereami` returns the Vercel edge region from `x-vercel-id`. In local dev this returns `{ edge: null }` (no Vercel header) — that's expected, not a bug.
-- Rate-limiting (`lib/rate-limit.ts`) uses SHA-256 hashed IPs. In local dev without `x-forwarded-for`, the rate-limit check is skipped (returns `true`). To test rate-limiting locally, pass `X-Forwarded-For` header in your curl request. Two scopes: measurements (one per IP+cafe per 10min) and café creation (one per IP per hour).
+- Rate-limiting (`lib/rate-limit.ts`) uses SHA-256 hashed IPs with fixed-window counters. Backend: Upstash Redis when `UPSTASH_REDIS_REST_URL`/`TOKEN` are set (shared across instances); otherwise an in-process Map (single-instance dev). Fails open on backend errors. In local dev without `x-forwarded-for`, the check is skipped (returns `true`). To test rate-limiting locally, pass `X-Forwarded-For` header in your curl request. Three scopes: measurements (one per IP+cafe per 10min), café creation (one per IP per hour), and bounty creation (five per IP per hour).
 
 ## Open contribution platform (v9)
 
 - `POST /api/cafes` creates a café + its first measurement in one flow. The measurement is mandatory — a café doesn't appear on the map without a real speed reading. This is the trust mechanism.
 - `lib/cafe-metadata.ts` is the single source of truth for coffee metadata vocabulary (price tiers, milk options, seating types) and validation. Use `validateCafeMetadata()` server-side and `metadataChips()` / `formatMetadata()` for display.
-- `lib/measurements.ts` contains the shared measurement-insert logic, extracted from the measurements route so both `POST /api/measurements` and `POST /api/cafes` use the same code (DRY).
+- `lib/measurements.ts` contains shared pure helpers (device-type derivation, test-method provenance, input validation, outlier detection) used by both write endpoints. No DB access — pure functions only.
+- `lib/local-contributions.ts` is the mock-mode write overlay. When Base44 is unconfigured, POST /api/cafes and POST /api/measurements write to this process-local store instead of crashing. Reads merge the overlay over the bundled snapshot (`lib/cafes.ts` handles the merge). Process-local only — serverless instances don't share it.
 - Photos are stored as Base64 data URLs in the Cafe/Measurement entities. Production should use Base44 file storage. The contribution form resizes to 800px JPEG quality 80 client-side before upload.
 - `CityId` is now `string` (not a union) to support user-generated cities. `CITIES` in `lib/cities.ts` remains the registry of curated cities with schematic layouts. User-generated cafés carry a `city` string and get transit maps generated by `computeWaypoints`.
 - **Multi-city routing**: Every curated city is served by `app/[city]/page.tsx` (SSG via `generateStaticParams`). `/` redirects to the default city (`DEFAULT_CITY_ID`). Adding a city is one entry in the `CITIES` registry + `CITY_ORDER` array. The `CitySwitcher` and `TopNav` derive live cities from these automatically.
@@ -41,8 +42,13 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 | `lib/base44.ts` | SDK client singleton + `base44Configured` gate |
 | `lib/base44-data.ts` | Data-access layer: `b44ListCafes`, `b44GetCafeById`, `b44InsertMeasurement`, `b44CreateCafe` |
 | `lib/base44-auth.ts` | Auth wrapper (Base44 `auth.me()`, password login, logout) |
-| `lib/bounties.ts` | Bounty logic: reads Base44 entity, falls back to in-memory snapshot |
-| `lib/bounty-types.ts` | Client-safe types + helpers (no `pg` import — safe for browser bundle) |
+| `lib/bounties.ts` | Bounty logic: reads Base44 entity, persists sponsor-created bounties to Base44, falls back to in-memory |
+| `lib/bounty-types.ts` | Client-safe types + helpers (no server-only imports — safe for browser bundle) |
+| `lib/bounty-state.ts` | Durable state for bounty operations (lock + paid-set). Factory lazy-loads Redis impl when configured |
+| `lib/bounty-state-kv.ts` | Redis-backed BountyState with Lua CAS scripts for lock release/extend |
+| `lib/rate-limit.ts` | Fixed-window rate limiter. Redis backend (Upstash) or in-memory fallback |
+| `lib/local-contributions.ts` | Mock-mode write overlay (process-local café + measurement store) |
+| `lib/geo.ts` | Canonical haversine (km) — single implementation for all distance math |
 | `base44/entities/` | Entity schemas: Cafe, Measurement, Sponsorship, Bounty |
 | `base44/functions/` | 7 Deno backend functions (service role) |
 | `base44/agents/workspace_concierge.jsonc` | AI agent config |
@@ -51,10 +57,11 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 ### Architecture decisions
 
 - **No `output: 'export'`** — we keep Next.js API routes as thin adapters that call Base44 SDK server-side. This preserves SSR, OG image generation, and the speedtest endpoints.
-- **`lib/db.ts` is lazy** — the pg pool is a Proxy that throws only when accessed. Modules that still import `query` for their type signatures don't crash at module load. Aurora is never actually connected.
-- **`auth.ts` is a shim** — Auth.js (next-auth) was removed. The shim exports `auth()`, `signIn()`, `signOut()`, `handlers`, and `authConfigured = false` so existing imports compile. Base44 auth is browser-side.
+- **No Postgres, no `pg` dep, no `lib/db.ts`** — Aurora was fully retired. All former SQL paths are deleted (not flagged or proxied). The only durable backend is Base44.
+- **No Auth.js** — `auth.ts` and the `/api/auth/*` routes are deleted. Base44 auth is browser-side (`lib/base44-auth.ts`). Server routes run in anonymous-contributor mode.
 - **`@nimiq/core` is externalized** — `serverExternalPackages: ["@nimiq/core"]` in `next.config.ts` prevents Turbopack from bundling its WASM. It's lazy-imported inside `executeNimiqPayout()`.
-- **Rate-limiting is skipped when Base44 is configured** — the SQL checks would throw against non-existent tables. The in-browser speed test is the natural spam gate at hackathon scale.
+- **Rate-limiting is always active** — Redis-backed when Upstash is configured, in-memory otherwise. Covers measurements, café creation, and bounty creation. Fails open on backend errors.
+- **Bounty state is durable** — `lib/bounty-state.ts` provides a lock + paid-set interface. When `UPSTASH_REDIS_REST_URL`/`TOKEN` are set, state survives serverless cold starts via Redis Lua CAS scripts. In-memory is the dev/test fallback.
 
 ### Base44 backend functions
 
@@ -66,7 +73,8 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 | `create-cafe` | SDK invoke | Atomic café + first measurement (two-phase, service role) |
 | `generate-venue-summary` | SDK invoke | AI one-liner via `InvokeLLM`, cached on `Cafe.ai_summary` |
 | `update-bounty-progress` | Entity-event (Measurement create) | Bumps bounty progress, flags claimable |
-| `expire-bounties` | Scheduled cron (daily 00:30 UTC) | Deactivates expired bounties |
+
+Bounty expiry is handled inline at read time (`getBounties` filters past `expires_at`), so no cron job is needed to keep the board current.
 
 ### Frontend surfaces
 
@@ -84,6 +92,9 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 | `NIMIQ_NETWORK` | `mainnet`, `testnet` (default), or `devnet` |
 | `NIMIQ_RPC_URL` | JSON-RPC endpoint override |
 | `NIMIQ_PAYOUT_MOCK` | Set `1` to force mock even with a key |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis endpoint — durable rate limits + bounty locks when set |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis token |
+| `UPSTASH_REDIS_KEY_PREFIX` | Optional key namespace prefix for the Redis-backed stores |
 
 ### Deploy workflow
 

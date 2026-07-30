@@ -108,8 +108,16 @@ function BountyCard({ bounty, index }: { bounty: Bounty; index: number }) {
   );
 }
 
-export async function BountiesBoard({ limit, city }: { limit?: number; city?: string }) {
-  const all = await getBounties(city);
+export async function BountiesBoard({
+  limit,
+  city,
+  cafeCount,
+}: {
+  limit?: number;
+  city?: string;
+  cafeCount?: number;
+}) {
+  const all = await getBounties(city, cafeCount);
   const items = limit ? all.slice(0, limit) : all;
   return (
     <section

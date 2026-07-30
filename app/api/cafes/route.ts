@@ -1,19 +1,15 @@
 import { NextRequest, after } from "next/server";
-import { withTransaction } from "@/lib/db";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import { validateCafeMetadata } from "@/lib/cafe-metadata";
-import {
-  deviceTypeFromUA,
-  insertMeasurement,
-  refreshStatsView,
-  validateMeasurement,
-} from "@/lib/measurements";
+import { deviceTypeFromUA, validateMeasurement } from "@/lib/measurements";
+import { DEFAULT_CITY_ID } from "@/lib/cities";
 import { slugify } from "@/lib/slug";
 import type { CafeCreationInput } from "@/lib/types";
-import { auth, authConfigured } from "@/auth";
 import { log, reqIdFrom } from "@/lib/log";
-import { base44Configured, b44CreateCafe, b44ListCafes } from "@/lib/base44-data";
+import { base44Configured, b44CreateCafe } from "@/lib/base44-data";
 import { getBase44 } from "@/lib/base44";
+import { createFounderBountyEntity } from "@/lib/bounties";
+import { addLocalCafe } from "@/lib/local-contributions";
 
 // Force dynamic — each POST runs as a function.
 export const dynamic = "force-dynamic";
@@ -33,7 +29,10 @@ export async function GET() {
     return Response.json({ count: 0, live: false });
   }
   try {
-    const cafes = await b44ListCafes({});
+    const res = await getBase44().functions.invoke("list-cafes", {});
+    const anyRes = res as Record<string, unknown> | null;
+    const data = (anyRes?.data ?? anyRes) as Record<string, unknown> | null;
+    const cafes = (data?.cafes as unknown[]) ?? [];
     return Response.json({ count: cafes.length, live: true });
   } catch (err) {
     log.warn("liveness probe failed", {
@@ -50,7 +49,7 @@ export async function GET() {
 // speed reading. This is the trust mechanism: you can't seed fake cafés.
 //
 // Body: CafeCreationInput (see lib/types.ts)
-// Returns: { cafeId, slug, measurementId }
+// Returns: { cafeId, slug, measurementId, city }
 export async function POST(req: NextRequest) {
   const reqId = reqIdFrom(req);
   let body: CafeCreationInput;
@@ -82,11 +81,11 @@ export async function POST(req: NextRequest) {
   // Validate + clean metadata
   const metadata = validateCafeMetadata(body.metadata ?? {});
 
-  // Rate-limit café creation: one per IP per hour
+  // Rate-limit café creation: one per IP per hour. Active on every backend.
   const ipHash = hashIp(
     req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip"),
   );
-  const allowed = await checkRateLimit(ipHash, { table: "cafes" });
+  const allowed = await checkRateLimit(ipHash, { kind: "cafe" });
   if (!allowed) {
     return Response.json(
       { error: "Rate limited — you've already mapped a café recently. Try again in an hour." },
@@ -95,15 +94,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Derive city: use the provided city (lowercased so "Nairobi" / "nairobi"
-  // collapse to the same bucket), or default to 'nairobi' for backwards
-  // compat. In a production system this would reverse-geocode from lat/lng.
-  const city = body.city?.trim().toLowerCase() || "nairobi";
-
+  // collapse to the same bucket), or the curated default. A production
+  // system would reverse-geocode from lat/lng.
+  const city = body.city?.trim().toLowerCase() || DEFAULT_CITY_ID;
+  const slug = slugify(body.name);
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
-  // Legacy Auth.js session hits the dead pg adapter; skip it on the Base44
-  // backend where userId attribution is best-effort.
-  const session = authConfigured && !base44Configured ? await auth() : null;
-  const userId = session?.user?.id ?? null;
 
   // Base44 write path — the create-cafe function creates the venue + first
   // measurement atomically (two-phase with rollback) under service role.
@@ -130,7 +125,6 @@ export async function POST(req: NextRequest) {
           wifi_network: metadata.wifiNetwork ?? null,
           photo_url: body.photo,
           created_by_ip_hash: ipHash,
-          created_by_user_id: userId,
         },
         measurement: {
           cafeId: "", // set server-side from the created cafe id
@@ -147,18 +141,22 @@ export async function POST(req: NextRequest) {
           downloadBytes: body.measurement.downloadBytes ?? null,
           downloadDurationMs: body.measurement.downloadDurationMs ?? null,
           contributorIpHash: ipHash,
-          contributorUserId: userId,
         },
       });
-      // Fire-and-forget: update bounty progress for the new café's measurement.
+      // Fire-and-forget: materialize a real founder bounty in Base44 so the
+      // reward is durable and claimable across serverless invocations, then
+      // update normal bounty progress for the new café. The helper is
+      // idempotent (it checks for an existing first-cafe bounty), so we can
+      // safely call it on every café creation.
       after(async () => {
         try {
+          await createFounderBountyEntity(city);
           await getBase44().functions.invoke("update-bounty-progress", {
             cafe_id: cafeId,
             down_mbps: body.measurement.downMbps,
           });
         } catch (err) {
-          log.warn("bounty progress update failed (non-fatal)", {
+          log.warn("bounty progress/founder update failed (non-fatal)", {
             reqId,
             scope: "contribute.cafe.bounty",
             reason: err instanceof Error ? err.message : String(err),
@@ -167,7 +165,7 @@ export async function POST(req: NextRequest) {
       });
 
       return Response.json(
-        { cafeId, slug: slugify(body.name), measurementId, city },
+        { cafeId, slug, measurementId, city },
         { status: 201 },
       );
     } catch (err) {
@@ -183,91 +181,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Insert café + first measurement in one transaction. If either fails,
-  // both roll back — no orphaned café rows when a recording is being made
-  // and a flaky network blips. The MV refresh runs AFTER commit because
-  // REFRESH ... CONCURRENTLY cannot live inside a transaction.
-  let cafeId: string;
-  let measurementId: string;
-  try {
-    ({ cafeId, measurementId } = await withTransaction(async (tx) => {
-      const cafeInsert = await tx<{ id: string }>(
-        `
-        INSERT INTO cafes
-          (name, neighbourhood, lat, lng, location, vibe, city,
-           price_tier, milk_options, power_outlets, seating, wifi_network,
-           photo_url, created_by_ip_hash, created_by_user_id)
-        VALUES ($1, $2, $3, $4,
-          ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography,
-          $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-        RETURNING id
-        `,
-        [
-          body.name.trim(),
-          body.neighbourhood.trim(),
-          body.lat,
-          body.lng,
-          body.vibe?.trim() || null,
-          city,
-          metadata.priceTier ?? null,
-          metadata.milkOptions ?? null,
-          metadata.powerOutlets ?? null,
-          metadata.seating ?? null,
-          metadata.wifiNetwork ?? null,
-          body.photo,
-          ipHash,
-          userId,
-        ],
-      );
-      const newCafeId = cafeInsert.rows[0].id;
-      const newMeasurementId = await insertMeasurement(
-        { ...body.measurement, cafeId: newCafeId },
-        ipHash,
-        deviceType,
-        tx,
-        userId,
-      );
-      return { cafeId: newCafeId, measurementId: newMeasurementId };
-    }));
-  } catch (err) {
-    const msg = (err as Error).message;
-    if (msg.includes("check_price_tier"))
-      return badRequest("invalid price_tier");
-    if (msg.includes("check_seating"))
-      return badRequest("invalid seating type");
-    log.error("POST /api/cafes failed (rolled back)", {
-      reqId,
-      scope: "contribute.cafe",
-      reason: msg,
-    });
-    return Response.json(
-      { error: "couldn't create café — please try again" },
-      { status: 500 },
-    );
-  }
-
-  // Defer the materialized-view refresh until after the response is sent.
-  // `after()` keeps the function instance alive past the response so the
-  // client doesn't pay for refresh latency; the throttle in
-  // refreshStatsView() coalesces bursts so concurrent writes share one
-  // refresh. Errors are swallowed because the café is already committed
-  // and will appear on the next refresh anyway.
-  after(async () => {
-    try {
-      await refreshStatsView();
-    } catch (err) {
-      log.warn("MV refresh after café creation failed", {
-        reqId,
-        scope: "contribute.cafe",
-        reason: err instanceof Error ? err.message : String(err),
-      });
-    }
-  });
-
-  const slug = slugify(body.name);
+  // Mock-mode write path: land the café + first reading in the process-local
+  // overlay so the whole contribution flow works offline (the reading is
+  // still mandatory — that trust gate never relaxes).
+  const { cafeId, measurementId } = addLocalCafe(
+    {
+      name: body.name.trim(),
+      neighbourhood: body.neighbourhood.trim(),
+      lat: body.lat,
+      lng: body.lng,
+      city,
+      vibe: body.vibe?.trim() ?? "",
+      venueType: body.venueType ?? "cafe",
+      metadata,
+      photoUrl: body.photo,
+    },
+    { ...body.measurement, cafeId: "" },
+    body.measurement.testMethod ?? "manual",
+  );
 
   return Response.json(
-    { cafeId, slug, measurementId, city },
+    { cafeId, slug, measurementId, city, mock: true },
     { status: 201 },
   );
 }

@@ -226,7 +226,10 @@ async function measureUpload(
 
 // ─── Stats helpers ───────────────────────────────────────────────────────
 
-function median(values: number[]): number {
+// Exported for unit tests — the statistical core behind latency (median RTT),
+// jitter (mean absolute deviation), and Mbps rounding.
+
+export function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0
@@ -234,12 +237,12 @@ function median(values: number[]): number {
     : sorted[mid];
 }
 
-function meanAbsoluteDeviation(values: number[]): number {
+export function meanAbsoluteDeviation(values: number[]): number {
   const med = median(values);
   return values.reduce((sum, v) => sum + Math.abs(v - med), 0) / values.length;
 }
 
-function round(value: number, decimals: number): number {
+export function round(value: number, decimals: number): number {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
 }

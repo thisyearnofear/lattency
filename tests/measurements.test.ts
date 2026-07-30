@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   deviceTypeFromUA,
   resolveTestMethod,
-  deriveTimeBucket,
   validateMeasurement,
+  isOutlierReading,
 } from "@/lib/measurements";
 
 describe("deviceTypeFromUA", () => {
@@ -40,18 +40,6 @@ describe("resolveTestMethod", () => {
   });
 });
 
-describe("deriveTimeBucket (Africa/Nairobi)", () => {
-  it("returns morning for a 7am-ish UTC stamp (10am Nairobi)", () => {
-    expect(deriveTimeBucket(new Date("2026-06-29T07:00:00Z"))).toBe("morning");
-  });
-  it("returns afternoon for a 12 UTC stamp (3pm Nairobi)", () => {
-    expect(deriveTimeBucket(new Date("2026-06-29T12:00:00Z"))).toBe("afternoon");
-  });
-  it("returns evening for a 17 UTC stamp (8pm Nairobi)", () => {
-    expect(deriveTimeBucket(new Date("2026-06-29T17:00:00Z"))).toBe("evening");
-  });
-});
-
 describe("validateMeasurement", () => {
   const ok = { cafeId: "x", downMbps: 50, upMbps: 10, latencyMs: 25 };
   it("accepts a clean reading", () => {
@@ -71,5 +59,24 @@ describe("validateMeasurement", () => {
   });
   it("rejects NaN values", () => {
     expect(validateMeasurement({ ...ok, latencyMs: Number.NaN })).toMatch(/latency/);
+  });
+});
+
+describe("isOutlierReading", () => {
+  it("never flags when there are fewer than 3 existing measurements", () => {
+    expect(isOutlierReading(50, 2, 500)).toBe(false);
+  });
+  it("flags a reading more than 5x the median", () => {
+    expect(isOutlierReading(50, 5, 260)).toBe(true);
+  });
+  it("flags a reading below 0.2x the median", () => {
+    expect(isOutlierReading(50, 5, 9)).toBe(true);
+  });
+  it("does not flag a reading within the expected band", () => {
+    expect(isOutlierReading(50, 5, 55)).toBe(false);
+  });
+  it("does not flag when the median is not usable", () => {
+    expect(isOutlierReading(0, 5, 500)).toBe(false);
+    expect(isOutlierReading(Number.NaN, 5, 500)).toBe(false);
   });
 });

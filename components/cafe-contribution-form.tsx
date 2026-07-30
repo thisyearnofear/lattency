@@ -23,6 +23,7 @@ import { postWithRetry } from "@/lib/fetch-retry";
 import { TIER_COLOUR, TIER_USE, tierForDown } from "@/lib/map-data";
 import { CrossfadePanel } from "@/components/crossfade-panel";
 import { ContributionCelebration } from "./contribution-celebration";
+import { SpeedTestRunning } from "./speed-test-running";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
 
@@ -146,6 +147,38 @@ function initialState(city: string): FormState {
   };
 }
 
+// When the user arrives from /speedtest with a completed test, seed the
+// measurement and skip straight to the photo step. Consumed synchronously at
+// mount (the form mounts fresh on navigation) so no post-render effect is
+// needed. Returns null when there is no usable prefill.
+function consumeSpeedTestPrefill(): {
+  measurement: MeasurementInput;
+} | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem("lattency:speedtest:prefill");
+    if (!raw) return null;
+    const prefill = JSON.parse(raw) as SpeedTestResult;
+    sessionStorage.removeItem("lattency:speedtest:prefill");
+    return {
+      measurement: {
+        cafeId: "pending",
+        downMbps: prefill.downMbps,
+        upMbps: prefill.upMbps,
+        latencyMs: prefill.latencyMs,
+        jitterMs: prefill.jitterMs,
+        lossPct: prefill.lossPct,
+        targetServer: prefill.targetServer ?? undefined,
+        downloadBytes: prefill.downloadBytes,
+        downloadDurationMs: prefill.downloadDurationMs,
+      },
+    };
+  } catch {
+    // Ignore corrupt prefill data.
+    return null;
+  }
+}
+
 export function CafeContributionForm({
   onClose,
   onSuccess,
@@ -170,13 +203,22 @@ export function CafeContributionForm({
     photo?: string | null;
   }) => void;
 }) {
-  const [step, setStep] = useState<Step>("location");
+  // If the user arrived from /speedtest with a pre-filled result, consume it
+  // at mount so we can seed the measurement and skip straight to the photo
+  // step without a post-render effect.
+  const [prefill] = useState(() => consumeSpeedTestPrefill());
+  const [step, setStep] = useState<Step>(() => (prefill ? "photo" : "location"));
   // Exit phase — play modal-out before the parent unmounts us.
   const [closing, setClosing] = useState(false);
-  const [form, setForm] = useState<FormState>(() => initialState(currentCity));
+  const [form, setForm] = useState<FormState>(() => {
+    const base = initialState(currentCity);
+    return prefill ? { ...base, measurement: prefill.measurement } : base;
+  });
   const [errorMsg, setErrorMsg] = useState("");
   const [testProgress, setTestProgress] = useState<SpeedTestProgress | null>(null);
-  const [testState, setTestState] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [testState, setTestState] = useState<"idle" | "running" | "done" | "error">(
+    () => (prefill ? "done" : "idle"),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [debug] = useState(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
@@ -860,104 +902,3 @@ function Stat({ label, value, unit }: { label: string; value: string; unit: stri
   );
 }
 
-// Speed-test "live" panel — three phase chips (ping / download / upload),
-// a real-time numeric readout for the active phase, and skeleton tiles
-// for the four result stats so the user sees where the numbers are about
-// to land. Replaces the previous bare progress bar.
-function SpeedTestRunning({ progress }: { progress: SpeedTestProgress }) {
-  const phases: Array<{ id: SpeedTestProgress["phase"]; label: string }> = [
-    { id: "ping", label: "Ping" },
-    { id: "download", label: "Download" },
-    { id: "upload", label: "Upload" },
-  ];
-  const phaseIndex = phases.findIndex((p) => p.id === progress.phase);
-  // `done` falls past the last phase — clamp to 100% in that case.
-  const widthPct =
-    progress.phase === "done"
-      ? 100
-      : phaseIndex < 0
-        ? 5
-        : ((phaseIndex + 0.85) / phases.length) * 100;
-
-  const liveLabel =
-    progress.phase === "ping"
-      ? "Pinging the edge…"
-      : progress.phase === "download"
-        ? progress.downMbps !== undefined
-          ? `${progress.downMbps.toFixed(1)} Mbps down`
-          : "Streaming the 10 MB blob…"
-        : progress.phase === "upload"
-          ? progress.upMbps !== undefined
-            ? `${progress.upMbps.toFixed(1)} Mbps up`
-            : "Uploading test payloads…"
-          : "Wrapping up…";
-
-  return (
-    <div className="space-y-4">
-      {/* Phase track */}
-      <div className="grid grid-cols-3 gap-2">
-        {phases.map((p, i) => {
-          const isActive = p.id === progress.phase;
-          const isDone = i < phaseIndex || progress.phase === "done";
-          return (
-            <div
-              key={p.id}
-              className={[
-                "border px-2 py-1.5 transition-colors duration-300",
-                isActive
-                  ? "border-express bg-express/10 text-ink"
-                  : isDone
-                    ? "border-ink/40 bg-cream text-ink-soft"
-                    : "border-ink/15 bg-cream-edge/40 text-ink-faint",
-              ].join(" ")}
-            >
-              <div className="flex items-center justify-between font-mono text-[9px] tracking-[0.18em] uppercase">
-                <span>{p.label}</span>
-                <span aria-hidden>
-                  {isDone ? "✓" : isActive ? "●" : "○"}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Live readout */}
-      <div className="font-mono text-sm text-ink min-h-[1.25rem] flex items-center gap-2">
-        <span
-          aria-hidden
-          className="inline-block w-2 h-2 rounded-full bg-express animate-pulse"
-        />
-        {liveLabel}
-      </div>
-
-      {/* Animated bar */}
-      <div className="h-1 bg-ink/10 overflow-hidden">
-        <div
-          className="h-full bg-express transition-all duration-500 ease-out"
-          style={{ width: `${widthPct}%` }}
-        />
-      </div>
-
-      {/* Result skeleton — four tiles that the actual numbers slot into. */}
-      <div
-        aria-hidden
-        className="grid grid-cols-4 gap-2 pt-2 opacity-50"
-      >
-        {["DOWN", "UP", "PING", "JITTER"].map((label) => (
-          <div key={label} className="border border-dashed border-ink/20 py-2">
-            <div className="font-mono text-[8px] tracking-[0.14em] uppercase text-ink-faint">
-              {label}
-            </div>
-            <div className="mt-1 h-4 bg-ink/10 animate-pulse" />
-            <div className="mt-1 h-2 bg-ink/5" />
-          </div>
-        ))}
-      </div>
-
-      <p className="font-mono text-[10px] text-ink-faint leading-snug">
-        Round-trip recorded against the nearest Vercel edge. ~12 seconds.
-      </p>
-    </div>
-  );
-}

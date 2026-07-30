@@ -1,23 +1,23 @@
 import { NextRequest } from "next/server";
 import { executeNimiqPayout } from "@/lib/nimiq-payout";
 import { log, reqIdFrom } from "@/lib/log";
+import { bountyState, CLAIM_LOCK_TTL_MS } from "@/lib/bounty-state";
 import type { Bounty } from "@/lib/bounties";
 import { markBountyPaid } from "@/lib/bounties";
 
 export const dynamic = "force-dynamic";
 
-// In-memory lock so a single request can't double-claim while the mock payout
-// is in flight. Production would lean on the DB row lock.
-const claiming = new Set<string>();
+/** How often to refresh the claim lock while a payout is in flight. */
+const LOCK_REFRESH_MS = 30_000;
 
 interface ClaimRequest {
   bountyId: string;
   nimiqAddress: string;
 }
 
-// Mock eligibility check against the current fallback bounties. In production,
-// this would query the live Base44 / Aurora bounties table, verify progress,
-// and mark the row as `claiming` under a transaction.
+// Eligibility check against the current fallback + Base44 bounties. In
+// production, this would query the live Base44 / Aurora bounties table,
+// verify progress, and mark the row as `claiming` under a transaction.
 async function findEligibleBounty(
   bountyId: string,
 ): Promise<Bounty | null> {
@@ -50,13 +50,32 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "valid Nimiq address required" }, { status: 400 });
   }
 
-  if (claiming.has(bountyId)) {
+  // Lock the bounty for the duration of the claim. TTL is generous so
+  // slow RPC broadcasts don't lose exclusivity mid-flight. The lock is
+  // refreshed regularly while the payout is in progress.
+  const lockToken = await bountyState.tryAcquireClaimLock(bountyId, {
+    ttlMs: CLAIM_LOCK_TTL_MS,
+  });
+  if (!lockToken) {
     return Response.json({ error: "claim already in progress" }, { status: 409 });
   }
 
-  try {
-    claiming.add(bountyId);
+  // Keep refreshing the lock from the moment we own it. If the request
+  // fails fast, finally will clear the interval before it fires.
+  const extendInterval = setInterval(() => {
+    bountyState
+      .extendClaimLock(bountyId, lockToken, { ttlMs: CLAIM_LOCK_TTL_MS })
+      .catch((err) => {
+        log.error("failed to extend claim lock", {
+          reqId,
+          scope: "bounties.claim",
+          bountyId,
+          reason: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, LOCK_REFRESH_MS);
 
+  try {
     const bounty = await findEligibleBounty(bountyId);
     if (!bounty) {
       return Response.json({ error: "bounty not eligible for claim" }, { status: 400 });
@@ -81,10 +100,32 @@ export async function POST(req: NextRequest) {
       txHash,
     });
   } catch (err) {
+    // Log the raw reason server-side but return a generic message to the
+    // client — payout internals must not leak to callers.
     const reason = err instanceof Error ? err.message : String(err);
     log.error("bounty claim failed", { reqId, scope: "bounties.claim", reason });
-    return Response.json({ error: reason }, { status: 500 });
+    return Response.json(
+      { error: "payout failed — please try again" },
+      { status: 500 },
+    );
   } finally {
-    claiming.delete(bountyId);
+    if (extendInterval) clearInterval(extendInterval);
+    try {
+      const released = await bountyState.releaseClaimLock(bountyId, lockToken);
+      if (!released) {
+        log.warn("claim lock was not released (token may have expired)", {
+          reqId,
+          scope: "bounties.claim",
+          bountyId,
+        });
+      }
+    } catch (releaseErr) {
+      log.error("failed to release claim lock", {
+        reqId,
+        scope: "bounties.claim",
+        bountyId,
+        reason: releaseErr instanceof Error ? releaseErr.message : String(releaseErr),
+      });
+    }
   }
 }

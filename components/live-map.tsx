@@ -9,6 +9,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { CafeStation, CityId } from "@/lib/types";
+import type { CityConfig } from "@/lib/cities";
 import { MapShell } from "./map-shell";
 import { ConciergeChat } from "./concierge-chat";
 import { useRealtimeMeasurements } from "@/hooks/use-realtime-cafes";
@@ -16,6 +17,7 @@ import { useRealtimeMeasurements } from "@/hooks/use-realtime-cafes";
 interface LiveMapProps {
   initialCafes: CafeStation[];
   city?: CityId;
+  cityConfig?: CityConfig;
 }
 
 interface LastReading {
@@ -23,7 +25,7 @@ interface LastReading {
   down: number;
 }
 
-export function LiveMap({ initialCafes, city }: LiveMapProps) {
+export function LiveMap({ initialCafes, city, cityConfig }: LiveMapProps) {
   const [cafes, setCafes] = useState<CafeStation[]>(initialCafes);
   const [flash, setFlash] = useState(false);
   const [lastReading, setLastReading] = useState<LastReading | null>(null);
@@ -65,6 +67,7 @@ export function LiveMap({ initialCafes, city }: LiveMapProps) {
       <MapShell
         cafes={cafes}
         city={city}
+        cityConfig={cityConfig}
         readingFlash={live && flash && Boolean(lastReading)}
         readingFlashText={
           lastReading

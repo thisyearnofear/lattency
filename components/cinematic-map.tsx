@@ -21,8 +21,8 @@ import {
   WORLD_OUTLINE_D,
   projectLatLng,
   smoothPathThrough,
-  splitName,
 } from "@/lib/map-data";
+import { NameLabel } from "./name-label";
 
 gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, DrawSVGPlugin, useGSAP);
 
@@ -35,6 +35,10 @@ type Phase =
   | "local"
   | "suspended"
   | "finale";
+
+// The "whole system" pitch — shared by the intro and wide-phase blurbs.
+const SYSTEM_BLURB =
+  "Twelve stations. Three lines. One city, measured in megabits.";
 
 const PHASE_DETAILS: Record<
   Phase,
@@ -52,14 +56,14 @@ const PHASE_DETAILS: Record<
     title: "Boarding",
     line: "ALL LINES",
     tone: "neutral",
-    blurb: "Twelve stations. Three lines. One city, measured in megabits.",
+    blurb: SYSTEM_BLURB,
   },
   wide: {
     number: "00",
     title: "The Whole System",
     line: "ALL LINES",
     tone: "neutral",
-    blurb: "Twelve stations. Three lines. One city, measured in megabits.",
+    blurb: SYSTEM_BLURB,
   },
   express: {
     number: "01",
@@ -104,42 +108,6 @@ const PHASE_TONE_BG: Record<Tier | "neutral", string> = {
 // ── View mode ────────────────────────────────────────────────────────────────
 
 type ViewMode = "schematic" | "geographic";
-
-// ── Small presentational helpers ─────────────────────────────────────────────
-
-function NameLabel({
-  name,
-  x,
-  y,
-  className,
-}: {
-  name: string;
-  x: number;
-  y: number;
-  className?: string;
-}) {
-  const [line1, line2] = splitName(name);
-  return (
-    <text
-      x={x}
-      y={y}
-      textAnchor="middle"
-      fontFamily="var(--font-display)"
-      fontWeight={800}
-      fontSize={13}
-      letterSpacing="0.04em"
-      fill="var(--color-ink)"
-      className={className}
-    >
-      <tspan x={x}>{line1}</tspan>
-      {line2 && (
-        <tspan x={x} dy={14}>
-          {line2}
-        </tspan>
-      )}
-    </text>
-  );
-}
 
 // ── Chyron (top bar) ──────────────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 
-// Side-effect import: runs in source order before any other imports below it,
-// so DATABASE_URL is in process.env by the time lib/db evaluates buildPool().
+// Loads .env.local / .env so scripts (seed-base44, demo tooling) pick up the
+// same environment as the app. Runs as a side-effect import before anything
+// below it in the importing file.
 config({ path: ".env.local" });
 config({ path: ".env" });

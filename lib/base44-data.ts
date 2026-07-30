@@ -164,5 +164,29 @@ export function b44Available(): boolean {
   return base44Configured;
 }
 
+/** Mark a Base44 Bounty as paid. Returns true on success. */
+export async function b44MarkBountyPaid(
+  bountyId: string,
+  claimedByAddress: string,
+  txHash: string,
+): Promise<boolean> {
+  const base44 = getBase44();
+  try {
+    await base44.entities.Bounty.update(bountyId, {
+      status: "paid",
+      claimed_by_address: claimedByAddress,
+      tx_hash: txHash,
+    });
+    return true;
+  } catch (err) {
+    log.warn("b44MarkBountyPaid failed", {
+      scope: "bounties.paid",
+      bountyId,
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
 // Re-export for callers that want the guard without another import.
 export { log };

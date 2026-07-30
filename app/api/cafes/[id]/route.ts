@@ -10,7 +10,11 @@ export async function GET(
   if (!id || id.length < 8) {
     return Response.json({ error: "invalid id" }, { status: 400 });
   }
-  const cafe = await getCafeById(id);
-  if (!cafe) return Response.json({ error: "not found" }, { status: 404 });
-  return Response.json({ cafe });
+  try {
+    const cafe = await getCafeById(id);
+    if (!cafe) return Response.json({ error: "not found" }, { status: 404 });
+    return Response.json({ cafe });
+  } catch {
+    return Response.json({ error: "couldn't load café" }, { status: 500 });
+  }
 }

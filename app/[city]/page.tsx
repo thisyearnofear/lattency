@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCafes } from "@/lib/cafes";
-import { CITIES, cityPath, isCuratedCity } from "@/lib/cities";
+import { CITIES, cityPath, resolveCityConfig, getLiveCities } from "@/lib/cities";
 import { TopNav } from "@/components/top-nav";
 import { LiveMap } from "@/components/live-map";
 import { StationDirectory } from "@/components/station-directory";
@@ -11,8 +10,12 @@ import { BountiesBoard } from "@/components/bounties-board";
 import { MapToastProvider } from "@/components/map-toast";
 import { OnboardingOverlay } from "@/components/onboarding-overlay";
 import { OverlayProvider } from "@/components/overlay-context";
+import { CityVisitTracker } from "@/components/city-visit-tracker";
 
 export const revalidate = 60;
+// Allow any city slug to render dynamically; curated cities are still
+// pre-rendered at build time.
+export const dynamicParams = true;
 
 export async function generateStaticParams() {
   return Object.keys(CITIES).map((city) => ({ city }));
@@ -24,9 +27,8 @@ export async function generateMetadata({
   params: Promise<{ city: string }>;
 }): Promise<Metadata> {
   const { city } = await params;
-  const config = CITIES[city];
-  if (!config) return { title: "City not found · Lattency" };
-
+  const allCafes = await getCafes({ all: true });
+  const config = resolveCityConfig(city, allCafes);
   const description = `Where can you work in ${config.name} today? Verified wifi speeds for cafés, coworking spaces, and hotel lobbies — mapped like a metro network.`;
 
   return {
@@ -52,16 +54,23 @@ export default async function CityHome({
   params: Promise<{ city: string }>;
 }) {
   const { city } = await params;
-  if (!isCuratedCity(city)) notFound();
-
-  const cityConfig = CITIES[city];
+  const allCafes = await getCafes({ all: true });
+  const cityConfig = resolveCityConfig(city, allCafes);
   const cafes = await getCafes({ city });
-  const otherCities = Object.values(CITIES).filter((c) => c.id !== city);
+  const liveCities = getLiveCities(allCafes);
+  const otherCities = liveCities.filter((c) => c.id !== city).slice(0, 5);
 
   return (
     <MapToastProvider>
       <OverlayProvider>
-      <TopNav current="app" currentCity={city} />
+      <TopNav
+        current="app"
+        currentCity={city}
+        currentCityName={cityConfig.name}
+        liveCities={liveCities}
+      />
+
+      <CityVisitTracker city={city} />
 
       <main className="mx-auto max-w-[1440px] px-6 md:px-12">
         <section className="pt-8 md:pt-10 pb-4">
@@ -96,8 +105,14 @@ export default async function CityHome({
                   <span aria-hidden>+</span> Map a café in 60 seconds
                 </Link>
                 <Link
-                  href="/partners"
+                  href="/speedtest"
                   className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
+                >
+                  Test my wifi <span aria-hidden>→</span>
+                </Link>
+                <Link
+                  href="/partners"
+                  className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-faint hover:text-ink transition-colors inline-flex items-center gap-1.5"
                 >
                   How sponsors pay <span aria-hidden>→</span>
                 </Link>
@@ -125,16 +140,16 @@ export default async function CityHome({
 
         <section className="mt-4 mb-10" aria-label={`${cityConfig.name} workspace network map`}>
           <Suspense fallback={null}>
-            <LiveMap initialCafes={cafes} city={city} />
+            <LiveMap initialCafes={cafes} city={city} cityConfig={cityConfig} />
           </Suspense>
         </section>
 
         <section>
-          <StationDirectory cafes={cafes} city={city} />
+          <StationDirectory cafes={cafes} city={city} cityConfig={cityConfig} />
         </section>
 
         <section className="pb-24">
-          <BountiesBoard city={city} />
+          <BountiesBoard city={city} cafeCount={cafes.length} />
         </section>
 
         <footer className="border-t border-ink/40 pt-6 pb-10 flex flex-wrap items-baseline justify-between gap-4 text-sm">

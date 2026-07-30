@@ -24,15 +24,16 @@ import {
   TIER_USE,
   VIEW_H,
   VIEW_W,
-  splitName,
   tierForDown,
   waypointsForCity,
 } from "@/lib/map-data";
-import { CITIES } from "@/lib/cities";
+import { resolveCityConfig, type CityConfig } from "@/lib/cities";
 import { stalenessOpacity, needsFreshTest } from "@/lib/staleness";
 import { useCheckins } from "@/hooks/use-checkins";
 import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
+import { haversineKm } from "@/lib/geo";
 import { CafeDetail } from "./cafe-detail";
+import { NameLabel } from "./name-label";
 import { CafeContributionForm } from "./cafe-contribution-form";
 import { useMapToast } from "./map-toast";
 import { LiveNetworkBadge } from "./live-network-badge";
@@ -42,22 +43,6 @@ import { useOverlay } from "./overlay-context";
 // Anything farther than this from the active city's centre is treated as
 // "demo from afar" and the neighbourhood quick-picks stay visible.
 const NEAR_CITY_KM = 50;
-
-function haversineKm(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-): number {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
 
 // Leaflet pulls in window; ssr: false keeps it client-only. While it loads we
 // paint the schematic grid (the tier lines come from city config, not data)
@@ -103,32 +88,6 @@ const TIER_THRESHOLD: Record<Tier, string> = {
   suspended: "< 10",
 };
 const TIER_ORDER: Tier[] = ["express", "local", "suspended"];
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function NameLabel({ name, x, y }: { name: string; x: number; y: number }) {
-  const [line1, line2] = splitName(name);
-  return (
-    <text
-      x={x}
-      y={y}
-      textAnchor="middle"
-      fontFamily="var(--font-display)"
-      fontWeight={800}
-      fontSize={13}
-      letterSpacing="0.04em"
-      fill="var(--color-ink)"
-      style={{ pointerEvents: "none" }}
-    >
-      <tspan x={x}>{line1}</tspan>
-      {line2 && (
-        <tspan x={x} dy={14}>
-          {line2}
-        </tspan>
-      )}
-    </text>
-  );
-}
 
 // ── Schematic (SVG) layer ────────────────────────────────────────────────────
 
@@ -419,18 +378,20 @@ type LocateStatus = "idle" | "pending" | "here" | "far" | "denied" | "unavailabl
 export function MapShell({
   cafes,
   city = "nairobi",
+  cityConfig: cityConfigProp,
   readingFlash = false,
   readingFlashText = "",
 }: {
   cafes: CafeStation[];
   city?: CityId;
+  cityConfig?: CityConfig;
   /** When a realtime reading lands, LiveMap briefly swaps the resting live
       badge in the bottom rail for a flash ticket — the flash *replaces* the
       badge instead of overlaying it, so the corner never stacks. */
   readingFlash?: boolean;
   readingFlashText?: string;
 }) {
-  const cityConfig = CITIES[city];
+  const cityConfig = cityConfigProp ?? resolveCityConfig(city, cafes);
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useMapToast();

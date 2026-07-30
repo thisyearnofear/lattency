@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCafes, getCafeBySlug } from "@/lib/cafes";
 import { slugify } from "@/lib/slug";
-import { CITIES, CITY_ORDER } from "@/lib/cities";
+import { CITIES, CITY_ORDER, cityDisplayName } from "@/lib/cities";
 import { TopNav } from "@/components/top-nav";
 import { CafePage } from "@/components/cafe-page";
 
@@ -63,7 +63,11 @@ export default async function CafeRoute({
 
   return (
     <>
-      <TopNav current="app" currentCity={cafe.city} />
+      <TopNav
+        current="app"
+        currentCity={cafe.city}
+        currentCityName={CITIES[cafe.city]?.name ?? cityDisplayName(cafe.city)}
+      />
       <CafePage cafe={cafe} />
     </>
   );

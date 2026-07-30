@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
-import { CITIES, cityPath } from "@/lib/cities";
+import { cityPath, resolveCityConfig, type CityConfig } from "@/lib/cities";
 import { TIER_USE } from "@/lib/map-data";
 import { CafeDetail } from "./cafe-detail";
 import { SignalQuality } from "./signal-quality";
@@ -10,6 +10,7 @@ import { VibeChips } from "./vibe-chips";
 import { SponsorBadge } from "./sponsor-badge";
 import { CafeMetadataChips } from "./cafe-metadata-display";
 import { useOverlay } from "@/components/overlay-context";
+import { haversineKm } from "@/lib/geo";
 
 const TIER_BG: Record<Tier, string> = {
   express: "bg-express",
@@ -31,19 +32,6 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
-}
-
-function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
 }
 
 function fmtDistance(km: number): string {
@@ -177,11 +165,13 @@ const FILTERS: Array<{ key: Tier | "all"; label: string }> = [
 export function StationDirectory({
   cafes,
   city = "nairobi",
+  cityConfig: cityConfigProp,
 }: {
   cafes: CafeStation[];
   city?: CityId;
+  cityConfig?: CityConfig;
 }) {
-  const cityConfig = CITIES[city];
+  const cityConfig = cityConfigProp ?? resolveCityConfig(city, cafes);
   const { active, open, close } = useOverlay();
   const [selected, setSelected] = useState<CafeStation | null>(null);
   const [filter, setFilter] = useState<Tier | "all">("all");
@@ -195,7 +185,7 @@ export function StationDirectory({
   const withDistance = useMemo(() => {
     return cafes.map((c) => ({
       cafe: c,
-      distance: origin ? distanceKm(origin, c) : undefined,
+      distance: origin ? haversineKm(origin, c) : undefined,
     }));
   }, [cafes, origin]);
 
@@ -335,7 +325,23 @@ export function StationDirectory({
         </div>
       </div>
 
-      {visible.length === 0 ? (
+      {cafes.length === 0 ? (
+        <div className="border border-dashed border-ink/30 bg-cream-edge/40 p-10 md:p-16 text-center">
+          <p className="font-display font-black uppercase text-3xl md:text-4xl tracking-[-0.01em] text-ink">
+            The {cityConfig.name} line hasn&apos;t been drawn yet.
+          </p>
+          <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-4 max-w-2xl mx-auto">
+            Be the first station. Run a speed test where you&apos;re sitting and
+            this city goes live on the network.
+          </p>
+          <a
+            href={`${cityPath(cityConfig.id)}?contribute=1`}
+            className="inline-flex items-center gap-1.5 bg-express text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-5 py-3 mt-6 hover:bg-express/90 transition-colors"
+          >
+            <span aria-hidden>+</span> Map the first café
+          </a>
+        </div>
+      ) : visible.length === 0 ? (
         <div className="border border-dashed border-ink/30 bg-cream-edge/40 p-10 text-center">
           <p className="font-display font-black uppercase text-3xl tracking-[-0.01em] text-ink">
             No stations on this line yet.

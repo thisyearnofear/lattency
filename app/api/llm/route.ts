@@ -1,14 +1,20 @@
+import { NextRequest } from "next/server";
 import { getCafes } from "@/lib/cafes";
 import { VENUE_TYPE_LABELS } from "@/lib/cafe-metadata";
+import { DEFAULT_CITY_ID, cityDisplayName } from "@/lib/cities";
 
-// GET /api/shoreditch/llm
-// Returns a dense, LLM-friendly plain-text summary of verified Shoreditch
-// workspace data. Intended for AI agents that need ground-truth workspace
-// quality data without the UI chrome.
-export async function GET() {
+// GET /api/llm?city=london
+// Returns a dense, LLM-friendly plain-text summary of verified workspace
+// data for a city. Intended for AI agents that need ground-truth workspace
+// quality data without the UI chrome. City defaults to the curated default.
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const city = (url.searchParams.get("city") ?? DEFAULT_CITY_ID).toLowerCase();
+  const cityName = cityDisplayName(city);
+
   let cafes: Awaited<ReturnType<typeof getCafes>>;
   try {
-    cafes = await getCafes({ city: "london" });
+    cafes = await getCafes({ city });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(`Lattency workspace data temporarily unavailable.\nError: ${message}\n`, {
@@ -18,7 +24,7 @@ export async function GET() {
   }
 
   const lines: string[] = [
-    "Lattency — Shoreditch workspace ground truth",
+    `Lattency — ${cityName} workspace ground truth`,
     `Generated: ${new Date().toISOString()}`,
     `Venues: ${cafes.length}`,
     "",

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createBounty, getBounties, type BountyCreationInput } from "@/lib/bounties";
+import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import { log, reqIdFrom } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,20 @@ export async function GET(req: NextRequest) {
 // is performed client-side via the Nimiq SDK before this endpoint is called.
 export async function POST(req: NextRequest) {
   const reqId = reqIdFrom(req);
+
+  // Spam protection for the board — bounties are funded client-side, so this
+  // caps how many one IP can post per hour.
+  const ipHash = hashIp(
+    req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip"),
+  );
+  const allowed = await checkRateLimit(ipHash, { kind: "bounty" });
+  if (!allowed) {
+    return Response.json(
+      { error: "Rate limited — too many bounties from this address. Try again in an hour." },
+      { status: 429 },
+    );
+  }
+
   let body: Partial<BountyCreationInput>;
   try {
     body = (await req.json()) as Partial<BountyCreationInput>;

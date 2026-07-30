@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getCafes } from "@/lib/cafes";
-import { CITY_ORDER, cityPath } from "@/lib/cities";
+import { cityPath, getLiveCities, CITY_ORDER } from "@/lib/cities";
 import { slugify } from "@/lib/slug";
 
 // Sitemap — lists every city page and every café page so search engines can
@@ -10,11 +10,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = "https://lattency.vercel.app";
   const now = new Date();
 
-  const cityPages = CITY_ORDER.map((cityId) => ({
-    url: `${base}${cityPath(cityId)}`,
+  let cafes: Awaited<ReturnType<typeof getCafes>> = [];
+  try {
+    cafes = await getCafes({ all: true });
+  } catch {
+    // If the backend is unreachable, ship the curated cities + static pages alone.
+  }
+
+  const liveCities = getLiveCities(cafes);
+  const cityPages = liveCities.map((city) => ({
+    url: `${base}${cityPath(city.id)}`,
     lastModified: now,
     changeFrequency: "hourly" as const,
-    priority: 0.9,
+    priority: CITY_ORDER.includes(city.id) ? 0.9 : 0.8,
   }));
 
   // Static pages
@@ -23,19 +31,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/partners`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
   ];
 
-  // All café pages — fetch from every city so user-generated cafés are included.
-  let cafePages: MetadataRoute.Sitemap = [];
-  try {
-    const cafes = await getCafes({ all: true });
-    cafePages = cafes.map((cafe) => ({
-      url: `${base}/cafes/${slugify(cafe.name)}`,
-      lastModified: now,
-      changeFrequency: "daily" as const,
-      priority: 0.7,
-    }));
-  } catch {
-    // If the backend is unreachable, ship the city + static pages alone.
-  }
+  // All café pages — derived from the same fetch above.
+  const cafePages = cafes.map((cafe) => ({
+    url: `${base}/cafes/${slugify(cafe.name)}`,
+    lastModified: now,
+    changeFrequency: "daily" as const,
+    priority: 0.7,
+  }));
 
   return [...cityPages, ...staticPages, ...cafePages];
 }
