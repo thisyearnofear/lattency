@@ -3,6 +3,8 @@ import Link from "next/link";
 import { TopNav } from "@/components/top-nav";
 import { BountiesBoard } from "@/components/bounties-board";
 import { SponsorDashboard } from "@/components/sponsor-dashboard";
+import { TIER_COLOUR, TIER_PATH, TIER_USE } from "@/lib/map-data";
+import type { Tier } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Partners · Lattency",
@@ -78,7 +80,8 @@ export default function PartnersPage() {
           <p className="stamp">Partners</p>
         </div>
 
-        {/* Hero */}
+        {/* Hero — a schematic tier-line banner gives the page a visual
+            anchor (every other "wow" page has one), not just a headline. */}
         <header className="border-b border-ink/80 pb-10 mb-10">
           <h1
             className="font-display font-black uppercase text-ink leading-[0.9] tracking-[-0.02em]"
@@ -91,10 +94,37 @@ export default function PartnersPage() {
           <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-5 max-w-2xl">
             ISPs sponsor verified speed badges. Cafés earn them. Contributors get paid to run the tests.
           </p>
+          {/* The same three lines the live map draws — a quiet promise that
+              the network is real, not a mockup. */}
+          <div className="mt-8 border border-ink/15 bg-cream-edge/40 overflow-hidden">
+            <svg viewBox="0 0 1440 720" className="w-full h-auto block" preserveAspectRatio="xMidYMid slice" aria-hidden>
+              {(["express", "local", "suspended"] as Tier[]).map((tier) => (
+                <path
+                  key={tier}
+                  d={TIER_PATH[tier]}
+                  fill="none"
+                  stroke={TIER_COLOUR[tier]}
+                  strokeWidth={tier === "suspended" ? 12 : 14}
+                  strokeLinecap={tier === "suspended" ? "butt" : "round"}
+                  strokeDasharray={tier === "suspended" ? "14 10" : undefined}
+                  opacity={0.85}
+                />
+              ))}
+            </svg>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 px-5 py-3 border-t border-ink/10">
+              {(["express", "local", "suspended"] as Tier[]).map((tier) => (
+                <span key={tier} className="inline-flex items-center gap-2">
+                  <span className="inline-block w-6 h-[5px]" style={{ background: TIER_COLOUR[tier] }} />
+                  <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-soft">
+                    {tier} · <span className="font-serif italic normal-case tracking-normal text-[11px]">{TIER_USE[tier]}</span>
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
         </header>
 
-        {/* Sponsor dashboard */}
-        <SponsorDashboard />
+        {/* Pitches first — sell the model before asking for the form. */}
 
         {/* Pitches */}
         <PitchBlock
@@ -151,6 +181,9 @@ export default function PartnersPage() {
           cta={{ label: "See open bounties ↓", href: "#bounties" }}
         />
 
+        {/* Sponsor dashboard — the action, now that the pitches have sold it. */}
+        <SponsorDashboard />
+
         {/* Bounty board, anchored */}
         <div id="bounties" className="scroll-mt-20">
           <BountiesBoard />
@@ -191,9 +224,6 @@ export default function PartnersPage() {
         <footer className="mt-20 border-t border-ink/40 pt-6 flex flex-wrap items-baseline justify-between gap-4 text-sm">
           <p className="stamp">
             Lattency · {new Date().getFullYear()}
-          </p>
-          <p className="font-serif italic text-ink-faint">
-            funded with Nimiq Pay · deployed on Vercel
           </p>
           <Link href="/" className="stamp hover:text-ink transition-colors">
             ← Map

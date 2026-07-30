@@ -153,7 +153,7 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
           href={cityPath(cafe.city)}
           className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink inline-flex items-center gap-1.5"
         >
-          <span aria-hidden>←</span> All stations
+          <span aria-hidden>←</span> Map
         </VTLink>
         <CopyShareLink />
       </div>
@@ -288,7 +288,7 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
           Lattency · printed in {CITIES[cafe.city]?.name ?? cafe.city} · {new Date().getFullYear()}
         </p>
         <Link href={cityPath(cafe.city)} className="stamp hover:text-ink transition-colors">
-          All stations →
+          Map →
         </Link>
       </footer>
     </main>
