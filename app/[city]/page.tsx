@@ -58,7 +58,6 @@ export default async function CityHome({
   const cityConfig = resolveCityConfig(city, allCafes);
   const cafes = await getCafes({ city });
   const liveCities = getLiveCities(allCafes);
-  const otherCities = liveCities.filter((c) => c.id !== city).slice(0, 5);
 
   return (
     <MapToastProvider>
@@ -73,74 +72,56 @@ export default async function CityHome({
       <CityVisitTracker city={city} />
 
       <main className="mx-auto max-w-[1440px] px-6 md:px-12">
-        <section className="pt-8 md:pt-10 pb-4">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-3xl">
-              <p className="stamp">{cityConfig.name} · {cityConfig.country}</p>
-              <h1
-                className="font-display font-black uppercase text-ink leading-[0.92] tracking-[-0.02em] mt-2"
-                style={{ fontSize: "clamp(40px, 7vw, 96px)" }}
-              >
-                Where can you work
-                <br />
-                in {cityConfig.name} today?
-              </h1>
-              <p className="font-mono text-[11px] md:text-[12px] tracking-[0.22em] uppercase text-ink-soft mt-5">
-                Contributors map.
-                <span className="text-ink-faint mx-1.5">·</span>
-                Sponsors fund coffees.
-                <span className="text-ink-faint mx-1.5">·</span>
-                You find the line you can actually work on.
-              </p>
-              <div className="flex flex-wrap items-center gap-4 mt-6">
-                <Link
-                  href={`${cityPath(city)}?contribute=1`}
-                  className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors"
-                >
-                  <span aria-hidden>+</span> Map a café in 60 seconds
-                </Link>
-                <Link
-                  href="/speedtest"
-                  className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
-                >
-                  Test my wifi <span aria-hidden>→</span>
-                </Link>
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-2 pb-2">
-              {otherCities.map((c) => (
-                <Link
-                  key={c.id}
-                  href={cityPath(c.id)}
-                  className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5"
-                >
-                  {c.name} <span aria-hidden>→</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-4 mb-10" aria-label={`${cityConfig.name} workspace network map`}>
+        {/* The map is the hero — a full-viewport marquee with a compact
+            overlay carrying the one question and one action. Everything
+            else (directory, bounties) is revealed on scroll. */}
+        <section aria-label={`${cityConfig.name} workspace network map`}>
           <Suspense fallback={null}>
-            <LiveMap initialCafes={cafes} city={city} cityConfig={cityConfig} />
+            <LiveMap
+              initialCafes={cafes}
+              city={city}
+              cityConfig={cityConfig}
+              hero={
+                <div className="bg-cream/95 border border-ink/80 shadow-[4px_5px_0_0_var(--color-ink)] p-5 sm:p-6">
+                  <p className="stamp">{cityConfig.name} · {cityConfig.country}</p>
+                  <h1
+                    className="font-display font-black uppercase text-ink leading-[0.92] tracking-[-0.02em] mt-2"
+                    style={{ fontSize: "clamp(32px, 5vw, 56px)" }}
+                  >
+                    Where can you work
+                    <br />
+                    in {cityConfig.name} today?
+                  </h1>
+                  <p className="font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase text-ink-soft mt-4">
+                    Contributors map.
+                    <span className="text-ink-faint mx-1.5">·</span>
+                    Sponsors fund coffees.
+                    <span className="text-ink-faint mx-1.5">·</span>
+                    You find the line you can work on.
+                  </p>
+                  <Link
+                    href={`${cityPath(city)}?contribute=1`}
+                    className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-5"
+                  >
+                    <span aria-hidden>+</span> Map a café in 60 seconds
+                  </Link>
+                </div>
+              }
+            />
           </Suspense>
         </section>
 
-        <section>
+        <section className="mt-16">
           <StationDirectory cafes={cafes} city={city} cityConfig={cityConfig} />
         </section>
 
         <section className="pb-24">
-          <BountiesBoard city={city} cafeCount={cafes.length} />
+          <BountiesBoard city={city} cafeCount={cafes.length} compact />
         </section>
 
         <footer className="border-t border-ink/40 pt-6 pb-10 flex flex-wrap items-baseline justify-between gap-4 text-sm">
           <p className="stamp">
             Lattency · printed in {cityConfig.name} · {new Date().getFullYear()}
-          </p>
-          <p className="font-serif italic text-ink-faint">
-            built on Base44 · powered by Nimiq Pay · deployed on Vercel
           </p>
           <Link
             href="/tour"

@@ -18,6 +18,7 @@ interface LiveMapProps {
   initialCafes: CafeStation[];
   city?: CityId;
   cityConfig?: CityConfig;
+  hero?: React.ReactNode;
 }
 
 interface LastReading {
@@ -25,7 +26,7 @@ interface LastReading {
   down: number;
 }
 
-export function LiveMap({ initialCafes, city, cityConfig }: LiveMapProps) {
+export function LiveMap({ initialCafes, city, cityConfig, hero }: LiveMapProps) {
   const [cafes, setCafes] = useState<CafeStation[]>(initialCafes);
   const [flash, setFlash] = useState(false);
   const [lastReading, setLastReading] = useState<LastReading | null>(null);
@@ -68,6 +69,7 @@ export function LiveMap({ initialCafes, city, cityConfig }: LiveMapProps) {
         cafes={cafes}
         city={city}
         cityConfig={cityConfig}
+        hero={hero}
         readingFlash={live && flash && Boolean(lastReading)}
         readingFlashText={
           lastReading

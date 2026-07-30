@@ -93,8 +93,8 @@ export function TopNav({
             href="/partners"
             className={
               current === "partners"
-                ? "text-ink hidden sm:inline"
-                : "text-ink-soft hover:text-ink transition-colors hidden sm:inline"
+                ? "text-ink hidden lg:inline"
+                : "text-ink-soft hover:text-ink transition-colors hidden lg:inline"
             }
           >
             Partners
@@ -102,7 +102,7 @@ export function TopNav({
 
           <Link
             href="/speedtest"
-            className="text-ink-soft hover:text-ink transition-colors hidden sm:inline"
+            className="text-ink-soft hover:text-ink transition-colors hidden lg:inline"
           >
             Test my wifi
           </Link>

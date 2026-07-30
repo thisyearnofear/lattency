@@ -381,6 +381,7 @@ export function MapShell({
   cityConfig: cityConfigProp,
   readingFlash = false,
   readingFlashText = "",
+  hero,
 }: {
   cafes: CafeStation[];
   city?: CityId;
@@ -390,6 +391,11 @@ export function MapShell({
       badge instead of overlaying it, so the corner never stacks. */
   readingFlash?: boolean;
   readingFlashText?: string;
+  /** When provided, the map renders as a full-viewport marquee hero: the
+      overlay is painted top-left over the network, and the map's chrome
+      (tier chips, locate) collapses into the bottom tools rail so the
+      first paint is nothing but the live map + one question. */
+  hero?: React.ReactNode;
 }) {
   const cityConfig = cityConfigProp ?? resolveCityConfig(city, cafes);
   const router = useRouter();
@@ -422,6 +428,10 @@ export function MapShell({
   }, [searchParams, cityConfig.demoLocations]);
   const { active, open, close } = useOverlay();
   const [view, setView] = useState<ViewMode>(() => (hoodFocus ? "geographic" : "schematic"));
+  // Hero mode collapses the tier chips + locate into the bottom tools rail;
+  // these track whether each panel is currently expanded above the rail.
+  const [showLines, setShowLines] = useState(false);
+  const [showLocate, setShowLocate] = useState(false);
   // Leaflet initialisation is heavy, so we lazy-mount it on first switch to
   // geographic and keep it alive afterwards. Keeping both layers mounted
   // (rather than swapping them) is what lets the mode switch crossfade
@@ -578,6 +588,58 @@ export function MapShell({
   const allActive = activeTiers.size === 3;
   const noneActive = activeTiers.size === 0;
 
+  // The tier filter chips, extracted so they can render either as a top
+  // row (non-hero) or inside the bottom tools rail's expandable panel
+  // (hero mode) without duplicating the markup.
+  const tierChipsJsx = (
+    <>
+      <button
+        type="button"
+        onClick={showAllTiers}
+        aria-pressed={allActive}
+        className={`px-2.5 sm:px-3 py-1.5 font-mono text-[10px] tracking-[0.22em] uppercase border transition-colors ${
+          allActive
+            ? "bg-ink text-cream border-ink"
+            : "bg-cream text-ink-soft border-ink/30 hover:border-ink hover:text-ink"
+        }`}
+      >
+        All<span className="hidden sm:inline"> lines</span>
+      </button>
+      {TIER_ORDER.map((tier) => {
+        const active = activeTiers.has(tier);
+        const bg =
+          tier === "express"
+            ? "bg-express"
+            : tier === "local"
+            ? "bg-local"
+            : "bg-suspended";
+        return (
+          <button
+            key={tier}
+            type="button"
+            onClick={() => toggleTier(tier)}
+            aria-pressed={active}
+            className={`pl-1.5 pr-2 sm:pl-2 sm:pr-3 py-1.5 inline-flex items-center gap-1.5 sm:gap-2 font-mono text-[10px] tracking-[0.22em] uppercase border transition-all ${
+              active
+                ? "bg-cream text-ink border-ink"
+                : "bg-cream/60 text-ink-faint border-ink/15 hover:border-ink/40"
+            }`}
+          >
+            <span
+              className={`${bg} ${active ? "" : "opacity-30"} w-5 h-5 inline-flex items-center justify-center text-cream font-display font-black text-[12px]`}
+            >
+              {TIER_BADGE[tier]}
+            </span>
+            <span className="hidden sm:inline">{tier}</span>
+            <span className={active ? "text-ink-faint" : "text-ink-faint/60"}>
+              {tierCounts[tier]}
+            </span>
+          </button>
+        );
+      })}
+    </>
+  );
+
   function ensureGeographic() {
     if (view !== "geographic") setView("geographic");
     // Leaflet is lazy-mounted on first switch to geographic. The view
@@ -640,59 +702,19 @@ export function MapShell({
 
   return (
     <div className="relative w-full">
-      {/* Tier filter chips — above the map. Click any to toggle, "All" resets.
-          On narrow screens the chip labels collapse to keep the row to one line. */}
+      {/* Tier filter chips — above the map (non-hero mode only). In hero
+          mode they collapse into the bottom tools rail behind a "Lines"
+          toggle so the first paint is nothing but the map. */}
+      {!hero && (
       <div className="mb-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
-        <button
-          type="button"
-          onClick={showAllTiers}
-          aria-pressed={allActive}
-          className={`px-2.5 sm:px-3 py-1.5 font-mono text-[10px] tracking-[0.22em] uppercase border transition-colors ${
-            allActive
-              ? "bg-ink text-cream border-ink"
-              : "bg-cream text-ink-soft border-ink/30 hover:border-ink hover:text-ink"
-          }`}
-        >
-          All<span className="hidden sm:inline"> lines</span>
-        </button>
-        {TIER_ORDER.map((tier) => {
-          const active = activeTiers.has(tier);
-          const bg =
-            tier === "express"
-              ? "bg-express"
-              : tier === "local"
-              ? "bg-local"
-              : "bg-suspended";
-          return (
-            <button
-              key={tier}
-              type="button"
-              onClick={() => toggleTier(tier)}
-              aria-pressed={active}
-              className={`pl-1.5 pr-2 sm:pl-2 sm:pr-3 py-1.5 inline-flex items-center gap-1.5 sm:gap-2 font-mono text-[10px] tracking-[0.22em] uppercase border transition-all ${
-                active
-                  ? "bg-cream text-ink border-ink"
-                  : "bg-cream/60 text-ink-faint border-ink/15 hover:border-ink/40"
-              }`}
-            >
-              <span
-                className={`${bg} ${active ? "" : "opacity-30"} w-5 h-5 inline-flex items-center justify-center text-cream font-display font-black text-[12px]`}
-              >
-                {TIER_BADGE[tier]}
-              </span>
-              <span className="hidden sm:inline">{tier}</span>
-              <span className={active ? "text-ink-faint" : "text-ink-faint/60"}>
-                {tierCounts[tier]}
-              </span>
-            </button>
-          );
-        })}
+        {tierChipsJsx}
         {/* The v9 "+ Map a café" CTA used to live here, but it collided with
             the absolute-positioned locate panel in the map's top-right
             corner. The v9.3 top-nav now carries the same action as a
             sticky, always-visible primary button — keeping it twice
             would just clutter the filter row and recreate the overlap. */}
       </div>
+      )}
 
       {/* Map viewport + all map-local overlays — wrapped in one relative
           container so absolute-positioned controls (locate panel, bottom
@@ -708,7 +730,7 @@ export function MapShell({
           problem on mobile. Schematic sits on top (z-10) but becomes
           pointer-transparent when geographic is active so the Leaflet map
           underneath stays interactive. */}
-      <div className="map-viewport relative w-full overflow-hidden bg-cream">
+      <div className={`${hero ? "map-viewport-hero" : "map-viewport"} relative w-full overflow-hidden bg-cream`}>
         {leafletEverMounted && (
           <div
             className={`absolute inset-0 transition-opacity duration-300 ${
@@ -750,6 +772,15 @@ export function MapShell({
         </div>
       </div>
 
+      {/* Hero overlay — painted top-left over the network in hero mode.
+          z-[400] sits above the map layers but below the drawers (z-50) and
+          the tools rail (z-[500]) so it never blocks interaction. */}
+      {hero && (
+        <div className="absolute top-3 left-3 sm:top-6 sm:left-6 z-[400] pointer-events-auto w-[min(340px,calc(100vw-1.5rem))] sm:w-[min(380px,calc(100vw-3rem))]">
+          {hero}
+        </div>
+      )}
+
       {noneActive && (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none z-[400]">
           <p className="bg-cream border border-ink/80 px-4 py-2 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft shadow-[3px_4px_0_0_var(--color-ink)]">
@@ -758,9 +789,12 @@ export function MapShell({
         </div>
       )}
 
-      {/* Locate panel — top-right of the map. On mobile the demo picks
-          collapse behind a disclosure to keep the map readable; on
-          desktop the full panel is always visible. */}
+      {/* Locate panel — top-right of the map (non-hero mode). In hero mode
+          the locate action moves into the bottom tools rail so the top of
+          the map stays clean for the hero overlay. On mobile the demo picks
+          collapse behind a disclosure to keep the map readable; on desktop
+          the full panel is always visible. */}
+      {!hero && (
       <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[500] pointer-events-auto w-[190px] sm:max-w-[260px] sm:w-auto md:max-w-[300px]">
         <div className="bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] sm:shadow-[4px_5px_0_0_var(--color-ink)] font-mono text-[10px] tracking-[0.2em] uppercase">
           <button
@@ -814,14 +848,70 @@ export function MapShell({
           )}
         </div>
       </div>
+      )}
 
       {/* Bottom control rail — view toggle + live status share one strip.
           Previously the toggle, the live badge, and the realtime flash all
           used the same bottom-left coordinates and stacked on top of each
           other. Now they live in a single flex row. When a reading lands,
           the flash ticket replaces the resting badge in the same slot rather
-          than overlaying it, so nothing ever collides. */}
-      <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-[500] flex items-end gap-2 pointer-events-none">
+          than overlaying it, so nothing ever collides.
+
+          In hero mode the rail becomes a column: the expandable Lines panel
+          and the locate panel (with demo picks) stack above the button row,
+          which gains "Lines" and "Find me" toggles so all map chrome lives
+          in one place and the top of the map stays clean for the hero. */}
+      <div className={`absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-[500] flex ${hero ? "flex-col items-start gap-2" : "items-end gap-2"} pointer-events-none`}>
+        {/* Expandable panels (hero mode only) — stacked above the button row. */}
+        {hero && showLines && (
+          <div className="pointer-events-auto bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] p-2 flex flex-wrap gap-1.5 max-w-[min(280px,calc(100vw-1.5rem))]">
+            {tierChipsJsx}
+          </div>
+        )}
+        {hero && showLocate && (
+          <div className="pointer-events-auto bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] font-mono text-[10px] tracking-[0.2em] uppercase w-[190px]">
+            <button
+              type="button"
+              onClick={locateMe}
+              disabled={locStatus === "pending"}
+              className="w-full px-2.5 py-2 flex items-center justify-between gap-2 bg-ink text-cream hover:bg-ink-soft disabled:opacity-60 transition-colors"
+            >
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span aria-hidden>◎</span>
+                <span className="truncate">{locateLabel[locStatus]}</span>
+              </span>
+              {distanceKm !== null && locStatus !== "pending" && (
+                <span className="text-cream/70 whitespace-nowrap">
+                  {distanceKm < 1 ? "<1 km" : `${Math.round(distanceKm).toLocaleString()} km`}
+                </span>
+              )}
+            </button>
+            {showDemoPicks && (
+              <div className="px-2.5 py-2 border-t border-ink/20">
+                <p className="text-ink-faint mb-1.5 tracking-[0.18em]">
+                  {locStatus === "far"
+                    ? `Demo from a ${cityConfig.name} neighbourhood`
+                    : locStatus === "denied" || locStatus === "unavailable"
+                    ? "Pick a demo spot"
+                    : "Or jump in"}
+                </p>
+                <div className="grid grid-cols-2 gap-1">
+                  {cityConfig.demoLocations.map((n) => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => jumpTo(n)}
+                      className="px-2 py-1.5 text-left text-ink-soft hover:text-ink hover:bg-cream-edge transition-colors border border-ink/15 normal-case tracking-normal font-mono text-[10px]"
+                    >
+                      {n.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="flex items-end gap-2 pointer-events-none">
         <div
           role="tablist"
           aria-label="Map view"
@@ -858,6 +948,37 @@ export function MapShell({
           ))}
         </div>
 
+        {/* Hero-mode tool toggles — Lines + Find me collapse the tier
+            chips and the locate panel into this rail so the top of the map
+            stays clean. */}
+        {hero && (
+          <button
+            type="button"
+            onClick={() => setShowLines((s) => !s)}
+            aria-pressed={showLines}
+            className={`pointer-events-auto px-2.5 py-1.5 font-mono text-[10px] tracking-[0.2em] uppercase border bg-cream/95 transition-colors ${
+              showLines ? "border-ink text-ink" : "border-ink/80 text-ink-soft hover:text-ink"
+            }`}
+          >
+            Lines {showLines ? "▴" : "▾"}
+          </button>
+        )}
+        {hero && (
+          <button
+            type="button"
+            onClick={() => {
+              setShowLocate((s) => !s);
+              if (!showLocate) locateMe();
+            }}
+            aria-pressed={showLocate}
+            className={`pointer-events-auto px-2.5 py-1.5 font-mono text-[10px] tracking-[0.2em] uppercase border bg-cream/95 transition-colors ${
+              showLocate ? "border-ink text-ink" : "border-ink/80 text-ink-soft hover:text-ink"
+            }`}
+          >
+            ◎ Find me
+          </button>
+        )}
+
         {/* Live status slot — the flash ticket takes over while a reading is
             landing; otherwise the resting badge (or nothing, when offline).
             The resting badge is hidden below sm to preserve rail width on
@@ -880,6 +1001,7 @@ export function MapShell({
             <LiveNetworkBadge variant="map" />
           </div>
         )}
+        </div>
         </div>
       </div>
 

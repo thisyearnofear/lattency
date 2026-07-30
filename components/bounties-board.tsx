@@ -112,10 +112,15 @@ export async function BountiesBoard({
   limit,
   city,
   cafeCount,
+  compact,
 }: {
   limit?: number;
   city?: string;
   cafeCount?: number;
+  /** Compact mode (home page): drops the 3-step explainer and the long
+      intro — the full mechanic lives on /partners. Keeps the board to a
+      headline + the open bounties (or empty-state CTA). */
+  compact?: boolean;
 }) {
   const all = await getBounties(city, cafeCount);
   const items = limit ? all.slice(0, limit) : all;
@@ -138,9 +143,11 @@ export async function BountiesBoard({
             <span className="text-ink-faint mx-1.5">·</span>
             The map fills in.
           </p>
+          {!compact && (
           <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-3 max-w-2xl">
             Claim a completed bounty in Nimiq Pay to get your NIM reward.
           </p>
+          )}
         </div>
         <Link
           href="/partners"
@@ -150,7 +157,9 @@ export async function BountiesBoard({
         </Link>
       </div>
 
-      {/* Three-step mini-explainer reinforcing the one-liner above. */}
+      {/* Three-step mini-explainer reinforcing the one-liner above.
+          Hidden in compact mode — the full mechanic lives on /partners. */}
+      {!compact && (
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
         {[
           { n: "01", verb: "Stake", body: "Pre-pay a small bounty for a target — first café in an area, or the 10th verified test at a spot." },
@@ -175,6 +184,7 @@ export async function BountiesBoard({
           </li>
         ))}
       </ol>
+      )}
 
       {items.length === 0 ? (
         <div className="border border-dashed border-ink/30 bg-cream-edge/40 p-10 text-center">

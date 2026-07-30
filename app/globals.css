@@ -466,6 +466,13 @@ body {
   height: clamp(320px, 62dvh, 640px);
 }
 
+/* Hero mode — the map fills the viewport below the sticky nav so the live
+   network is the first paint, not a text block above it. */
+.map-viewport-hero {
+  height: calc(100dvh - 3.5rem);
+  min-height: 460px;
+}
+
 /* Mobile viewport height helpers — dvh with vh fallback so overlay panels
    track the dynamic mobile viewport (URL bar, keyboard) where supported. */
 .full-dvh { height: 100vh; height: 100dvh; }
