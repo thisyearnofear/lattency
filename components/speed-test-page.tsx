@@ -78,13 +78,8 @@ export function SpeedTestPage() {
       </div>
 
       <div className="mt-12 pt-8 border-t border-ink/15">
-        <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
-          Why this matters
-        </p>
-        <p className="font-serif italic text-ink-soft text-base mt-2 max-w-xl">
-          A single verified reading is the seed of a new station. Run the test
-          where you&rsquo;re sitting, add a café, and your city goes live on the
-          map.
+        <p className="font-serif italic text-ink-soft text-base max-w-xl">
+          Run the test where you&rsquo;re sitting, add a café, and your city goes live on the map.
         </p>
       </div>
     </main>

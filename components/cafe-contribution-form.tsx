@@ -490,9 +490,7 @@ export function CafeContributionForm({
           {renderStep === "location" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
-                Map a café you&rsquo;re sitting in right now. We&rsquo;ll use your
-                location to place it on the transit map, then run a speed test
-                and add a photo.
+                Map a café you&rsquo;re sitting in right now. We&rsquo;ll place it on the map, then run a speed test.
               </p>
               <button
                 type="button"
@@ -502,26 +500,20 @@ export function CafeContributionForm({
                 Share my location
               </button>
               <p className="font-mono text-[10px] text-ink-faint">
-                Your exact coordinates are never stored — only the café&rsquo;s
-                position, which you&rsquo;ll confirm on the next step.
+                Your exact coordinates are never stored — only the café&rsquo;s position, which you&rsquo;ll confirm next.
               </p>
 
-              <div className="relative pt-4 mt-2 border-t border-cream-deep">
-                <p className="stamp mb-2">You&rsquo;re the first to map this area.</p>
-                <p className="font-mono text-[10px] text-ink-faint mt-2 leading-snug">
-                  Run a test where you&rsquo;re sitting — that&rsquo;s what makes
-                  a new station appear on the map. No account needed.
-                </p>
-                {debug && (
+              {debug && (
+                <div className="relative pt-4 mt-2 border-t border-cream-deep">
                   <button
                     type="button"
                     onClick={loadDemoPrefill}
-                    className="w-full mt-3 py-3 border border-ink/40 font-mono text-xs tracking-[0.22em] uppercase text-ink-soft hover:bg-ink hover:text-cream hover:border-ink transition-colors"
+                    className="w-full py-3 border border-ink/40 font-mono text-xs tracking-[0.22em] uppercase text-ink-soft hover:bg-ink hover:text-cream hover:border-ink transition-colors"
                   >
                     Debug: pre-fill sample data →
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -685,11 +677,7 @@ export function CafeContributionForm({
           {renderStep === "speedtest" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
-                Run a speed test from where you&rsquo;re sitting. This is
-                what makes the listing trustworthy — anyone can claim a
-                café exists, but a real round-trip to the edge can&rsquo;t
-                be faked from a fake IP. The café doesn&rsquo;t appear on
-                the map without this reading.
+                Run a speed test from where you&rsquo;re sitting. A real round-trip to the edge can&rsquo;t be faked — the café won&rsquo;t appear on the map without it.
               </p>
 
               {testState === "idle" && (
@@ -767,10 +755,7 @@ export function CafeContributionForm({
           {renderStep === "photo" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
-                Add a café photo — your coffee, the counter, the laptop view.
-                It rides at the top of the café&rsquo;s page and gives the
-                map a face. The speed test you just ran is the actual trust
-                signal; the photo is the&nbsp;personality.
+                Add a café photo — your coffee, the counter, the laptop view. It rides at the top of the café&rsquo;s page.
               </p>
 
               <input

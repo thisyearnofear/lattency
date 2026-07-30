@@ -126,7 +126,7 @@ export async function BountiesBoard({
     >
       <div className="flex flex-wrap items-end justify-between gap-4 mb-3">
         <div>
-          <p className="stamp">Section III · monetization preview</p>
+          <p className="stamp">Coffee bounties</p>
           <h2 className="font-display font-black uppercase text-5xl md:text-6xl tracking-[-0.02em] text-ink mt-1">
             Coffee bounties
           </h2>
@@ -139,9 +139,7 @@ export async function BountiesBoard({
             The map fills in.
           </p>
           <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-3 max-w-2xl">
-            ISPs target their service areas; café owners reward their regulars;
-            community members backfill gaps in the map. Open a completed bounty
-            inside Nimiq Pay to claim your NIM reward.
+            Claim a completed bounty in Nimiq Pay to get your NIM reward.
           </p>
         </div>
         <Link
@@ -155,9 +153,9 @@ export async function BountiesBoard({
       {/* Three-step mini-explainer reinforcing the one-liner above. */}
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
         {[
-          { n: "01", verb: "Stake", body: "An ISP, café owner, or community member pre-pays a small bounty for a specific target — first café in Lavington, 3 oat-milk spots in Kilimani, 10th verified test at Savanna." },
-          { n: "02", verb: "Run", body: "A contributor walks into a café, runs a real in-browser speed test, fills in the coffee metadata, snaps a photo. The reading lands on the map the moment it commits." },
-          { n: "03", verb: "Verify + pay", body: "Outlier-flagged or solo readings wait for a second corroborating test. Once verified, the bounty pays out in NIM directly to your Nimiq Pay wallet." },
+          { n: "01", verb: "Stake", body: "Pre-pay a small bounty for a target — first café in an area, or the 10th verified test at a spot." },
+          { n: "02", verb: "Run", body: "Walk in, run a real speed test, snap a photo, fill the metadata. The reading lands on the map." },
+          { n: "03", verb: "Verify + pay", body: "Solo readings wait for a second test. Once verified, the bounty pays out in NIM to your wallet." },
         ].map((step) => (
           <li
             key={step.n}
@@ -184,9 +182,7 @@ export async function BountiesBoard({
             No open bounties yet.
           </p>
           <p className="font-serif italic text-ink-soft text-lg mt-3 max-w-xl mx-auto">
-            Be the first to back the map. Stake a coffee for the next
-            verified café in a neighbourhood you care about, or sponsor a
-            tier-target across your service area.
+            Be the first to back the map — stake a coffee for the next verified café near you.
           </p>
           <Link
             href="/partners"
@@ -204,11 +200,10 @@ export async function BountiesBoard({
       )}
 
       <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint mt-5">
-        NIM payouts via @nimiq/mini-app-sdk · see{" "}
+        NIM payouts via @nimiq/mini-app-sdk ·{" "}
         <Link href="/partners" className="text-ink underline underline-offset-4 hover:text-express">
           /partners
-        </Link>{" "}
-        for the model
+        </Link>
       </p>
     </section>
   );

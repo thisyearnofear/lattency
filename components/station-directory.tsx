@@ -242,7 +242,7 @@ export function StationDirectory({
           </h2>
         </div>
         <p className="font-serif italic text-ink-faint hidden md:block">
-          twelve stations · tap any to ride it
+          tap any to ride it
         </p>
       </div>
 
@@ -331,8 +331,7 @@ export function StationDirectory({
             The {cityConfig.name} line hasn&apos;t been drawn yet.
           </p>
           <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-4 max-w-2xl mx-auto">
-            Be the first station. Run a speed test where you&apos;re sitting and
-            this city goes live on the network.
+            Be the first station — run a speed test where you&apos;re sitting and this city goes live.
           </p>
           <a
             href={`${cityPath(cityConfig.id)}?contribute=1`}
@@ -348,9 +347,9 @@ export function StationDirectory({
           </p>
           <p className="font-serif italic text-ink-soft text-lg mt-3 max-w-xl mx-auto">
             {filter === "express"
-              ? "No verified express-tier cafés in this view. Be the first to map one — your reading defines the line."
+              ? "No verified express-tier cafés in this view. Map one — your reading defines the line."
               : filter === "suspended"
-                ? "Nothing flagged suspended here yet. That's a good sign, but if you've been somewhere slow, log a reading."
+                ? "Nothing flagged suspended here yet — a good sign."
                 : "Loosen the tier filter, or map a new café below."}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 mt-6">

@@ -100,14 +100,13 @@ export function SponsorDashboard() {
         Fund a bounty
       </h2>
       <p className="font-serif italic text-ink-soft text-sm mt-2">
-        Pre-pay NIM to sponsor verified workspace readings. Contributors earn
-        the reward when they hit your target.
+        Pre-pay NIM. Contributors earn it when they hit your target.
       </p>
 
       {!inMiniApp && (
         <div className="mt-4 border border-local/40 bg-local/5 p-3">
           <p className="font-serif italic text-local text-sm">
-            Open this Mini App inside Nimiq Pay to fund bounties with NIM.
+            Open in Nimiq Pay to fund with NIM.
           </p>
         </div>
       )}

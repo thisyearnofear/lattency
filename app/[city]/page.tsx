@@ -92,11 +92,6 @@ export default async function CityHome({
                 <span className="text-ink-faint mx-1.5">·</span>
                 You find the line you can actually work on.
               </p>
-              <p className="font-serif italic text-ink-soft text-xl md:text-2xl mt-3 max-w-2xl">
-                Cafés, coworking spaces, and hotel lobbies — verified wifi
-                speeds from anyone with a connection. Tap a station to see its
-                measurements, run a test, earn NIM.
-              </p>
               <div className="flex flex-wrap items-center gap-4 mt-6">
                 <Link
                   href={`${cityPath(city)}?contribute=1`}
@@ -110,12 +105,6 @@ export default async function CityHome({
                 >
                   Test my wifi <span aria-hidden>→</span>
                 </Link>
-                <Link
-                  href="/partners"
-                  className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-faint hover:text-ink transition-colors inline-flex items-center gap-1.5"
-                >
-                  How sponsors pay <span aria-hidden>→</span>
-                </Link>
               </div>
             </div>
             <div className="flex flex-col items-end gap-2 pb-2">
@@ -128,12 +117,6 @@ export default async function CityHome({
                   {c.name} <span aria-hidden>→</span>
                 </Link>
               ))}
-              <Link
-                href="/tour"
-                className="font-mono text-[11px] tracking-[0.22em] uppercase text-ink-faint hover:text-ink transition-colors inline-flex items-center gap-1.5 mt-1"
-              >
-                Watch the story <span aria-hidden>→</span>
-              </Link>
             </div>
           </div>
         </section>

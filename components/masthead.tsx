@@ -62,11 +62,7 @@ export function Masthead() {
 
         <div className="col-span-12 lg:col-span-4 lg:pl-8 lg:border-l lg:border-cream-deep flex flex-col justify-end gap-4">
           <p className="font-mono text-[13px] leading-relaxed text-ink-soft">
-            Every café is a station. The three lines aren&rsquo;t streets —
-            they&rsquo;re <span className="text-express">speed tiers</span>:
-            Express, Local, Suspended. Scroll to ride each line, then flip to{" "}
-            <span className="text-ink font-medium">Geographic</span> to drop the
-            same stations onto the real city.
+            Every café is a station. The three lines are <span className="text-express">speed tiers</span> — Express, Local, Suspended. Scroll to ride each, then flip to <span className="text-ink font-medium">Geographic</span> for the real city.
           </p>
           <p className="font-mono text-[11px] tracking-[0.18em] uppercase text-ink-faint scroll-cue">
             ↓ scroll to ride the lines

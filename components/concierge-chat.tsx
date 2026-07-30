@@ -230,9 +230,7 @@ export function ConciergeChat() {
               {messages.length === 0 && !busy && (
                 <div className="msg-in">
                   <p className="font-serif italic leading-relaxed text-ink-soft text-[15px]">
-                    I&rsquo;ve read every verified speed test on this network.
-                    Ask me where to work and I&rsquo;ll answer with real numbers
-                    — no vibes, no guesswork.
+                    Ask me where to work — I&rsquo;ll answer with real numbers from every verified test on this network.
                   </p>
 
                   {/* Departure board of suggested queries */}

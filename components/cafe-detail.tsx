@@ -258,6 +258,12 @@ export function CafeDetail({
   const receiptInputRef = useRef<HTMLInputElement>(null);
 
   const existingCheckIn = station ? getCheckIn(station.id) : null;
+  const alreadyCheckedIn = existingCheckIn?.verified ?? false;
+  const alreadyCheckedInBadge = alreadyCheckedIn ? (
+    <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-express inline-flex items-center gap-1">
+      <span aria-hidden>✓</span> Verified visitor
+    </span>
+  ) : null;
 
   // Reset check-in UI when the station changes — keyed on station id so
   // switching between cafés resets the form without an effect.
@@ -442,19 +448,28 @@ export function CafeDetail({
               </div>
             )}
 
-            {/* Check-in — "I was here" confirmation. Geolocation proximity
-                check + optional receipt photo. Privacy-preserving: only the
-                verified boolean and photo are stored locally, never the
-                user's exact coordinates. */}
-            <CheckInSection
-              status={checkInStatus}
-              distance={checkInDistance}
-              receiptPhoto={receiptPhoto}
-              receiptInputRef={receiptInputRef}
-              onReceiptSelect={handleReceiptSelect}
-              onCheckIn={handleCheckIn}
-              existingCheckIn={existingCheckIn}
-            />
+            {/* Check-in — "I was here" confirmation. Collapsed by default;
+                it's a secondary action, not part of the headline scan.
+                Geolocation proximity check + optional receipt photo.
+                Privacy-preserving: only the verified boolean and photo are
+                stored locally, never the user's exact coordinates. */}
+            <details className="mt-5 pt-4 border-t border-ink/15 group">
+              <summary className="flex items-baseline justify-between gap-3 cursor-pointer list-none">
+                <p className="stamp">Check in here</p>
+                {alreadyCheckedInBadge}
+                <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint group-open:hidden ml-auto">+ Show</span>
+                <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint hidden group-open:inline ml-auto">Hide</span>
+              </summary>
+              <CheckInBody
+                status={checkInStatus}
+                distance={checkInDistance}
+                receiptPhoto={receiptPhoto}
+                receiptInputRef={receiptInputRef}
+                onReceiptSelect={handleReceiptSelect}
+                onCheckIn={handleCheckIn}
+                existingCheckIn={existingCheckIn}
+              />
+            </details>
 
             {/* Tabbed sections — keeps the headline (tier + identity +
                 stats + signal quality) always visible while letting the
@@ -645,7 +660,7 @@ function EmptyTab({
 
 type CheckInStatus = "idle" | "pending" | "verified" | "far" | "denied";
 
-function CheckInSection({
+function CheckInBody({
   status,
   distance,
   receiptPhoto,
@@ -665,20 +680,9 @@ function CheckInSection({
   const alreadyCheckedIn = existingCheckIn?.verified ?? false;
 
   return (
-    <div className="mt-5 pt-4 border-t border-ink/15">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="stamp">Check in here</p>
-        {alreadyCheckedIn && (
-          <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-express inline-flex items-center gap-1">
-            <span aria-hidden>✓</span> Verified visitor
-          </span>
-        )}
-      </div>
-
-      <p className="font-serif italic text-ink-soft text-sm mt-2 leading-snug">
-        Confirm you&rsquo;re at this café right now. We check your device
-        location against the café&rsquo;s coordinates — your exact position
-        is never stored, only the result.
+    <div className="mt-3">
+      <p className="font-serif italic text-ink-soft text-sm leading-snug">
+        Confirm you&rsquo;re at this café right now. We check your device location against the café&rsquo;s coordinates — your exact position is never stored.
       </p>
 
       {/* Receipt photo — optional, client-side resized */}

@@ -72,9 +72,6 @@ export default async function Tour() {
           <p className="stamp">
             Lattency · live network · {new Date().getFullYear()}
           </p>
-          <p className="font-serif italic text-ink-faint text-sm">
-            a hackathon submission · built on Base44 · powered by Nimiq Pay · deployed on Vercel
-          </p>
           <p className="stamp">Set in Big Shoulders &amp; IBM Plex Mono</p>
         </footer>
       </main>
