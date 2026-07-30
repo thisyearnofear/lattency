@@ -432,6 +432,9 @@ export function MapShell({
   // these track whether each panel is currently expanded above the rail.
   const [showLines, setShowLines] = useState(false);
   const [showLocate, setShowLocate] = useState(false);
+  // The hero plate collapses to a slim stamp once the user starts using the
+  // map (or dismisses it), so it never keeps covering stations.
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
   // Leaflet initialisation is heavy, so we lazy-mount it on first switch to
   // geographic and keep it alive afterwards. Keeping both layers mounted
   // (rather than swapping them) is what lets the mode switch crossfade
@@ -741,6 +744,7 @@ export function MapShell({
               cafes={allCafes}
               onSelectStation={(cafe) => {
                 setSelected(cafe);
+                setHeroCollapsed(true);
                 open("map-cafe");
               }}
               focusOn={focus}
@@ -763,6 +767,7 @@ export function MapShell({
             activeTiers={activeTiers}
             onSelect={(cafe) => {
               setSelected(cafe);
+              setHeroCollapsed(true);
               open("map-cafe");
             }}
             trailPoints={trailPoints}
@@ -774,11 +779,32 @@ export function MapShell({
 
       {/* Hero overlay — painted top-left over the network in hero mode.
           z-[400] sits above the map layers but below the drawers (z-50) and
-          the tools rail (z-[500]) so it never blocks interaction. */}
-      {hero && (
-        <div className="absolute top-3 left-3 sm:top-6 sm:left-6 z-[400] pointer-events-auto w-[min(340px,calc(100vw-1.5rem))] sm:w-[min(380px,calc(100vw-3rem))]">
-          {hero}
+          the tools rail (z-[500]) so it never blocks interaction. Dismissible
+          (and auto-collapsed on first station tap) so it never keeps
+          covering the western stations. */}
+      {hero && !heroCollapsed && (
+        <div className="absolute top-3 left-3 sm:top-6 sm:left-6 z-[400] pointer-events-auto w-[min(320px,calc(100vw-1.5rem))] sm:w-[min(360px,calc(100vw-3rem))]">
+          <div className="relative">
+            {hero}
+            <button
+              type="button"
+              onClick={() => setHeroCollapsed(true)}
+              aria-label="Hide intro panel"
+              className="absolute top-1.5 right-1.5 w-7 h-7 grid place-items-center font-mono text-[14px] leading-none text-ink-faint hover:text-ink hover:bg-cream-edge transition-colors"
+            >
+              ×
+            </button>
+          </div>
         </div>
+      )}
+      {hero && heroCollapsed && (
+        <button
+          type="button"
+          onClick={() => setHeroCollapsed(false)}
+          className="absolute top-3 left-3 sm:top-6 sm:left-6 z-[400] pointer-events-auto bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] px-3 py-2 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors"
+        >
+          ¶ {cityConfig.name} · Intro
+        </button>
       )}
 
       {noneActive && (

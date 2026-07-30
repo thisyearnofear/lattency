@@ -151,16 +151,29 @@ body {
 }
 .scroll-cue { animation: cue-bounce 1.8s ease-in-out infinite; }
 
-/* Staggered reveal of station cards as they scroll into view. */
-@keyframes card-rise {
-  from { opacity: 0; transform: translateY(28px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* Staggered reveal of station cards as they scroll into view. Cards start
+   hidden; an IntersectionObserver in StationCard adds .is-revealed as each
+   card enters the viewport, staggered per column via --reveal-delay. Uses
+   `transform` while Tailwind's hover:-translate-y-1 sets the separate
+   `translate` property, so hover lifts still work after the reveal. */
 .station-card {
-  /* `backwards` fill keeps the delayed stagger hidden until the animation
-     starts but does NOT freeze the final keyframe, so hover lifts still
-     work after the entrance (a `forwards` fill would override transforms). */
-  animation: card-rise 600ms var(--ease-out-soft) backwards;
+  opacity: 0;
+  transform: translateY(28px);
+}
+.station-card.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 600ms var(--ease-out-soft),
+    transform 600ms var(--ease-out-soft);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .station-card {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 
 /* Legend mini-lines draw in when their row enters the viewport. */

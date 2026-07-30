@@ -82,17 +82,17 @@ export default async function CityHome({
               city={city}
               cityConfig={cityConfig}
               hero={
-                <div className="bg-cream/95 border border-ink/80 shadow-[4px_5px_0_0_var(--color-ink)] p-5 sm:p-6">
-                  <p className="stamp">{cityConfig.name} · {cityConfig.country}</p>
+                <div className="bg-cream/95 border border-ink/80 shadow-[4px_5px_0_0_var(--color-ink)] p-4 sm:p-5">
+                  <p className="stamp pr-8">{cityConfig.name} · {cityConfig.country}</p>
                   <h1
                     className="font-display font-black uppercase text-ink leading-[0.92] tracking-[-0.02em] mt-2"
-                    style={{ fontSize: "clamp(32px, 5vw, 56px)" }}
+                    style={{ fontSize: "clamp(24px, 3.6vw, 42px)" }}
                   >
                     Where can you work
                     <br />
                     in {cityConfig.name} today?
                   </h1>
-                  <p className="font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase text-ink-soft mt-4">
+                  <p className="hidden sm:block font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase text-ink-soft mt-3">
                     Contributors map.
                     <span className="text-ink-faint mx-1.5">·</span>
                     Sponsors fund coffees.
@@ -101,7 +101,7 @@ export default async function CityHome({
                   </p>
                   <Link
                     href={`${cityPath(city)}?contribute=1`}
-                    className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-5"
+                    className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-4"
                   >
                     <span aria-hidden>+</span> Map a café in 60 seconds
                   </Link>

@@ -179,36 +179,88 @@ export const STATION_WAYPOINT: Record<string, Waypoint> = {
 // This generalises to any city — the only per-city setup is adding cafés
 // to mock-cafes.ts with the city tag.
 
-function extractAnchors(d: string): Array<{ x: number; y: number }> {
-  const points: Array<{ x: number; y: number }> = [];
-  // M, L endpoints + Q's endpoint contribute anchors the curve passes through.
-  const regex =
-    /([ML])\s+([\d.-]+)\s+([\d.-]+)|Q\s+[\d.-]+\s+[\d.-]+\s*,\s*([\d.-]+)\s+([\d.-]+)/g;
+// Quadratic segments (start anchor, control, end anchor) parsed from a path.
+function extractQuadSegments(
+  d: string,
+): Array<{ p0: { x: number; y: number }; c: { x: number; y: number }; p1: { x: number; y: number } }> {
+  const start = /M\s+([\d.-]+)\s+([\d.-]+)/.exec(d);
+  if (!start) return [];
+  let prev = { x: parseFloat(start[1]), y: parseFloat(start[2]) };
+  const segs: Array<{ p0: { x: number; y: number }; c: { x: number; y: number }; p1: { x: number; y: number } }> = [];
+  const regex = /Q\s+([\d.-]+)\s+([\d.-]+)\s*,\s*([\d.-]+)\s+([\d.-]+)/g;
   let m: RegExpExecArray | null;
   while ((m = regex.exec(d)) !== null) {
-    if (m[1]) points.push({ x: parseFloat(m[2]), y: parseFloat(m[3]) });
-    else points.push({ x: parseFloat(m[4]), y: parseFloat(m[5]) });
+    const c = { x: parseFloat(m[1]), y: parseFloat(m[2]) };
+    const p1 = { x: parseFloat(m[3]), y: parseFloat(m[4]) };
+    segs.push({ p0: prev, c, p1 });
+    prev = p1;
   }
-  return points;
+  return segs;
+}
+
+function quadAt(
+  seg: { p0: { x: number; y: number }; c: { x: number; y: number }; p1: { x: number; y: number } },
+  t: number,
+): { x: number; y: number } {
+  const u = 1 - t;
+  return {
+    x: u * u * seg.p0.x + 2 * u * t * seg.c.x + t * t * seg.p1.x,
+    y: u * u * seg.p0.y + 2 * u * t * seg.c.y + t * t * seg.p1.y,
+  };
+}
+
+// Walk a polyline by arc length: t ∈ [0,1] → point that fraction of the way
+// along the total length.
+function pointAlong(
+  points: Array<{ x: number; y: number }>,
+  t: number,
+): { x: number; y: number } {
+  if (points.length === 1) return points[0];
+  const lengths: number[] = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const d = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    lengths.push(d);
+    total += d;
+  }
+  let target = Math.max(0, Math.min(1, t)) * total;
+  for (let i = 0; i < lengths.length; i++) {
+    if (target <= lengths[i] || i === lengths.length - 1) {
+      const r = lengths[i] === 0 ? 0 : Math.min(1, target / lengths[i]);
+      return {
+        x: points[i].x + (points[i + 1].x - points[i].x) * r,
+        y: points[i].y + (points[i + 1].y - points[i].y) * r,
+      };
+    }
+    target -= lengths[i];
+  }
+  return points[points.length - 1];
 }
 
 export function computeWaypoints(cafes: CafeStation[]): Record<string, Waypoint> {
   const out: Record<string, Waypoint> = {};
   (Object.keys(TIER_PATH) as Tier[]).forEach((tier) => {
-    const anchors = extractAnchors(TIER_PATH[tier]);
-    const interior = anchors.slice(1, -1);
+    const segs = extractQuadSegments(TIER_PATH[tier]);
     const stations = cafes
       .filter((c) => c.tier === tier)
       .sort((a, b) => a.lng - b.lng);
-    if (stations.length === 0 || interior.length === 0) return;
+    if (stations.length === 0 || segs.length === 0) return;
+    // Interior of the curve — skip the first and last segment so the line
+    // extends past the outermost stations. Flatten the remaining Beziers
+    // into a polyline, then place stations by even arc length so two
+    // stations can never share coordinates (the old anchor-snapping
+    // produced identical positions when stations outnumbered anchors,
+    // stacking their labels).
+    const interior = segs.length > 2 ? segs.slice(1, -1) : segs;
+    const SAMPLES = 16;
+    const polyline: Array<{ x: number; y: number }> = [quadAt(interior[0], 0)];
+    interior.forEach((seg) => {
+      for (let i = 1; i <= SAMPLES; i++) polyline.push(quadAt(seg, i / SAMPLES));
+    });
     stations.forEach((cafe, i) => {
-      const idx =
-        stations.length === 1
-          ? Math.floor(interior.length / 2)
-          : Math.round((i / (stations.length - 1)) * (interior.length - 1));
-      const point = interior[Math.min(idx, interior.length - 1)];
-      const progress = (idx + 1) / Math.max(1, anchors.length - 1);
-      out[cafe.name] = { x: point.x, y: point.y, progress };
+      const t = stations.length === 1 ? 0.5 : i / (stations.length - 1);
+      const point = pointAlong(polyline, t);
+      out[cafe.name] = { x: point.x, y: point.y, progress: t };
     });
   });
   return out;
@@ -290,9 +342,21 @@ export const WORLD_CITIES: WorldCity[] = [
 export function splitName(name: string): [string, string?] {
   const upper = name.toUpperCase();
   const words = upper.split(" ");
-  if (words.length <= 2 && upper.length <= 16) return [upper];
-  const splitAt = words.length <= 3 ? 1 : 2;
-  return [words.slice(0, splitAt).join(" "), words.slice(splitAt).join(" ")];
+  if (words.length === 1 || upper.length <= 16) return [upper];
+  // Pick the split that minimizes the wider line — keeps labels compact so
+  // they don't run into neighbouring stations.
+  let best: [string, string] = [words[0], words.slice(1).join(" ")];
+  let bestWidth = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const l1 = words.slice(0, i).join(" ");
+    const l2 = words.slice(i).join(" ");
+    const width = Math.max(l1.length, l2.length);
+    if (width < bestWidth) {
+      bestWidth = width;
+      best = [l1, l2];
+    }
+  }
+  return best;
 }
 
 /**

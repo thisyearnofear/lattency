@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
 import { cityPath, resolveCityConfig, type CityConfig } from "@/lib/cities";
 import { TIER_USE } from "@/lib/map-data";
@@ -52,14 +52,45 @@ function StationCard({
   animate?: boolean;
 }) {
   const ord = String(index + 1).padStart(2, "0");
+  const ref = useRef<HTMLButtonElement>(null);
+  const [revealed, setRevealed] = useState(false);
+
+  // Reveal when the card scrolls into view — one observer per card, torn
+  // down after the first intersection. Falls back to instantly visible when
+  // IntersectionObserver is unavailable.
+  useEffect(() => {
+    if (!animate) return;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setRevealed(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setRevealed(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.15, rootMargin: "0px 0px -10% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [animate]);
+
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onOpen}
       className={`pressable group relative block w-full text-left bg-cream border border-ink/15 hover:border-ink/60 hover:-translate-y-1 hover:shadow-[6px_8px_0_0_var(--color-ink)] focus-visible:border-ink focus-visible:shadow-[6px_8px_0_0_var(--color-ink)] outline-none ${
-        animate ? "station-card" : ""
+        animate ? `station-card${revealed ? " is-revealed" : ""}` : ""
       }`}
-      style={animate ? { animationDelay: `${Math.min(index * 40, 400)}ms` } : undefined}
+      style={
+        animate
+          ? ({ "--reveal-delay": `${(index % 4) * 70}ms` } as React.CSSProperties)
+          : undefined
+      }
     >
       <div className="relative aspect-[5/3] overflow-hidden bg-cream-edge">
         <div className="absolute inset-0 flex items-center justify-center">
