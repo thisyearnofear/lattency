@@ -9,7 +9,7 @@ Everything a judge needs, in one place. Copy-paste ready.
 - **Live app:** https://lattency.vercel.app/ (redirects to /london)
 - **Repo:** https://github.com/thisyearnofear/lattency
 - **Backend:** Base44 (entities, auth, Deno functions, AI agent, automations)
-- **Payments:** Nimiq Pay (NIM bounties for verified speed tests)
+- **Payments:** Nimiq Pay (NIM bounties for verified speed tests) — live on testnet, funded escrow at `NQ26 5SK4 DC9A R1EX 1BQH 35Y0 EADX BSBR BJU0`
 - **Frontend:** Next.js 16.3 on Vercel (App Router, RSC, ISR)
 - **Cities live:** London, Nairobi, San Francisco
 
@@ -100,6 +100,8 @@ The frontend is Next.js 16 on Vercel (kept on Vercel for SSR, OG images, ISR, an
 - [ ] City switcher flips between cities with split-flap animation
 - [ ] "Ask the Oracle" button opens the concierge chat
 - [ ] Bounties board shows city-specific bounties
+- [x] Escrow wallet funded with testnet NIM (`NQ26 5SK4 DC9A R1EX 1BQH 35Y0 EADX BSBR BJU0`)
+- [ ] A bounty claim produces a real on-chain tx with a working explorer link (mock mode off in production)
 
 ---
 
