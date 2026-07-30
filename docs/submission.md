@@ -21,6 +21,20 @@ Everything a judge needs, in one place. Copy-paste ready.
 
 ---
 
+## Competition description (Nimiq Mini Apps form, ≤250 words)
+
+> **Lattency** is a crowdsourced metro map of café wifi speeds. Cafés, coworking spaces, and hotel lobbies are stations; the lines are speed tiers — Express (≥50 Mbps, video calls OK), Local (10–49 Mbps, email and browsing), and Suspended (<10 Mbps, avoid for calls).
+>
+> It's for remote workers, freelancers, and travellers who need to know where they can actually take a video call — and for the sponsors (ISPs, café owners, communities) who want that data collected.
+>
+> Anyone can contribute in under 60 seconds, no account needed: open the map, tap "+ Map a café", run a real in-browser speed test from where you're sitting, and the station appears on the line instantly. The speed test is the trust mechanism — a real round-trip to an edge server can't be faked.
+>
+> Nimiq Pay is the payment rail on both sides of the marketplace. Sponsors fund bounties in NIM through the Mini App SDK's payment request, paying into escrow from inside Nimiq Pay. When a contributor's verified reading closes a bounty, the NIM pays out to their connected wallet as a real on-chain transaction — server-signed via @nimiq/core, with concurrency locking and an explorer link on the receipt.
+>
+> Live in London, Nairobi, and San Francisco on one engine, with a realtime map that updates the moment anyone tests anywhere, an AI concierge that answers "where should I work?", and a schematic ↔ geographic map toggle.
+
+---
+
 ## Full description (for a long-form submission field)
 
 > **Lattency** is a crowdsourced metro map of café wifi speeds. Cafés, coworking spaces, and hotel lobbies are stations; the three lines are speed tiers — Express (≥50 Mbps, video calls OK), Local (10–49 Mbps, email & browsing), and Suspended (<10 Mbps, avoid for calls).
