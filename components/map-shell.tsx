@@ -724,8 +724,13 @@ export function MapShell({
           rail, tap hint) resolve against the viewport, not the outer
           MapShell which includes the filter row above. Without this wrapper
           the locate panel's top-2 was the top of the filter row, not the
-          top of the map, overlapping chips on mobile. */}
-      <div className="relative">
+          top of the map, overlapping chips on mobile.
+
+          `isolate` contains the Leaflet-relative z values (z-[400]/z-[500],
+          chosen to beat Leaflet's internal 200-700 panes) inside this
+          subtree, so fixed modals elsewhere (café drawer z-50, concierge
+          z-[60]) always paint above the map chrome. */}
+      <div className="relative isolate">
       {/* Shared map viewport — both modes render inside one fixed-height
           frame (see .map-viewport) so switching never resizes the page. The
           two layers overlap and crossfade instead of being swapped out, which
