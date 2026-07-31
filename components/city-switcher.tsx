@@ -65,14 +65,14 @@ export function CitySwitcher({
     closeTimer.current = setTimeout(() => setMounted(false), 220);
   }, []);
 
-  // Warm the other cities' pages the moment the board opens, so switching
-  // feels like a departure-board flip instead of a page load.
+  // Warm the other cities' pages as soon as the switcher mounts (not when
+  // the board opens — by then the user is already mid-switch and the RSC
+  // payload may not land before they click). Routes are static + tiny.
   useEffect(() => {
-    if (!open) return;
     for (const city of cities) {
       if (city.id !== current) router.prefetch(cityPath(city.id));
     }
-  }, [open, current, cities, router]);
+  }, [current, cities, router]);
 
   // Click-outside to close.
   useEffect(() => {

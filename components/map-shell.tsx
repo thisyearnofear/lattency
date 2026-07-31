@@ -12,7 +12,7 @@
 // "Find me" locates the user; if they're far from the active city,
 // it offers neighbourhood quick-picks to explore from.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { CafeStation, CityId, Tier } from "@/lib/types";
@@ -43,6 +43,26 @@ import { useOverlay } from "./overlay-context";
 // Anything farther than this from the active city's centre is treated as
 // "demo from afar" and the neighbourhood quick-picks stay visible.
 const NEAR_CITY_KM = 50;
+
+// sessionStorage-backed map preferences, read through useSyncExternalStore.
+// The store never notifies (writes happen alongside setState in the same
+// component), so subscribe is a no-op; the snapshot is re-read per render.
+const subscribeToNothing = () => () => {};
+const returnFalse = () => false;
+function readIntroDismissed() {
+  try {
+    return sessionStorage.getItem("lattency:introDismissed") === "1";
+  } catch {
+    return false;
+  }
+}
+function readGeoPreferred() {
+  try {
+    return sessionStorage.getItem("lattency:mapView") === "geographic";
+  } catch {
+    return false;
+  }
+}
 
 // Leaflet pulls in window; ssr: false keeps it client-only. While it loads we
 // paint the schematic grid (the tier lines come from city config, not data)
@@ -427,20 +447,66 @@ export function MapShell({
     return match ? { lat: match.lat, lng: match.lng, label: match.name } : null;
   }, [searchParams, cityConfig.demoLocations]);
   const { active, open, close } = useOverlay();
-  const [view, setView] = useState<ViewMode>(() => (hoodFocus ? "geographic" : "schematic"));
+
+  // Cross-page map preferences — read via useSyncExternalStore so SSR/
+  // hydration render the first-visit defaults (server snapshot) and the
+  // client immediately re-renders with the stored values, no effect needed.
+  // This is what keeps a dismissed intro dismissed and the schematic/
+  // geographic choice stable when switching cities.
+  const storedIntroDismissed = useSyncExternalStore(
+    subscribeToNothing,
+    readIntroDismissed,
+    returnFalse,
+  );
+  const storedGeoPreferred = useSyncExternalStore(
+    subscribeToNothing,
+    readGeoPreferred,
+    returnFalse,
+  );
+
+  // null = the user hasn't acted this mount; fall back to the stored pref.
+  const [viewState, setViewState] = useState<ViewMode | null>(() =>
+    hoodFocus ? "geographic" : null,
+  );
+  const view: ViewMode =
+    viewState ?? (storedGeoPreferred ? "geographic" : "schematic");
   // Hero mode collapses the tier chips + locate into the bottom tools rail;
   // these track whether each panel is currently expanded above the rail.
   const [showLines, setShowLines] = useState(false);
   const [showLocate, setShowLocate] = useState(false);
   // The hero plate collapses to a slim stamp once the user starts using the
   // map (or dismisses it), so it never keeps covering stations.
-  const [heroCollapsed, setHeroCollapsed] = useState(false);
+  const [heroCollapsedState, setHeroCollapsedState] = useState<boolean | null>(
+    null,
+  );
+  const heroCollapsed = heroCollapsedState ?? storedIntroDismissed;
   // Leaflet initialisation is heavy, so we lazy-mount it on first switch to
   // geographic and keep it alive afterwards. Keeping both layers mounted
   // (rather than swapping them) is what lets the mode switch crossfade
   // instead of hard-cutting between two differently-sized roots.
-  const [leafletEverMounted, setLeafletEverMounted] = useState(
-    () => view === "geographic",
+  const [leafletRequested, setLeafletRequested] = useState(false);
+  const leafletEverMounted = leafletRequested || view === "geographic";
+
+  const dismissHero = useCallback((collapsed: boolean) => {
+    setHeroCollapsedState(collapsed);
+    try {
+      sessionStorage.setItem("lattency:introDismissed", collapsed ? "1" : "0");
+    } catch {}
+  }, []);
+
+  const switchView = useCallback(
+    (mode: ViewMode) => {
+      setViewState(mode);
+      // Keep Leaflet alive across toggles: mount it when entering
+      // geographic, and don't unmount it when leaving.
+      if (mode === "geographic" || view === "geographic") {
+        setLeafletRequested(true);
+      }
+      try {
+        sessionStorage.setItem("lattency:mapView", mode);
+      } catch {}
+    },
+    [view],
   );
   const [selected, setSelected] = useState<CafeStation | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number; label: string } | null>(hoodFocus);
@@ -644,12 +710,12 @@ export function MapShell({
   );
 
   function ensureGeographic() {
-    if (view !== "geographic") setView("geographic");
-    // Leaflet is lazy-mounted on first switch to geographic. The view
-    // toggle handles this in its onClick, but ensureGeographic() is also
-    // called from locateMe() and jumpTo() — without this, those paths
-    // switch to geographic but leave a blank viewport (no Leaflet).
-    setLeafletEverMounted(true);
+    // Leaflet is lazy-mounted on first switch to geographic; switchView
+    // handles that. ensureGeographic() is called from locateMe() and
+    // jumpTo() — without the mount, those paths would switch to geographic
+    // but leave a blank viewport (no Leaflet).
+    if (view !== "geographic") switchView("geographic");
+    setLeafletRequested(true);
   }
 
   function locateMe() {
@@ -729,8 +795,13 @@ export function MapShell({
           `isolate` contains the Leaflet-relative z values (z-[400]/z-[500],
           chosen to beat Leaflet's internal 200-700 panes) inside this
           subtree, so fixed modals elsewhere (café drawer z-50, concierge
-          z-[60]) always paint above the map chrome. */}
-      <div className="relative isolate">
+          z-[60]) always paint above the map chrome.
+
+          The view-transition-name pins the map frame in place during city
+          switches: same name + same geometry on both pages means the frame
+          holds still and only its contents crossfade, so switching reads as
+          "same network, new city" instead of a page reload. */}
+      <div className="relative isolate" style={{ viewTransitionName: "city-map" }}>
       {/* Shared map viewport — both modes render inside one fixed-height
           frame (see .map-viewport) so switching never resizes the page. The
           two layers overlap and crossfade instead of being swapped out, which
@@ -749,7 +820,7 @@ export function MapShell({
               cafes={allCafes}
               onSelectStation={(cafe) => {
                 setSelected(cafe);
-                setHeroCollapsed(true);
+                dismissHero(true);
                 open("map-cafe");
               }}
               focusOn={focus}
@@ -772,7 +843,7 @@ export function MapShell({
             activeTiers={activeTiers}
             onSelect={(cafe) => {
               setSelected(cafe);
-              setHeroCollapsed(true);
+              dismissHero(true);
               open("map-cafe");
             }}
             trailPoints={trailPoints}
@@ -793,7 +864,7 @@ export function MapShell({
             {hero}
             <button
               type="button"
-              onClick={() => setHeroCollapsed(true)}
+              onClick={() => dismissHero(true)}
               aria-label="Hide intro panel"
               className="absolute top-1.5 right-1.5 w-7 h-7 grid place-items-center font-mono text-[14px] leading-none text-ink-faint hover:text-ink hover:bg-cream-edge transition-colors"
             >
@@ -805,7 +876,7 @@ export function MapShell({
       {hero && heroCollapsed && (
         <button
           type="button"
-          onClick={() => setHeroCollapsed(false)}
+          onClick={() => dismissHero(false)}
           className="absolute top-3 left-3 sm:top-6 sm:left-6 z-[400] pointer-events-auto bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] px-3 py-2 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors"
         >
           ¶ {cityConfig.name} · Intro
@@ -954,13 +1025,7 @@ export function MapShell({
               type="button"
               role="tab"
               aria-selected={view === mode}
-              onClick={() => {
-                setView(mode);
-                // Lazy-mount Leaflet on first switch to geographic (kept
-                // alive afterwards); driven from the click, not an effect,
-                // to avoid a cascading render.
-                if (mode === "geographic") setLeafletEverMounted(true);
-              }}
+              onClick={() => switchView(mode)}
               className={`px-2.5 py-1.5 transition-colors ${
                 view === mode
                   ? "bg-ink text-cream"
