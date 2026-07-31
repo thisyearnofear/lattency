@@ -22,16 +22,16 @@ export function SpeedTestRunning({ progress }: SpeedTestRunningProps) {
 
   const liveLabel =
     progress.phase === "ping"
-      ? "Pinging the edge…"
+      ? "Signalling the nearest edge…"
       : progress.phase === "download"
         ? progress.downMbps !== undefined
-          ? `${progress.downMbps.toFixed(1)} Mbps down`
-          : "Streaming the 10 MB blob…"
+          ? `${progress.downMbps.toFixed(1)} Mbps riding the down line`
+          : "Boarding the down service…"
         : progress.phase === "upload"
           ? progress.upMbps !== undefined
-            ? `${progress.upMbps.toFixed(1)} Mbps up`
-            : "Uploading test payloads…"
-          : "Wrapping up…";
+            ? `${progress.upMbps.toFixed(1)} Mbps on the up line`
+            : "Returning on the up line…"
+          : "Pulling into the platform…";
 
   return (
     <div className="space-y-4">
@@ -88,7 +88,7 @@ export function SpeedTestRunning({ progress }: SpeedTestRunningProps) {
       </div>
 
       <p className="font-mono text-[10px] text-ink-faint leading-snug">
-        Round-trip recorded against the nearest Vercel edge. ~12 seconds.
+        Inspection ride to the nearest Vercel edge and back. ~12 seconds.
       </p>
     </div>
   );

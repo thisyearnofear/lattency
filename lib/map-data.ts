@@ -237,6 +237,17 @@ function pointAlong(
   return points[points.length - 1];
 }
 
+/** Point a fraction `t` ∈ [0,1] along a tier's schematic Bezier, in VIEW_W×VIEW_H coords. */
+export function pointAlongTier(tier: Tier, t: number): { x: number; y: number } {
+  const segs = extractQuadSegments(TIER_PATH[tier]);
+  const SAMPLES = 16;
+  const polyline: Array<{ x: number; y: number }> = [quadAt(segs[0], 0)];
+  segs.forEach((seg) => {
+    for (let i = 1; i <= SAMPLES; i++) polyline.push(quadAt(seg, i / SAMPLES));
+  });
+  return pointAlong(polyline, t);
+}
+
 export function computeWaypoints(cafes: CafeStation[]): Record<string, Waypoint> {
   const out: Record<string, Waypoint> = {};
   (Object.keys(TIER_PATH) as Tier[]).forEach((tier) => {
