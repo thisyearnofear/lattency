@@ -102,6 +102,7 @@ export interface B44MeasurementInsert {
   downloadDurationMs?: number | null;
   contributorIpHash?: string | null;
   contributorUserId?: string | null;
+  referredBy?: string | null;
 }
 
 /** Insert a single measurement under service role (bypasses RLS). */
@@ -122,6 +123,7 @@ export async function b44InsertMeasurement(m: B44MeasurementInsert): Promise<str
     download_duration_ms: m.downloadDurationMs ?? null,
     contributor_ip_hash: m.contributorIpHash ?? null,
     contributor_user_id: m.contributorUserId ?? null,
+    referred_by: m.referredBy ?? null,
   })) as { id: string };
   return measured.id;
 }
@@ -153,6 +155,7 @@ export async function b44CreateCafe(input: B44CafeCreate): Promise<{
       download_duration_ms: input.measurement.downloadDurationMs ?? null,
       contributor_ip_hash: input.measurement.contributorIpHash ?? null,
       contributor_user_id: input.measurement.contributorUserId ?? null,
+      referred_by: input.measurement.referredBy ?? null,
     },
   });
   const cafeId = unwrap<string>(res, "cafeId");

@@ -126,8 +126,9 @@ export async function BountiesBoard({
   const items = limit ? all.slice(0, limit) : all;
   return (
     <section
+      id="bounties"
       aria-label="Open coffee bounties"
-      className="mt-24 pt-10 border-t border-ink/80"
+      className="mt-24 pt-10 border-t border-ink/80 scroll-mt-16"
     >
       <div className="flex flex-wrap items-end justify-between gap-4 mb-3">
         <div>

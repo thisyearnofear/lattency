@@ -9,6 +9,8 @@
 
 import { useMemo, useState, useEffect } from "react";
 import type { Tier } from "@/lib/types";
+import { slugify } from "@/lib/slug";
+import { readContributorId } from "@/lib/contributor";
 import { useShareCard } from "./share-card";
 import { YourLine, type TrailStation } from "./your-line";
 
@@ -143,6 +145,17 @@ export function ContributionCelebration({
     return `I just mapped ${cafeName} on @lattency — ${Math.round(downMbps)} Mbps on the ${tier} line. Where can you work?`;
   }, [cafeName, tier, downMbps]);
 
+  // Deep link back to this station, carrying referral attribution so the
+  // recipient's first contribution credits this contributor (?via=).
+  const shareUrl = useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    const origin = window.location.origin;
+    const slug = slugify(cafeName);
+    const contributorId = readContributorId();
+    const via = contributorId ? `?via=${encodeURIComponent(contributorId)}` : "";
+    return `${origin}/cafes/${slug}${via}`;
+  }, [cafeName]);
+
   // Fetch bounties for this city and try to match by neighbourhood.
   // This connects the celebration to the bounty system in the moment of
   // maximum engagement.
@@ -183,6 +196,7 @@ export function ContributionCelebration({
             cafesMapped: stats.cafesMapped,
             citiesMapped: stats.citiesMapped,
           },
+          shareUrl,
         },
         shareText,
       );

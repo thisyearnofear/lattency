@@ -24,6 +24,7 @@ import { TIER_COLOUR, TIER_USE, tierForDown } from "@/lib/map-data";
 import { CrossfadePanel } from "@/components/crossfade-panel";
 import { ContributionCelebration } from "./contribution-celebration";
 import { SpeedTestRunning } from "./speed-test-running";
+import { useContributor } from "@/hooks/use-contributor";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
 
@@ -219,6 +220,7 @@ export function CafeContributionForm({
   const [testState, setTestState] = useState<"idle" | "running" | "done" | "error">(
     () => (prefill ? "done" : "idle"),
   );
+  const contributor = useContributor();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [debug] = useState(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
@@ -349,7 +351,13 @@ export function CafeContributionForm({
         wifiNetwork: form.wifiNetwork || undefined,
       } as CafeMetadata,
       photo: form.photo,
-      measurement: form.measurement,
+      measurement: {
+        ...form.measurement,
+        contributorId: contributor.id,
+        ...(contributor.referredBy && { referredBy: contributor.referredBy }),
+      },
+      contributorId: contributor.id,
+      ...(contributor.referredBy && { referredBy: contributor.referredBy }),
     };
 
     // Optimistic pin drop — let the map place the station immediately,

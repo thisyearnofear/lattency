@@ -3,6 +3,7 @@ import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import {
   deviceTypeFromUA,
   resolveTestMethod,
+  sanitizeContributorId,
   validateMeasurement,
 } from "@/lib/measurements";
 import type { MeasurementInput } from "@/lib/types";
@@ -57,6 +58,8 @@ export async function POST(req: NextRequest) {
 
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
   const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
+  const contributorUserId = sanitizeContributorId(body.contributorId);
+  const referredBy = sanitizeContributorId(body.referredBy);
 
   // Base44 write path — stats aggregation happens on read (get-cafe-stats),
   // so there is no materialized view to refresh.
@@ -78,6 +81,8 @@ export async function POST(req: NextRequest) {
         downloadBytes: body.downloadBytes ?? null,
         downloadDurationMs: body.downloadDurationMs ?? null,
         contributorIpHash: ipHash,
+        contributorUserId,
+        referredBy,
       });
     } catch (err) {
       log.error("Base44 measurement insert failed", {

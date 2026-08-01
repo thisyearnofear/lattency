@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CitySwitcher } from "./city-switcher";
 import { BrandMark } from "./brand-mark";
 import { LiveNetworkBadge } from "./live-network-badge";
+import { NotificationInbox } from "./notification-inbox";
 import { cityPath, DEFAULT_CITY_ID, type LiveCity } from "@/lib/cities";
 
 /**
@@ -106,6 +107,15 @@ export function TopNav({
           >
             Test my wifi
           </Link>
+
+          <Link
+            href="/me"
+            className="text-ink-soft hover:text-ink transition-colors hidden sm:inline"
+          >
+            My line
+          </Link>
+
+          <NotificationInbox city={currentCity} />
 
           {/* Primary CTA — ink-filled so it reads as the action of the nav. */}
           <Link

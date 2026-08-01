@@ -6,6 +6,10 @@
 
 import type { Neighbourhood, Tier } from "./types";
 
+// Re-export so consumers can pull the tier union from the map layer alongside
+// the tier colours/paths (speed-test-page imports it from here).
+export type { Tier };
+
 // ── Stage ────────────────────────────────────────────────────────────────────
 
 export const VIEW_W = 1440;

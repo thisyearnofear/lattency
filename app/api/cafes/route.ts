@@ -1,7 +1,7 @@
 import { NextRequest, after } from "next/server";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import { validateCafeMetadata } from "@/lib/cafe-metadata";
-import { deviceTypeFromUA, validateMeasurement } from "@/lib/measurements";
+import { deviceTypeFromUA, sanitizeContributorId, validateMeasurement } from "@/lib/measurements";
 import { DEFAULT_CITY_ID } from "@/lib/cities";
 import { slugify } from "@/lib/slug";
 import type { CafeCreationInput } from "@/lib/types";
@@ -99,6 +99,8 @@ export async function POST(req: NextRequest) {
   const city = body.city?.trim().toLowerCase() || DEFAULT_CITY_ID;
   const slug = slugify(body.name);
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
+  const contributorUserId = sanitizeContributorId(body.contributorId);
+  const referredBy = sanitizeContributorId(body.referredBy);
 
   // Base44 write path — the create-cafe function creates the venue + first
   // measurement atomically (two-phase with rollback) under service role.
@@ -125,6 +127,8 @@ export async function POST(req: NextRequest) {
           wifi_network: metadata.wifiNetwork ?? null,
           photo_url: body.photo,
           created_by_ip_hash: ipHash,
+          created_by_user_id: contributorUserId,
+          referred_by: referredBy,
         },
         measurement: {
           cafeId: "", // set server-side from the created cafe id
@@ -141,6 +145,8 @@ export async function POST(req: NextRequest) {
           downloadBytes: body.measurement.downloadBytes ?? null,
           downloadDurationMs: body.measurement.downloadDurationMs ?? null,
           contributorIpHash: ipHash,
+          contributorUserId,
+          referredBy,
         },
       });
       // Fire-and-forget: materialize a real founder bounty in Base44 so the

@@ -34,7 +34,22 @@ export function validateMeasurement(body: MeasurementInput): string | null {
     return "jitterMs must be a non-negative number";
   if (body.lossPct !== undefined && (!Number.isFinite(body.lossPct) || body.lossPct < 0 || body.lossPct > 100))
     return "lossPct must be a number between 0 and 100";
+  if (body.contributorId !== undefined && typeof body.contributorId !== "string")
+    return "contributorId must be a string when provided";
+  if (body.referredBy !== undefined && typeof body.referredBy !== "string")
+    return "referredBy must be a string when provided";
   return null;
+}
+
+/**
+ * Normalize a client-supplied contributor id for storage. Trim to a sane
+ * length and drop empty/malformed values (→ null). The id is opaque
+ * attribution, not auth, so we don't cryptographically validate its shape.
+ */
+export function sanitizeContributorId(value: string | undefined | null): string | null {
+  if (!value || typeof value !== "string") return null;
+  const clean = value.trim().slice(0, 64);
+  return clean || null;
 }
 
 /**

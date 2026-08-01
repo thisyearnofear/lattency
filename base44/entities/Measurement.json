@@ -18,6 +18,7 @@
     "contributor_ip_hash":  { "type": "string" },
     "is_outlier":           { "type": "boolean", "default": false },
     "contributor_user_id":  { "type": "string" },
+    "referred_by":          { "type": "string" },
     "download_bytes":       { "type": "number" },
     "download_duration_ms": { "type": "number" }
   },

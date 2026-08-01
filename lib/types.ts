@@ -31,7 +31,12 @@ export interface MeasurementInput extends MeasurementReading {
   cafeId: string;
   /** ISO 8601. Defaults to server-now if omitted. */
   measuredAt?: string;
+  /** Anonymous or Nimiq-bound contributor id (see lib/contributor.ts).
+   *  Tags the reading so leaderboards and the /me profile can attribute it. */
   contributorId?: string;
+  /** The contributor id that referred this browser via ?via=, if any.
+   *  First-touch attribution, captured client-side and echoed on writes. */
+  referredBy?: string;
   /** Optional. Real upload pipeline (S3 presigned) lands later. */
   photoUrl?: string;
   testMethod?: TestMethod;
@@ -90,6 +95,10 @@ export interface CafeCreationInput {
   metadata: CafeMetadata;
   photo: string;
   measurement: MeasurementInput;
+  /** Contributor id of the mapper (see lib/contributor.ts). */
+  contributorId?: string;
+  /** Referring contributor id, if this browser arrived via ?via=. */
+  referredBy?: string;
 }
 
 // Mirrors the row shape that GET /api/cafes/near returns.

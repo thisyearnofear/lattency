@@ -73,7 +73,7 @@ export function YourLine({
 
   return (
     <div>
-      <p className="stamp mb-3">{title}</p>
+      {title && <p className="stamp mb-3">{title}</p>}
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="w-full h-auto"

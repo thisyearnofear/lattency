@@ -56,6 +56,7 @@ base44/.types/
 # AI tooling — local working/config dirs, not part of the codebase.
 # (Editor agents, taste profiles, scratch sessions.) Add new tool dirs here.
 .commandcode/
+.qoder/
 
 # Video / media scratch projects — large reproducible exports, not source.
 # A scratch render lives in its own dir with its own node_modules; the

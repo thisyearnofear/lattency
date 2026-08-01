@@ -1,0 +1,16 @@
+{
+  "name": "ContributorProfile",
+  "type": "object",
+  "title": "ContributorProfile",
+  "properties": {
+    "contributor_id": { "type": "string" },
+    "display_name":   { "type": "string", "maxLength": 24 },
+    "nimiq_address":  { "type": "string" }
+  },
+  "required": ["contributor_id"],
+  "rls": {
+    "create": true,
+    "read": true,
+    "update": true
+  }
+}

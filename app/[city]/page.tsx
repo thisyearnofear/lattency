@@ -7,6 +7,8 @@ import { TopNav } from "@/components/top-nav";
 import { LiveMap } from "@/components/live-map";
 import { StationDirectory } from "@/components/station-directory";
 import { BountiesBoard } from "@/components/bounties-board";
+import { Leaderboard } from "@/components/leaderboard";
+import { FirstTimerBountyNudge } from "@/components/first-timer-bounty-nudge";
 import { MapToastProvider } from "@/components/map-toast";
 import { OnboardingOverlay } from "@/components/onboarding-overlay";
 import { OverlayProvider } from "@/components/overlay-context";
@@ -105,6 +107,7 @@ export default async function CityHome({
                   >
                     <span aria-hidden>+</span> Map a café in 60 seconds
                   </Link>
+                  <FirstTimerBountyNudge city={city} />
                 </div>
               }
             />
@@ -117,6 +120,7 @@ export default async function CityHome({
 
         <section className="pb-24">
           <BountiesBoard city={city} cafeCount={cafes.length} compact />
+          <Leaderboard city={city} />
         </section>
 
         <footer className="border-t border-ink/40 pt-6 pb-10 flex flex-wrap items-baseline justify-between gap-4 text-sm">

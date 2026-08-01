@@ -49,7 +49,11 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 | `lib/rate-limit.ts` | Fixed-window rate limiter. Redis backend (Upstash) or in-memory fallback |
 | `lib/local-contributions.ts` | Mock-mode write overlay (process-local café + measurement store) |
 | `lib/geo.ts` | Canonical haversine (km) — single implementation for all distance math |
-| `base44/entities/` | Entity schemas: Cafe, Measurement, Sponsorship, Bounty |
+| `lib/contributor.ts` | Anonymous contributor identity + `?via=` referral capture (client-safe; React wrapper in `hooks/use-contributor.ts`) |
+| `lib/milestones.ts` | Shared transit-themed rank ladder (Pioneer → Network Architect) used by celebration + `/me` |
+| `lib/leaderboard.ts` | Per-city contributor ranking, computed server-side from Measurement `contributor_user_id` |
+| `lib/notifications.ts` | Open-loop triggers (stale stations, expiring/claimable bounties) computed on read |
+| `base44/entities/` | Entity schemas: Cafe, Measurement, Sponsorship, Bounty, ContributorProfile |
 | `base44/functions/` | 7 Deno backend functions (service role) |
 | `base44/agents/workspace_concierge.jsonc` | AI agent config |
 | `base44/config.jsonc` | Project config (entitiesDir, functionsDir, agentsDir) |
@@ -62,6 +66,8 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 - **`@nimiq/core` is externalized** — `serverExternalPackages: ["@nimiq/core"]` in `next.config.ts` prevents Turbopack from bundling its WASM. It's lazy-imported inside `executeNimiqPayout()`.
 - **Rate-limiting is always active** — Redis-backed when Upstash is configured, in-memory otherwise. Covers measurements, café creation, and bounty creation. Fails open on backend errors.
 - **Bounty state is durable** — `lib/bounty-state.ts` provides a lock + paid-set interface. When `UPSTASH_REDIS_REST_URL`/`TOKEN` are set, state survives serverless cold starts via Redis Lua CAS scripts. In-memory is the dev/test fallback.
+- **Contributor identity is accountless** — `lib/contributor.ts` mints a local id (`contrib-…`) that rides on every write as `contributor_user_id`, and promotes to a Nimiq address when connected in the mini-app (portable identity). No login. Referrals use first-touch `?via=` attribution captured client-side and echoed on writes (`referred_by`).
+- **Leaderboards, notifications, and standings are read-computed** — no cron/email. `/api/leaderboard`, `/api/notifications`, and `/me` derive their state on demand from Base44 Measurement attribution + the local trail; in mock mode they degrade to empty boards rather than crashing.
 
 ### Base44 backend functions
 
@@ -81,7 +87,13 @@ Bounty expiry is handled inline at read time (`getBounties` filters past `expire
 - `components/live-map.tsx` — wraps MapShell with realtime + concierge; refetches on `Measurement.subscribe()` events; flashes a map-edge stamp with the reading.
 - `components/concierge-chat.tsx` — right-drawer chat wired to the Base44 `workspace_concierge` agent. Departure-board empty state, serif oracle voice, thinking-dots animation.
 - `components/ai-venue-summary.tsx` — auto-loading "The Oracle's Take" pull-quote on the café drawer and venue page. Cached via `Cafe.ai_summary`.
+- `components/contributor-profile.tsx` — the `/me` page: identity, rank ladder, per-city transit lines, city standing, and the `?via=` invite link. Binds the local id to a Nimiq address.
+- `components/leaderboard.tsx` + `hooks/use-leaderboard.ts` — per-city top-10 plus the requester's own row ("you're #12"). Gives the milestone ranks an audience.
+- `components/notification-inbox.tsx` — TopNav bell that polls `/api/notifications` for the contributor's open loops (stale station, bounty expiring, bounty claimable).
+- `components/first-timer-bounty-nudge.tsx` — endowed-progress nudge for zero-contribution visitors: surfaces the closest-to-done bounty framed as "you could close this".
+- `components/bounty-claim.tsx` — auto-claims a filled bounty when running inside the Nimiq Pay mini-app with a connected wallet; manual claim button elsewhere.
 - `hooks/use-realtime-cafes.ts` — thin hook over `entities.Measurement.subscribe()`.
+- `hooks/use-contributor.ts` — React surface over `lib/contributor.ts` (reads `window.location` directly, not `useSearchParams`, so SSG pages don't bail to client rendering).
 
 ### Environment
 

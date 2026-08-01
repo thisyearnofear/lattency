@@ -33,6 +33,9 @@ interface ShareCardData {
     cafesMapped: number;
     citiesMapped: number;
   };
+  /** Deep link to the station, carrying ?via= attribution. Falls back to the
+   *  site root when omitted. */
+  shareUrl?: string;
 }
 
 const CARD_W = 1200;
@@ -178,13 +181,16 @@ export function useShareCard() {
 
       const fileName = "lattency-station.png";
       const file = new File([blob], fileName, { type: "image/png" });
-      const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://lattency.app";
+      const shareUrl =
+        data.shareUrl ??
+        (typeof window !== "undefined" ? window.location.origin : "https://lattency.app");
 
       if (typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
         try {
           await navigator.share({
             title: "Lattency",
             text: shareText,
+            url: shareUrl,
             files: [file],
           });
           return true;

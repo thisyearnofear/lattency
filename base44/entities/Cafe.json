@@ -20,7 +20,8 @@
     "photo_url":     { "type": "string" },
     "ai_summary":    { "type": "string" },
     "created_by_ip_hash": { "type": "string" },
-    "created_by_user_id": { "type": "string" }
+    "created_by_user_id": { "type": "string" },
+    "referred_by":        { "type": "string" }
   },
   "required": ["name", "latitude", "longitude"],
   "rls": {

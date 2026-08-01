@@ -9,6 +9,7 @@ import {
   type SpeedTestResult,
 } from "@/lib/speedtest";
 import { useNimiq } from "@/hooks/use-nimiq";
+import { useContributor } from "@/hooks/use-contributor";
 
 // Maps a download speed to the tier it would fall into — mirrors the
 // thresholds the materialized view uses server-side, so the contributor sees
@@ -57,6 +58,7 @@ export function MeasurementForm({
   onContributed?: (reading: MeasurementReading) => void;
 }) {
   const { inMiniApp } = useNimiq();
+  const contributor = useContributor();
   const [down, setDown] = useState("");
   const [up, setUp] = useState("");
   const [ping, setPing] = useState("");
@@ -131,6 +133,8 @@ export function MeasurementForm({
       const body: MeasurementInput = {
         cafeId,
         ...reading,
+        contributorId: contributor.id,
+        ...(contributor.referredBy && { referredBy: contributor.referredBy }),
         ...(autoResult && {
           testMethod: "browser-auto",
           targetServer: autoResult.targetServer,

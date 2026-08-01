@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNimiq } from "@/hooks/use-nimiq";
 import type { Bounty } from "@/lib/bounties";
 
@@ -11,6 +11,7 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
   const [state, setState] = useState<ClaimState>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const autoClaimed = useRef(false);
 
   const filled = bounty.progress >= bounty.target;
   const claimable = filled && bounty.status === "open";
@@ -43,6 +44,17 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
       setState("error");
     }
   }
+
+  // Auto-claim inside the Nimiq Pay mini-app: when a bounty is filled and the
+  // user's wallet is connected, skip the manual click and pay out immediately.
+  // The ref guard prevents double-fires on re-render.
+  useEffect(() => {
+    if (!inMiniApp || !claimable || !address || providerLoading) return;
+    if (autoClaimed.current) return;
+    autoClaimed.current = true;
+    void handleClaim();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inMiniApp, claimable, address, providerLoading]);
 
   if (bounty.status === "paid" || bounty.claimedByAddress) {
     return (

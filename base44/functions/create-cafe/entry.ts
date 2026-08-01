@@ -24,6 +24,7 @@ interface CreateCafeRequest {
     download_duration_ms?: number | null;
     contributor_ip_hash?: string | null;
     contributor_user_id?: string | null;
+    referred_by?: string | null;
   };
 }
 
@@ -111,6 +112,7 @@ Deno.serve(async (req) => {
       download_duration_ms: body.measurement.download_duration_ms ?? null,
       contributor_ip_hash: body.measurement.contributor_ip_hash ?? null,
       contributor_user_id: body.measurement.contributor_user_id ?? null,
+      referred_by: body.measurement.referred_by ?? null,
       is_outlier: isOutlier,
     })) as { id: string };
 
