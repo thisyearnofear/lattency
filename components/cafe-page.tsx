@@ -17,6 +17,7 @@ import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
 import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
 import { AiVenueSummary } from "./ai-venue-summary";
+import { peakBucket } from "@/lib/time-of-day";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -54,6 +55,7 @@ function DistributionChart({ detail }: { detail: CafeDetailType }) {
     1,
   );
   const colour = TIER_COLOUR[detail.tier];
+  const fastest = peakBucket(detail.distribution);
 
   return (
     <div className="w-full">
@@ -63,6 +65,14 @@ function DistributionChart({ detail }: { detail: CafeDetailType }) {
           median Mbps
         </p>
       </div>
+
+      {/* The chart answers a question: when is this café fastest? */}
+      {fastest && (
+        <p className="font-serif italic text-ink-soft text-[13px] mt-1">
+          Fastest window: <span className="text-ink not-italic font-mono text-[11px] uppercase tracking-[0.14em]">{BUCKET_LABEL[fastest.timeBucket]}</span>
+          {" "}· {Math.round(fastest.medianDownMbps)} Mbps
+        </p>
+      )}
 
       <div className="relative mt-3 h-48 border-b border-l border-ink/30">
         <div
@@ -79,17 +89,18 @@ function DistributionChart({ detail }: { detail: CafeDetailType }) {
             const d = byBucket.get(bucket);
             const v = d?.medianDownMbps ?? 0;
             const h = Math.max(2, (v / peak) * 100);
+            const isPeak = fastest?.timeBucket === bucket;
             return (
               <div
                 key={bucket}
                 className="flex-1 flex flex-col items-center justify-end h-full"
               >
-                <span className="font-mono text-[12px] text-ink tabular-nums mb-1">
+                <span className={`font-mono text-[12px] tabular-nums mb-1 ${isPeak ? "font-semibold" : ""} text-ink`}>
                   {v ? Math.round(v) : "—"}
                 </span>
                 <div
                   className="w-full max-w-[80px] transition-[height] duration-500 ease-out"
-                  style={{ height: `${h}%`, background: colour, opacity: 0.85 }}
+                  style={{ height: `${h}%`, background: colour, opacity: isPeak ? 1 : 0.6 }}
                 />
               </div>
             );
@@ -278,7 +289,13 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
             </div>
           )}
           <div className="border border-ink/15 bg-cream-edge/40 p-5">
-            <MeasurementForm cafeId={cafe.id} cafeName={cafe.name} />
+            <MeasurementForm
+              cafeId={cafe.id}
+              cafeName={cafe.name}
+              city={cafe.city}
+              neighbourhood={cafe.neighbourhood}
+              currentTier={cafe.tier}
+            />
           </div>
         </div>
       </section>

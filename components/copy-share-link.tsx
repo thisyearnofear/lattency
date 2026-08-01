@@ -34,7 +34,13 @@ export function CopyShareLink() {
       onClick={copy}
       className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors inline-flex items-center gap-1.5 px-3 py-1.5 border border-ink/15 hover:border-ink/40"
     >
-      <span aria-hidden>{state === "copied" ? "✓" : "⎘"}</span> {label}
+      <span
+        aria-hidden
+        className={state === "copied" ? "stamp-press text-express" : undefined}
+      >
+        {state === "copied" ? "✓" : "⎘"}
+      </span>{" "}
+      {label}
     </button>
   );
 }

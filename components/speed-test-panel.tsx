@@ -8,6 +8,8 @@ import {
 } from "@/lib/speedtest";
 import { TIER_COLOUR, TIER_USE, tierForDown } from "@/lib/map-data";
 import { SpeedTestRunning } from "./speed-test-running";
+import { TickNumber } from "./tick-number";
+import { useLiveDocTitle } from "@/hooks/use-live-doc-title";
 
 type TestState = "idle" | "running" | "done" | "error";
 
@@ -17,14 +19,27 @@ interface SpeedTestPanelProps {
   compact?: boolean;
 }
 
-function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
+function Stat({
+  label,
+  value,
+  unit,
+  decimals = 0,
+  rollUp = false,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  decimals?: number;
+  /** Fresh results roll up from zero like an odometer. */
+  rollUp?: boolean;
+}) {
   return (
     <div className="border border-ink/15 py-2 text-center">
       <div className="font-mono text-[8px] tracking-[0.14em] uppercase text-ink-faint">
         {label}
       </div>
       <div className="font-display font-black text-lg text-ink leading-none mt-1">
-        {value}
+        <TickNumber value={value} decimals={decimals} countUp={rollUp} />
       </div>
       <div className="font-mono text-[8px] text-ink-faint mt-0.5">{unit}</div>
     </div>
@@ -36,6 +51,18 @@ export function SpeedTestPanel({ onResult, onContribute, compact }: SpeedTestPan
   const [progress, setProgress] = useState<SpeedTestProgress | null>(null);
   const [result, setResult] = useState<SpeedTestResult | null>(null);
   const [error, setError] = useState("");
+
+  // The tab title becomes a live readout mid-test — the instrument keeps
+  // reporting even from another tab. Restored automatically on completion.
+  useLiveDocTitle(
+    state === "running"
+      ? progress?.phase === "download" && progress.downMbps !== undefined
+        ? `▼ ${Math.round(progress.downMbps)} Mbps · Lattency`
+        : progress?.phase === "upload" && progress.upMbps !== undefined
+          ? `▲ ${Math.round(progress.upMbps)} Mbps · Lattency`
+          : "Testing… · Lattency"
+      : null,
+  );
 
   const run = useCallback(async () => {
     setState("running");
@@ -81,14 +108,22 @@ export function SpeedTestPanel({ onResult, onContribute, compact }: SpeedTestPan
         </div>
 
         <div className="grid grid-cols-4 gap-2 text-center">
-          <Stat label="DOWN" value={`${Math.round(result.downMbps)}`} unit="Mbps" />
-          <Stat label="UP" value={`${result.upMbps.toFixed(1)}`} unit="Mbps" />
-          <Stat label="PING" value={`${Math.round(result.latencyMs)}`} unit="ms" />
-          <Stat
-            label="JITTER"
-            value={`${result.jitterMs?.toFixed(1) ?? "—"}`}
-            unit="ms"
-          />
+          <Stat label="DOWN" value={Math.round(result.downMbps)} unit="Mbps" rollUp />
+          <Stat label="UP" value={result.upMbps} unit="Mbps" decimals={1} rollUp />
+          <Stat label="PING" value={Math.round(result.latencyMs)} unit="ms" rollUp />
+          {result.jitterMs !== undefined ? (
+            <Stat label="JITTER" value={result.jitterMs} unit="ms" decimals={1} rollUp />
+          ) : (
+            <div className="border border-ink/15 py-2 text-center">
+              <div className="font-mono text-[8px] tracking-[0.14em] uppercase text-ink-faint">
+                JITTER
+              </div>
+              <div className="font-display font-black text-lg text-ink leading-none mt-1">
+                —
+              </div>
+              <div className="font-mono text-[8px] text-ink-faint mt-0.5">ms</div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">

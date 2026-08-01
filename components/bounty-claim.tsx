@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNimiq } from "@/hooks/use-nimiq";
 import type { Bounty } from "@/lib/bounties";
+import { haptic } from "@/lib/haptics";
 
 type ClaimState = "idle" | "loading" | "success" | "error";
 
@@ -39,6 +40,7 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
 
       setTxHash(data.txHash ?? null);
       setState("success");
+      haptic(18);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Claim failed");
       setState("error");
@@ -78,7 +80,14 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
       "https://test.nimiq.watch/#/tx/";
     const explorerUrl = txHash ? `${explorerBase}${txHash}` : null;
     return (
-      <div className="space-y-1">
+      <div className="relative space-y-1 pt-6">
+        {/* The money moment — a rotated PAID stamp thudding onto the card. */}
+        <span
+          aria-hidden
+          className="celebration-stamp absolute -top-1 right-0 inline-block px-2 py-1 border-2 border-express bg-express text-cream font-display font-black text-lg uppercase rotate-[-8deg] shadow-[2px_3px_0_0_var(--color-ink)]"
+        >
+          Paid
+        </span>
         <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express">
           Claimed · {bounty.rewardNim} NIM
           {txHash ? ` · ${txHash.slice(0, 12)}…` : ""}

@@ -53,6 +53,10 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 | `lib/milestones.ts` | Shared transit-themed rank ladder (Pioneer → Network Architect) used by celebration + `/me` |
 | `lib/leaderboard.ts` | Per-city contributor ranking, computed server-side from Measurement `contributor_user_id` |
 | `lib/notifications.ts` | Open-loop triggers (stale stations, expiring/claimable bounties) computed on read |
+| `lib/time-of-day.ts` | Morning/afternoon/evening bucket + fastest-window helper; source of truth for "this morning" copy and peak-hour chips |
+| `lib/haptics.ts` | Guarded `navigator.vibrate` no-op wrapper for pay-off moments |
+| `hooks/use-bounty-match.ts` | Client fetch that finds the open bounty a contribution is pushing forward (shared by celebration + measurement success) |
+| `hooks/use-live-doc-title.ts` | Temporarily replaces the tab title (live speed-test readout) and restores it on exit |
 | `base44/entities/` | Entity schemas: Cafe, Measurement, Sponsorship, Bounty, ContributorProfile |
 | `base44/functions/` | 7 Deno backend functions (service role) |
 | `base44/agents/workspace_concierge.jsonc` | AI agent config |
@@ -91,7 +95,9 @@ Bounty expiry is handled inline at read time (`getBounties` filters past `expire
 - `components/leaderboard.tsx` + `hooks/use-leaderboard.ts` — per-city top-10 plus the requester's own row ("you're #12"). Gives the milestone ranks an audience.
 - `components/notification-inbox.tsx` — TopNav bell that polls `/api/notifications` for the contributor's open loops (stale station, bounty expiring, bounty claimable).
 - `components/first-timer-bounty-nudge.tsx` — endowed-progress nudge for zero-contribution visitors: surfaces the closest-to-done bounty framed as "you could close this".
-- `components/bounty-claim.tsx` — auto-claims a filled bounty when running inside the Nimiq Pay mini-app with a connected wallet; manual claim button elsewhere.
+- `components/grow-bar.tsx` — progress track whose fill animates from 0 on mount; the canonical progress bar (bounties, rank progress, bounty connections).
+- `components/bounty-claim.tsx` — auto-claims a filled bounty when running inside the Nimiq Pay mini-app with a connected wallet; manual claim button elsewhere. A rotated `PAID` stamp thuds onto the card on success.
+- `app/cafes/[slug]/not-found.tsx` — "station not on the line" 404 that turns a missing café into a "map it" opportunity.
 - `hooks/use-realtime-cafes.ts` — thin hook over `entities.Measurement.subscribe()`.
 - `hooks/use-contributor.ts` — React surface over `lib/contributor.ts` (reads `window.location` directly, not `useSearchParams`, so SSG pages don't bail to client rendering).
 
@@ -120,3 +126,5 @@ pnpm seed            # NEXT_PUBLIC_BASE44_APP_ID must be set in .env.local
 ### Design language
 
 New UI must match the newsprint/transit identity: hard offset shadows (`shadow-[3px_4px_0_0_var(--color-ink)]`), square corners, `border-ink/80` panels, tier-square glyphs, mono uppercase labels (`stamp`), serif-italic editorial voice, `msg-rise` / `think-blink` animations. No rounded corners, no soft shadows, no generic chat-widget aesthetics.
+
+**Pay-off moments** (contribution, claim, share) carry tactile weight: `celebration-stamp` (the passport-stamp drop), `stamp-press` (confirm glyphs), `reading-landed` (new ticker row), the `PAID` stamp, and guarded haptics (`lib/haptics.ts`). The speed test rides a square `train-car` carriage on its progress bar and counts results up through `TickNumber` (`countUp`). Progress bars always use `GrowBar` so they grow on mount. Every new animation goes through the motion tokens in `globals.css` and the `prefers-reduced-motion` block — don't add ad-hoc keyframes outside that system.

@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Bounty } from "@/lib/bounties";
+import { GrowBar } from "./grow-bar";
 
 const TRAIL_KEY = "lattency:trail:v1";
 
@@ -76,12 +77,11 @@ export function FirstTimerBountyNudge({ city }: { city: string }) {
         {bounty.goal}
       </p>
       <div className="flex items-center gap-2 mt-2">
-        <div className="h-[3px] bg-cream-deep flex-1 relative">
-          <div
-            className="absolute inset-y-0 left-0 bg-express"
-            style={{ width: `${Math.min(pct, 100)}%` }}
-          />
-        </div>
+        <GrowBar
+          pct={pct}
+          className="h-[3px] bg-cream-deep flex-1"
+          barClassName="bg-express"
+        />
         <span className="font-mono text-[9px] tabular-nums text-ink-soft">
           {bounty.progress}/{bounty.target}
         </span>

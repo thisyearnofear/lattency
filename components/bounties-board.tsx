@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { getBounties, sponsorBadgeStyle, bountyKindLabel, type Bounty } from "@/lib/bounties";
 import { BountyClaim } from "./bounty-claim";
+import { GrowBar } from "./grow-bar";
 
 function CoffeeRow({ amount }: { amount: number }) {
   const cups = Math.max(1, Math.ceil(amount / 5));
@@ -94,12 +95,11 @@ function BountyCard({ bounty, index }: { bounty: Bounty; index: number }) {
         </div>
 
         {/* Progress bar */}
-        <div className="h-[3px] bg-cream-deep w-full relative -mt-1">
-          <div
-            className="absolute inset-y-0 left-0 bg-ink"
-            style={{ width: `${Math.min(pct, 100)}%` }}
-          />
-        </div>
+        <GrowBar
+          pct={pct}
+          className="h-[3px] bg-cream-deep w-full -mt-1"
+          barClassName="bg-ink"
+        />
 
         {/* Nimiq claim action */}
         <BountyClaim bounty={bounty} />

@@ -41,6 +41,36 @@ export function CitySwitcher({
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
+  // "Coming soon" cities are votable — a click stamps REQUESTED (persisted
+  // locally). It's a wish-list signal and gives the expansion story a door
+  // the reader can knock on, instead of a disabled row.
+  const VOTES_KEY = "lattency:city-votes";
+  const [votes, setVotes] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      return new Set(JSON.parse(localStorage.getItem(VOTES_KEY) ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+
+  function toggleVote(id: string) {
+    setVotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      try {
+        localStorage.setItem(VOTES_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        /* non-fatal */
+      }
+      return next;
+    });
+  }
+
   const cities = useMemo(
     () => liveCities ?? CITY_ORDER.map((id) => ({ ...CITIES[id], count: 0 })),
     [liveCities],
@@ -162,31 +192,47 @@ export function CitySwitcher({
             {SOON_CITIES.length > 0 && (
               <li className="px-4 py-2 border-t border-ink/10">
                 <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
-                  Coming soon
+                  Coming soon · tap to request
                 </p>
               </li>
             )}
-            {SOON_CITIES.map((slot) => (
-              <li key={slot.id}>
-                <button
-                  type="button"
-                  disabled
-                  className="w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left bg-cream cursor-not-allowed"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-display font-black uppercase tracking-[-0.01em] text-lg leading-none text-ink-faint">
-                      {slot.name}
-                    </p>
-                    <p className="font-serif italic text-xs mt-0.5 text-ink-faint/70">
-                      {slot.country}
-                    </p>
-                  </div>
-                  <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
-                    Coming soon
-                  </span>
-                </button>
-              </li>
-            ))}
+            {SOON_CITIES.map((slot) => {
+              const voted = votes.has(slot.id);
+              return (
+                <li key={slot.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleVote(slot.id)}
+                    aria-pressed={voted}
+                    className={`pressable w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left transition-colors ${
+                      voted ? "bg-express/10" : "bg-cream hover:bg-cream-edge"
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-display font-black uppercase tracking-[-0.01em] text-lg leading-none ${voted ? "text-ink" : "text-ink-faint"}`}>
+                        {slot.name}
+                      </p>
+                      <p className={`font-serif italic text-xs mt-0.5 ${voted ? "text-ink-soft" : "text-ink-faint/70"}`}>
+                        {slot.country}
+                      </p>
+                    </div>
+                    <span
+                      className={`font-mono text-[9px] tracking-[0.22em] uppercase inline-flex items-center gap-1 ${
+                        voted ? "text-express" : "text-ink-faint"
+                      }`}
+                    >
+                      {voted ? (
+                        <>
+                          <span aria-hidden>✓</span> Requested
+                        </>
+                      ) : (
+                        "Request"
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
 
           <div className="px-4 py-3 border-t border-ink/15 bg-cream-edge/40">

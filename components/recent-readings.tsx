@@ -83,12 +83,17 @@ export function RecentReadings({
           const label =
             now === null ? formatClock(r.measuredAt) : formatAgo(r.measuredAt, now);
           const isLatest = i === 0;
+          // A reading that landed within the last 90s gets the entrance
+          // animation — the synthesized demo trail never produces rows this
+          // fresh, so this reliably marks genuinely-just-contributed data.
+          const isNew =
+            now !== null && now - new Date(r.measuredAt).getTime() < 90_000;
           return (
             <li
               key={`${r.measuredAt}-${i}`}
-              className={`flex items-baseline justify-between gap-3 font-mono text-[11px] ${
+              className={`flex items-baseline justify-between gap-3 font-mono text-[11px] px-1.5 -mx-1.5 ${
                 isLatest ? "text-ink" : "text-ink-soft"
-              }`}
+              } ${isNew ? "reading-landed" : ""}`}
             >
               <span className="flex items-baseline gap-2">
                 <span

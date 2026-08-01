@@ -13,6 +13,7 @@ import { MapToastProvider } from "@/components/map-toast";
 import { OnboardingOverlay } from "@/components/onboarding-overlay";
 import { OverlayProvider } from "@/components/overlay-context";
 import { CityVisitTracker } from "@/components/city-visit-tracker";
+import { currentBucket } from "@/lib/time-of-day";
 
 export const revalidate = 60;
 // Allow any city slug to render dynamically; curated cities are still
@@ -60,6 +61,16 @@ export default async function CityHome({
   const cityConfig = resolveCityConfig(city, allCafes);
   const cafes = await getCafes({ city });
   const liveCities = getLiveCities(allCafes);
+  // The hero is re-rendered on the server every 60s, so a time-of-day line
+  // ("this morning / this afternoon / tonight") always reads current and
+  // makes the edition feel freshly printed.
+  const timeOfDay = currentBucket();
+  const whenPhrase =
+    timeOfDay === "morning"
+      ? "this morning"
+      : timeOfDay === "afternoon"
+        ? "this afternoon"
+        : "tonight";
 
   return (
     <MapToastProvider>
@@ -92,7 +103,7 @@ export default async function CityHome({
                   >
                     Where can you work
                     <br />
-                    in {cityConfig.name} today?
+                    in {cityConfig.name} {whenPhrase}?
                   </h1>
                   <p className="hidden sm:block font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase text-ink-soft mt-3">
                     Contributors map.

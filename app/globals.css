@@ -378,6 +378,48 @@ body {
 }
 .tier-flash { animation: tier-flash 1.4s ease-out both; }
 
+/* Speed-test train — a square carriage riding the progress bar. The bar is
+   the line; the carriage bobs gently while the service is in motion. */
+@keyframes train-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1.5px); }
+}
+.train-car {
+  animation: train-bob 0.5s ease-in-out infinite;
+}
+@keyframes train-idle {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+.train-car.idle {
+  animation: train-idle 1.1s ease-in-out infinite;
+}
+
+/* New reading row — lands on the "last brewed" ticker with the message
+   entrance, plus a brief express tick on its timestamp. */
+@keyframes reading-tick {
+  0%   { background-color: rgba(0, 109, 69, 0.18); }
+  100% { background-color: transparent; }
+}
+.reading-landed {
+  animation:
+    msg-rise 350ms var(--ease-out-soft) both,
+    reading-tick 1.6s ease-out both;
+}
+
+/* Stamp-press — a tiny glyph gets pressed into the paper (scale dip + micro
+   rotation) to confirm a copy / share action, rather than just swapping. */
+@keyframes stamp-press {
+  0%   { transform: scale(1) rotate(0deg); }
+  35%  { transform: scale(0.72) rotate(-6deg); }
+  70%  { transform: scale(1.12) rotate(2deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.stamp-press {
+  display: inline-block;
+  animation: stamp-press 420ms var(--ease-spring) both;
+}
+
 /* Loop storyboard — the self-running product reel on /tour. */
 @keyframes sb-progress {
   from { width: 0%; }
@@ -631,6 +673,9 @@ body {
   .ghost-pin,
   .coach-target,
   .tier-flash,
+  .train-car,
+  .reading-landed,
+  .stamp-press,
   .sb-ripple,
   .sb-station-pulse,
   .sb-line-grow,

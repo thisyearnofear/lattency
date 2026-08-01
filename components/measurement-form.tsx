@@ -10,6 +10,9 @@ import {
 } from "@/lib/speedtest";
 import { useNimiq } from "@/hooks/use-nimiq";
 import { useContributor } from "@/hooks/use-contributor";
+import { useBountyMatch } from "@/hooks/use-bounty-match";
+import { haptic } from "@/lib/haptics";
+import { GrowBar } from "./grow-bar";
 
 // Maps a download speed to the tier it would fall into — mirrors the
 // thresholds the materialized view uses server-side, so the contributor sees
@@ -20,6 +23,8 @@ function tierFor(downMbps: number): Tier {
   return "suspended";
 }
 
+const TIER_RANK: Record<Tier, number> = { express: 2, local: 1, suspended: 0 };
+
 const TIER_LABEL: Record<Tier, string> = {
   express: "Express",
   local: "Local",
@@ -29,6 +34,16 @@ const TIER_BG: Record<Tier, string> = {
   express: "bg-express",
   local: "bg-local",
   suspended: "bg-suspended",
+};
+const TIER_LINE_COLOUR: Record<Tier, string> = {
+  express: "var(--color-express)",
+  local: "var(--color-local)",
+  suspended: "var(--color-suspended)",
+};
+const TIER_HEX: Record<Tier, string> = {
+  express: "#006D45",
+  local: "#C77F00",
+  suspended: "#B23A48",
 };
 
 // Live progress label for the speed test readout.
@@ -51,10 +66,18 @@ type TestState = "idle" | "running" | "done" | "error";
 export function MeasurementForm({
   cafeId,
   cafeName,
+  city,
+  neighbourhood,
+  /** The station's tier before this reading — lets the success state say
+   *  whether the contributor's reading moved the line up or down. */
+  currentTier,
   onContributed,
 }: {
   cafeId: string;
   cafeName: string;
+  city?: string;
+  neighbourhood?: string;
+  currentTier?: Tier;
   onContributed?: (reading: MeasurementReading) => void;
 }) {
   const { inMiniApp } = useNimiq();
@@ -63,6 +86,10 @@ export function MeasurementForm({
   const [up, setUp] = useState("");
   const [ping, setPing] = useState("");
   const [status, setStatus] = useState<Status>("idle");
+  /** Tier before the reading landed, frozen at submit for the diff callout. */
+  const [prevTier, setPrevTier] = useState<Tier | null>(null);
+  /** The reading that was just logged (for the success state). */
+  const [logged, setLogged] = useState<MeasurementReading | null>(null);
 
   // In-browser speed test state. When autoResult is set, the submit path
   // includes the provenance metadata (target server, download bytes, etc.)
@@ -123,6 +150,10 @@ export function MeasurementForm({
       reading.lossPct = autoResult.lossPct;
     }
 
+    // Freeze the station's tier before this reading so the success state can
+    // say whether the line moved.
+    const before = currentTier ?? null;
+
     // Optimistic: reflect the contribution immediately so the demo is snappy
     // and never blocks on the write path waking Aurora. We reconcile in the
     // background and only surface a soft error if the POST truly fails.
@@ -148,7 +179,10 @@ export function MeasurementForm({
         body: JSON.stringify(body),
       });
       if (res.ok) {
+        setLogged(reading);
+        setPrevTier(before);
         setStatus("done");
+        haptic();
       } else if (res.status === 429) {
         setStatus("rate-limited");
       } else {
@@ -159,15 +193,79 @@ export function MeasurementForm({
     }
   }
 
-  if (status === "done") {
+  // Tier-diff + bounty connection for the success state. The bounty fetch
+  // only fires once the reading has landed.
+  const bounty = useBountyMatch(city, neighbourhood, status === "done");
+
+  if (status === "done" && logged) {
+    const newTier = tierFor(logged.downMbps);
+    const moved = prevTier && prevTier !== newTier;
+    const movedUp = moved && TIER_RANK[newTier] > TIER_RANK[prevTier];
+    const bountyPct = bounty
+      ? Math.round((Math.min(bounty.progress + 1, bounty.target) / bounty.target) * 100)
+      : 0;
+
     return (
       <div className="border border-express/40 bg-express/5 p-4">
         <p className="font-display font-black uppercase text-xl text-ink leading-none">
           Reading logged
         </p>
+
+        {/* Tier diff — did this reading move the line? */}
+        {moved ? (
+          <div
+            className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 border"
+            style={{
+              borderColor: TIER_LINE_COLOUR[newTier],
+              background: `${TIER_HEX[newTier]}14`,
+            }}
+          >
+            <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft">
+              {TIER_LABEL[prevTier]}
+            </span>
+            <span aria-hidden className="font-display font-black text-ink">
+              →
+            </span>
+            <span
+              className="font-mono text-[10px] tracking-[0.2em] uppercase"
+              style={{ color: movedUp ? "var(--color-express)" : "var(--color-suspended)" }}
+            >
+              {TIER_LABEL[newTier]}
+            </span>
+          </div>
+        ) : null}
+
         <p className="font-serif italic text-ink-faint text-sm mt-1.5">
-          Thanks — your measurement is now part of {cafeName}&rsquo;s line.
+          {moved
+            ? movedUp
+              ? "Your reading moved the line up. The map is honest because of you."
+              : "Your reading moved the line down. The map is honest because of you."
+            : `Thanks — your measurement is now part of ${cafeName}’s ${TIER_LABEL[newTier]} line.`}
         </p>
+
+        {/* Bounty connection — the reward this reading just pushed forward. */}
+        {bounty && (
+          <div className="mt-3 border-t border-ink/10 pt-3">
+            <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-express">
+              Bounty in your area
+            </p>
+            <p className="font-display font-black text-[15px] uppercase text-ink leading-tight mt-0.5">
+              {bounty.goal}
+            </p>
+            <GrowBar
+              pct={bountyPct}
+              className="h-[3px] bg-cream-deep w-full mt-2"
+              barClassName="bg-express"
+            />
+            <p className="font-serif italic text-[12px] text-ink-soft mt-1.5">
+              {Math.min(bounty.progress + 1, bounty.target)}/{bounty.target} ·{" "}
+              {bounty.progress + 1 >= bounty.target
+                ? "Filled — claim it on the bounties board."
+                : `${bounty.target - bounty.progress - 1} more to unlock ${bounty.rewardNim} NIM.`}
+            </p>
+          </div>
+        )}
+
         {inMiniApp && (
           <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express mt-2">
             Open the bounties board to claim any earned NIM.
@@ -180,6 +278,7 @@ export function MeasurementForm({
             setUp("");
             setPing("");
             setStatus("idle");
+            setLogged(null);
             resetTest();
           }}
           className="mt-3 font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft underline underline-offset-4 hover:text-ink"

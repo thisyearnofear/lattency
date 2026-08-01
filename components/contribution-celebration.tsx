@@ -7,25 +7,21 @@
 // Matches the newsprint/transit design language: stamp animations, hard
 // offset shadows, mono uppercase labels, serif-italic editorial voice.
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import type { Tier } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 import { readContributorId } from "@/lib/contributor";
+import { milestoneFor } from "@/lib/milestones";
+import { useBountyMatch } from "@/hooks/use-bounty-match";
+import { haptic } from "@/lib/haptics";
 import { useShareCard } from "./share-card";
 import { YourLine, type TrailStation } from "./your-line";
+import { GrowBar } from "./grow-bar";
 
 interface CelebrationStats {
   cafesMapped: number;
   readingsLogged: number;
   citiesMapped: number;
-}
-
-interface BountyMatch {
-  goal: string;
-  area: string;
-  rewardNim: number;
-  progress: number;
-  target: number;
 }
 
 function readCelebrationStats(): CelebrationStats {
@@ -70,14 +66,8 @@ function readTrailStations(): TrailStation[] {
   }
 }
 
-// Transit-themed milestone titles — reinforce the metaphor.
-function milestoneTitle(cafesMapped: number): { title: string; sub: string } {
-  if (cafesMapped >= 10) return { title: "Network Architect", sub: "10+ stations on the map" };
-  if (cafesMapped >= 5) return { title: "Line Builder", sub: "5 stations mapped" };
-  if (cafesMapped >= 3) return { title: "Signal Surveyor", sub: "3 stations mapped" };
-  if (cafesMapped >= 1) return { title: "Pioneer", sub: "first station on the network" };
-  return { title: "Newcomer", sub: "ready to map" };
-}
+// Milestone titles live in lib/milestones.ts (shared with /me) so a rank
+// means the same thing on the celebration, the profile, and the leaderboard.
 
 function StampBadge({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -116,14 +106,15 @@ export function ContributionCelebration({
 }) {
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [bounty, setBounty] = useState<BountyMatch | null>(null);
   const { shareCard } = useShareCard();
 
   // Increment the readings counter once on mount (before first paint),
   // then read all stats as the initial state — avoids a cascading render.
+  // The pay-off moment lands with a physical tap on devices that vibrate.
   const [stats] = useState<CelebrationStats>(() => {
     if (typeof window !== "undefined") {
       incrementReadingsCount();
+      haptic(14);
     }
     return readCelebrationStats();
   });
@@ -139,7 +130,12 @@ export function ContributionCelebration({
     return map[tier] ?? "var(--color-ink)";
   }, [tier]);
 
-  const milestone = useMemo(() => milestoneTitle(stats.cafesMapped), [stats.cafesMapped]);
+  const milestone = useMemo(() => milestoneFor(stats.cafesMapped), [stats.cafesMapped]);
+  // This contribution just crossed a rank threshold — celebrate it loudly.
+  const justRankedUp = useMemo(
+    () => stats.cafesMapped > 0 && milestone.at === stats.cafesMapped && milestone.at > 0,
+    [stats.cafesMapped, milestone],
+  );
 
   const shareText = useMemo(() => {
     return `I just mapped ${cafeName} on @lattency — ${Math.round(downMbps)} Mbps on the ${tier} line. Where can you work?`;
@@ -156,31 +152,9 @@ export function ContributionCelebration({
     return `${origin}/cafes/${slug}${via}`;
   }, [cafeName]);
 
-  // Fetch bounties for this city and try to match by neighbourhood.
-  // This connects the celebration to the bounty system in the moment of
-  // maximum engagement.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(`/api/bounties?city=${encodeURIComponent(city)}`);
-        if (!cancelled && res.ok) {
-          const data = await res.json();
-          const bounties: BountyMatch[] = data.bounties ?? data ?? [];
-          // Match by neighbourhood substring in the bounty area.
-          const match = bounties.find(
-            (b: BountyMatch) =>
-              b.area.toLowerCase().includes(neighbourhood.toLowerCase()) ||
-              b.area.toLowerCase().includes(city.toLowerCase()),
-          );
-          if (!cancelled) setBounty(match ?? null);
-        }
-      } catch {
-        // Bounties are a bonus, not critical — fail silently.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [city, neighbourhood]);
+  // Fetch the bounty this contribution is pushing forward, in the moment of
+  // maximum engagement. Shared hook with the measurement success state.
+  const bounty = useBountyMatch(city, neighbourhood);
 
   async function handleShare() {
     setSharing(true);
@@ -232,12 +206,20 @@ export function ContributionCelebration({
           {Math.round(downMbps)} Mbps · now riding the {tier} line.
           The map just got one station richer because of you.
         </p>
-        {/* Milestone title */}
-        <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 border border-ink/30 bg-cream-edge/40">
-          <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">Rank</span>
-          <span className="font-display font-black text-sm uppercase text-ink">{milestone.title}</span>
-          <span className="font-mono text-[9px] text-ink-faint">· {milestone.sub}</span>
-        </div>
+        {/* Milestone title — a fresh rank gets the loud stamp treatment. */}
+        {justRankedUp ? (
+          <div className="celebration-stamp inline-flex items-center gap-2 mt-3 px-3 py-1.5 border-2 border-express bg-express text-cream shadow-[3px_4px_0_0_var(--color-ink)]">
+            <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-cream/80">New rank</span>
+            <span className="font-display font-black text-sm uppercase">{milestone.title}</span>
+            <span className="font-mono text-[9px] text-cream/80">· {milestone.sub}</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 border border-ink/30 bg-cream-edge/40">
+            <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">Rank</span>
+            <span className="font-display font-black text-sm uppercase text-ink">{milestone.title}</span>
+            <span className="font-mono text-[9px] text-ink-faint">· {milestone.sub}</span>
+          </div>
+        )}
       </div>
 
       {/* Contributor stats — the engagement hook */}
@@ -293,12 +275,11 @@ export function ContributionCelebration({
               {bounty.rewardNim} NIM reward
             </p>
           </div>
-          <div className="h-[3px] bg-cream-deep w-full mt-2 relative">
-            <div
-              className="absolute inset-y-0 left-0 bg-express"
-              style={{ width: `${Math.min(bountyPct, 100)}%` }}
-            />
-          </div>
+          <GrowBar
+            pct={bountyPct}
+            className="h-[3px] bg-cream-deep w-full mt-2"
+            barClassName="bg-express"
+          />
           <p className="font-serif italic text-[13px] text-ink-soft mt-2">
             Your reading just pushed this bounty to {bountyPct}%.
             {bounty.progress + 1 >= bounty.target

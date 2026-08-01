@@ -16,19 +16,24 @@ function easeOutCubic(t: number): number {
 export function TickNumber({
   value,
   decimals = 0,
+  /** When true, the first mount also counts up from 0 — used for fresh
+   *  results (speed test landing) where the roll-up *is* the payoff. */
+  countUp = false,
 }: {
   value: number;
   decimals?: number;
+  countUp?: boolean;
 }) {
-  const [disp, setDisp] = useState(value);
-  const prev = useRef(value);
+  const [disp, setDisp] = useState(countUp ? 0 : value);
+  const prev = useRef(countUp ? 0 : value);
   const raf = useRef<number | null>(null);
 
   useEffect(() => {
     const from = prev.current;
     const to = value;
     prev.current = value;
-    // First mount, or no change — render the target as-is.
+    // No change — render the target as-is. With `countUp`, the first mount
+    // has from=0 so this falls through to the ramp below.
     if (from === to) {
       setDisp(to);
       return;

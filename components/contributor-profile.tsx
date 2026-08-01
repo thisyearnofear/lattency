@@ -18,6 +18,7 @@ import { useNimiq } from "@/hooks/use-nimiq";
 import { MILESTONES, milestoneFor, nextMilestone } from "@/lib/milestones";
 import { YourLine, type TrailStation } from "./your-line";
 import { getLastVisitedCity } from "./city-visit-tracker";
+import { GrowBar } from "./grow-bar";
 import type { Tier } from "@/lib/types";
 
 const TRAIL_KEY = "lattency:trail:v1";
@@ -219,9 +220,11 @@ export function ContributorProfile() {
             </p>
             <p className="font-mono text-[10px] tabular-nums text-ink-faint">{nextPct}%</p>
           </div>
-          <div className="h-[3px] bg-cream-deep w-full mt-2 relative">
-            <div className="absolute inset-y-0 left-0 bg-express" style={{ width: `${nextPct}%` }} />
-          </div>
+          <GrowBar
+            pct={nextPct}
+            className="h-[3px] bg-cream-deep w-full mt-2"
+            barClassName="bg-express"
+          />
         </div>
       </section>
 

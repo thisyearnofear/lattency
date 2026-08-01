@@ -15,6 +15,7 @@ import { VTLink } from "./vt-link";
 import { CrossfadePanel } from "@/components/crossfade-panel";
 import { useCheckins } from "@/hooks/use-checkins";
 import { stalenessLabel, needsFreshTest } from "@/lib/staleness";
+import { peakBucket } from "@/lib/time-of-day";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -49,6 +50,7 @@ function Distribution({ detail }: { detail: CafeDetail }) {
     1,
   );
   const colour = TIER_COLOUR[detail.tier];
+  const fastest = peakBucket(detail.distribution);
 
   return (
     <div>
@@ -58,6 +60,13 @@ function Distribution({ detail }: { detail: CafeDetail }) {
           median Mbps
         </p>
       </div>
+
+      {fastest && (
+        <p className="font-serif italic text-ink-soft text-[12px] mt-1">
+          Fastest window: <span className="text-ink not-italic font-mono text-[10px] uppercase tracking-[0.14em]">{BUCKET_LABEL[fastest.timeBucket]}</span>
+          {" "}· {Math.round(fastest.medianDownMbps)} Mbps
+        </p>
+      )}
 
       <div className="relative mt-3 h-40 border-b border-l border-ink/30">
         {/* Express threshold reference line at 50 Mbps */}
@@ -75,14 +84,15 @@ function Distribution({ detail }: { detail: CafeDetail }) {
             const d = byBucket.get(bucket);
             const v = d?.medianDownMbps ?? 0;
             const h = Math.max(2, (v / peak) * 100);
+            const isPeak = fastest?.timeBucket === bucket;
             return (
               <div key={bucket} className="flex-1 flex flex-col items-center justify-end h-full">
-                <span className="font-mono text-[11px] text-ink tabular-nums mb-1">
+                <span className={`font-mono text-[11px] tabular-nums mb-1 ${isPeak ? "font-semibold" : ""} text-ink`}>
                   {v ? Math.round(v) : "—"}
                 </span>
                 <div
                   className="w-full max-w-[56px] transition-[height] duration-500 ease-out"
-                  style={{ height: `${h}%`, background: colour, opacity: 0.85 }}
+                  style={{ height: `${h}%`, background: colour, opacity: isPeak ? 1 : 0.6 }}
                 />
               </div>
             );
@@ -505,6 +515,9 @@ export function CafeDetail({
                     <MeasurementForm
                       cafeId={d.id}
                       cafeName={d.name}
+                      city={d.city}
+                      neighbourhood={d.neighbourhood}
+                      currentTier={d.tier}
                       onContributed={onContributed}
                     />
                   ),

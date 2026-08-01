@@ -1,6 +1,7 @@
 "use client";
 
 import type { SpeedTestProgress } from "@/lib/speedtest";
+import { TickNumber } from "./tick-number";
 
 interface SpeedTestRunningProps {
   progress: SpeedTestProgress;
@@ -20,16 +21,25 @@ export function SpeedTestRunning({ progress }: SpeedTestRunningProps) {
         ? 5
         : ((phaseIndex + 0.85) / phases.length) * 100;
 
+  // Live rolling readout — the number ticks through TickNumber while the
+  // phrase says what the service is doing.
+  const liveValue =
+    progress.phase === "download"
+      ? progress.downMbps
+      : progress.phase === "upload"
+        ? progress.upMbps
+        : undefined;
+
   const liveLabel =
     progress.phase === "ping"
       ? "Signalling the nearest edge…"
       : progress.phase === "download"
-        ? progress.downMbps !== undefined
-          ? `${progress.downMbps.toFixed(1)} Mbps riding the down line`
+        ? liveValue !== undefined
+          ? "Mbps riding the down line"
           : "Boarding the down service…"
         : progress.phase === "upload"
-          ? progress.upMbps !== undefined
-            ? `${progress.upMbps.toFixed(1)} Mbps on the up line`
+          ? liveValue !== undefined
+            ? "Mbps on the up line"
             : "Returning on the up line…"
           : "Pulling into the platform…";
 
@@ -65,13 +75,26 @@ export function SpeedTestRunning({ progress }: SpeedTestRunningProps) {
           aria-hidden
           className="inline-block w-2 h-2 rounded-full bg-express animate-pulse"
         />
-        {liveLabel}
+        {liveValue !== undefined ? (
+          <>
+            <TickNumber value={liveValue} decimals={1} />
+            <span>{liveLabel}</span>
+          </>
+        ) : (
+          <span>{liveLabel}</span>
+        )}
       </div>
 
-      <div className="h-1 bg-ink/10 overflow-hidden">
+      {/* The line — with a square carriage riding it. */}
+      <div className="relative h-1 bg-ink/10 overflow-visible">
         <div
-          className="h-full bg-express transition-all duration-500 ease-out"
+          className="absolute inset-y-0 left-0 bg-express transition-all duration-500 ease-out"
           style={{ width: `${widthPct}%` }}
+        />
+        <span
+          aria-hidden
+          className={`train-car ${progress.phase === "ping" ? "idle" : ""} absolute top-1/2 -translate-y-1/2 w-2.5 h-3.5 bg-ink border border-cream transition-[left] duration-500 ease-out`}
+          style={{ left: `calc(${widthPct}% - 5px)` }}
         />
       </div>
 
