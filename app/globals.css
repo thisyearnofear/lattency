@@ -99,6 +99,15 @@ body {
   color: var(--color-ink-soft);
 }
 
+/* Hide scrollbars on intentional snap carousels (proof chips, mechanics). */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Station name labels inside the SVG should not be selectable, feels paper. */
 .transit-svg text {
   user-select: none;

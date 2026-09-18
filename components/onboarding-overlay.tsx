@@ -146,13 +146,13 @@ export function OnboardingOverlay({ cityName }: { cityName: string }) {
             >
               <span aria-hidden>+</span> Map a café
             </Link>
-            <button
-              type="button"
+            <Link
+              href="/tour"
               onClick={dismiss}
               className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint underline underline-offset-4 hover:text-ink transition-colors"
             >
-              Got it
-            </button>
+              Watch the reel
+            </Link>
           </div>
         </div>
       </div>

@@ -826,7 +826,7 @@ export function CinematicMap({ cafes }: { cafes: CafeStation[] }) {
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <section ref={scope} className="relative h-[800vh] -mx-6 md:-mx-12">
+    <section ref={scope} className="relative h-[480vh] md:h-[800vh] -mx-4 sm:-mx-6 md:-mx-12">
       <div className="sticky top-0 h-screen overflow-hidden bg-cream">
         <Chyron
           phase={phase}

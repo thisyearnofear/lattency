@@ -1,17 +1,25 @@
 import type { Metadata } from "next";
 import { getCafes } from "@/lib/cafes";
 import { TopNav } from "@/components/top-nav";
-import { Masthead } from "@/components/masthead";
 import { CinematicMap } from "@/components/cinematic-map";
 import { Legend } from "@/components/legend";
-import { LoopStoryboard } from "@/components/loop-storyboard";
+import { TourActOne } from "@/components/tour-act-one";
+import { TourMechanics } from "@/components/tour-mechanics";
+import { TourHandoff } from "@/components/tour-handoff";
+import { TourFinale } from "@/components/tour-finale";
+import { TourDock } from "@/components/tour-dock";
 
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "The Tour",
+  title: "The Tour — feel the loop in sixty seconds",
   description:
-    "A cinematic ride down each line. The story of Lattency — twelve stations, three tiers, one engine.",
+    "Watch Lattency's product loop on a self-running reel — tap, read, test, land, earn — then open a live city and run it yourself.",
+  openGraph: {
+    title: "Lattency · The Tour",
+    description:
+      "Sixty seconds start to finish. The metro map of workable wifi, running itself.",
+  },
 };
 
 export default async function Tour() {
@@ -21,45 +29,38 @@ export default async function Tour() {
     <>
       <TopNav current="tour" />
 
-      <main className="mx-auto max-w-[1440px] px-6 md:px-12 pt-6 md:pt-10 pb-12">
-        <Masthead />
+      {/* Act 01 — boarding + hero + mobile/desktop reel */}
+      <TourActOne />
 
-        {/* The product loop, running itself — the first thing a judge sees
-            after the masthead, so the product moves before they touch it. */}
-        <LoopStoryboard />
-      </main>
+      {/* Mechanism strip — outcomes after the proof */}
+      <TourMechanics />
 
+      {/* Act 02 — cinematic line ride (shorter scroll on mobile) */}
+      <TourHandoff />
       <CinematicMap cafes={cafes} />
 
-      <main className="mx-auto max-w-[1440px] px-6 md:px-12 pb-24">
+      <main className="mx-auto max-w-[1440px] px-4 sm:px-6 md:px-12 pb-28 lg:pb-24">
         <Legend />
+        <TourFinale />
 
-        {/* Global ambition tease — preserved from the original home */}
-        <section className="mt-24 pt-10 border-t border-ink/80">
+        <section className="mt-16 sm:mt-24 pt-8 sm:pt-10 border-t border-ink/80">
           <p className="stamp">Next stops</p>
-          <div className="mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-3 font-display font-black uppercase tracking-[-0.01em] text-3xl md:text-5xl">
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">
-              Lagos
-            </span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">
-              Cape Town
-            </span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">
-              Accra
-            </span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">
-              Kampala
-            </span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">
-              Kigali
-            </span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink-soft/40 transition-colors duration-200 hover:text-express cursor-default">
-              your city
+          <div className="mt-4 flex flex-wrap items-baseline gap-x-5 sm:gap-x-8 gap-y-2 sm:gap-y-3 font-display font-black uppercase tracking-[-0.01em] text-2xl sm:text-3xl md:text-5xl">
+            {["Lagos", "Cape Town", "Accra", "Kampala", "Kigali"].map(
+              (city, i) => (
+                <span key={city} className="inline-flex items-baseline gap-x-5 sm:gap-x-8">
+                  {i > 0 && <span className="text-ink-faint">·</span>}
+                  <span className="text-ink transition-colors duration-200 hover:text-express cursor-default">
+                    {city}
+                  </span>
+                </span>
+              ),
+            )}
+            <span className="inline-flex items-baseline gap-x-5 sm:gap-x-8">
+              <span className="text-ink-faint">·</span>
+              <span className="text-ink-soft/40 transition-colors duration-200 hover:text-express cursor-default">
+                your city
+              </span>
             </span>
           </div>
           <p className="font-serif italic text-ink-faint text-base md:text-lg mt-4 max-w-3xl">
@@ -68,13 +69,15 @@ export default async function Tour() {
           </p>
         </section>
 
-        <footer className="mt-16 pt-6 border-t border-ink/40 flex flex-wrap items-baseline justify-between gap-4">
+        <footer className="mt-12 sm:mt-16 pt-6 border-t border-ink/40 flex flex-wrap items-baseline justify-between gap-4">
           <p className="stamp">
             Lattency · live network · {new Date().getFullYear()}
           </p>
           <p className="stamp">Set in Big Shoulders &amp; IBM Plex Mono</p>
         </footer>
       </main>
+
+      <TourDock />
     </>
   );
 }

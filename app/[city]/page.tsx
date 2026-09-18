@@ -131,6 +131,23 @@ export default async function CityHome({
             strip is the evidence that it isn't — readings landed recently. */}
         <NetworkPulse city={city} />
 
+        {/* Front-door path to the self-running reel — judges and first-timers
+            who land on a city map can still feel the product without hunting. */}
+        <Link
+          href="/tour"
+          className="mt-8 flex flex-wrap items-center justify-between gap-4 border border-ink/80 bg-cream px-4 py-3.5 shadow-[3px_4px_0_0_var(--color-ink)] hover:-translate-y-0.5 hover:shadow-[4px_5px_0_0_var(--color-ink)] transition-all group"
+        >
+          <div className="min-w-0">
+            <p className="stamp">The Tour · 60 seconds</p>
+            <p className="font-display font-black uppercase text-xl md:text-2xl leading-none tracking-[-0.01em] text-ink mt-1">
+              Feel the loop before you tap.
+            </p>
+          </div>
+          <span className="font-mono text-[11px] tracking-[0.22em] uppercase text-express group-hover:text-ink transition-colors shrink-0 inline-flex items-center gap-1.5">
+            Watch the reel <span aria-hidden>→</span>
+          </span>
+        </Link>
+
         <section className="mt-16">
           <StationDirectory cafes={cafes} city={city} cityConfig={cityConfig} />
         </section>

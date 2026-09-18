@@ -76,18 +76,24 @@ export function TopNav({
               <span className="sm:hidden">Back</span>
             </Link>
           ) : (
-            // Redundant while we're already on the map — hiding it on the
-            // smallest screens reclaims space without losing a destination.
-            <Link
-              href={cityHome}
-              className={
-                current === "app"
-                  ? "hidden sm:inline-flex text-ink"
-                  : "text-ink-soft hover:text-ink transition-colors inline-flex"
-              }
-            >
-              Map
-            </Link>
+            <>
+              <Link
+                href={cityHome}
+                className={
+                  current === "app"
+                    ? "hidden sm:inline-flex text-ink"
+                    : "text-ink-soft hover:text-ink transition-colors inline-flex"
+                }
+              >
+                Map
+              </Link>
+              <Link
+                href="/tour"
+                className="text-ink-soft hover:text-ink transition-colors inline-flex"
+              >
+                Tour
+              </Link>
+            </>
           )}
 
           <Link
