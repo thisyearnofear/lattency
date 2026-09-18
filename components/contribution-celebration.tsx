@@ -72,14 +72,14 @@ function readTrailStations(): TrailStation[] {
 function StampBadge({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="border border-ink/20 bg-cream-edge/40 p-4 text-center">
-      <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
+      <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">
         {label}
       </p>
       <p className="font-display font-black text-4xl text-ink leading-none mt-2 tabular-nums">
         {value}
       </p>
       {sub && (
-        <p className="font-mono text-[9px] tracking-[0.16em] uppercase text-ink-faint mt-1.5">
+        <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint mt-1.5">
           {sub}
         </p>
       )}
@@ -209,15 +209,15 @@ export function ContributionCelebration({
         {/* Milestone title — a fresh rank gets the loud stamp treatment. */}
         {justRankedUp ? (
           <div className="celebration-stamp inline-flex items-center gap-2 mt-3 px-3 py-1.5 border-2 border-express bg-express text-cream shadow-[3px_4px_0_0_var(--color-ink)]">
-            <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-cream/80">New rank</span>
+            <span className="font-mono text-[10px] tracking-[0.22em] uppercase text-cream/80">New rank</span>
             <span className="font-display font-black text-sm uppercase">{milestone.title}</span>
-            <span className="font-mono text-[9px] text-cream/80">· {milestone.sub}</span>
+            <span className="font-mono text-[10px] text-cream/80">· {milestone.sub}</span>
           </div>
         ) : (
           <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 border border-ink/30 bg-cream-edge/40">
-            <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">Rank</span>
+            <span className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">Rank</span>
             <span className="font-display font-black text-sm uppercase text-ink">{milestone.title}</span>
-            <span className="font-mono text-[9px] text-ink-faint">· {milestone.sub}</span>
+            <span className="font-mono text-[10px] text-ink-faint">· {milestone.sub}</span>
           </div>
         )}
       </div>

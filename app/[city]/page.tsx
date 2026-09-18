@@ -6,6 +6,8 @@ import { CITIES, cityPath, resolveCityConfig, getLiveCities } from "@/lib/cities
 import { TopNav } from "@/components/top-nav";
 import { LiveMap } from "@/components/live-map";
 import { StationDirectory } from "@/components/station-directory";
+import { QuestBoard } from "@/components/quest-board";
+import { NetworkPulse } from "@/components/network-pulse";
 import { BountiesBoard } from "@/components/bounties-board";
 import { Leaderboard } from "@/components/leaderboard";
 import { FirstTimerBountyNudge } from "@/components/first-timer-bounty-nudge";
@@ -125,9 +127,17 @@ export default async function CityHome({
           </Suspense>
         </section>
 
+        {/* The map is beautiful enough to read as a static illustration. This
+            strip is the evidence that it isn't — readings landed recently. */}
+        <NetworkPulse city={city} />
+
         <section className="mt-16">
           <StationDirectory cafes={cafes} city={city} cityConfig={cityConfig} />
         </section>
+
+        {/* Gaps, before rewards. Bounties depend on sponsor money arriving;
+            this board never runs out. */}
+        <QuestBoard city={city} cityName={cityConfig.name} />
 
         <section className="pb-24">
           <BountiesBoard city={city} cafeCount={cafes.length} compact />

@@ -60,10 +60,15 @@ export class MockRedisClient implements RedisLikeClient {
     return Array.from(this.sets.get(key) ?? []);
   }
 
-  // Only trailing-wildcard patterns are needed for resetForTests.
+  // Only trailing-wildcard patterns are needed for resetForTests. Mirrors
+  // real Redis `KEYS`, which matches every key regardless of type — so string
+  // keys and set keys are both returned.
   async keys(pattern: string): Promise<string[]> {
     const prefix = pattern.endsWith("*") ? pattern.slice(0, -1) : pattern;
-    return Array.from(this.store.keys()).filter((k) => k.startsWith(prefix));
+    return [
+      ...Array.from(this.store.keys()),
+      ...Array.from(this.sets.keys()),
+    ].filter((k) => k.startsWith(prefix));
   }
 
   getStore(): Map<string, string> {

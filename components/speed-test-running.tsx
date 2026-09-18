@@ -61,7 +61,7 @@ export function SpeedTestRunning({ progress }: SpeedTestRunningProps) {
                     : "border-ink/15 bg-cream-edge/40 text-ink-faint",
               ].join(" ")}
             >
-              <div className="flex items-center justify-between font-mono text-[9px] tracking-[0.18em] uppercase">
+              <div className="flex items-center justify-between font-mono text-[10px] tracking-[0.18em] uppercase">
                 <span>{p.label}</span>
                 <span aria-hidden>{isDone ? "✓" : isActive ? "●" : "○"}</span>
               </div>
@@ -101,7 +101,7 @@ export function SpeedTestRunning({ progress }: SpeedTestRunningProps) {
       <div aria-hidden className="grid grid-cols-4 gap-2 pt-2 opacity-50">
         {["DOWN", "UP", "PING", "JITTER"].map((label) => (
           <div key={label} className="border border-dashed border-ink/20 py-2">
-            <div className="font-mono text-[8px] tracking-[0.14em] uppercase text-ink-faint">
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-faint">
               {label}
             </div>
             <div className="mt-1 h-4 bg-ink/10 animate-pulse" />

@@ -5,7 +5,7 @@
 // loading (or when Base44/mock mode has no attribution to rank).
 
 import { useEffect, useState } from "react";
-import type { LeaderboardEntry } from "@/lib/leaderboard";
+import type { LeaderboardEntry } from "@/lib/leaderboard-types";
 
 interface LeaderboardResponse {
   city: string;

@@ -77,9 +77,13 @@ export async function getNotifications(
   const bounties = await getBounties(city);
   for (const b of bounties) {
     const filled = b.progress >= b.target;
-    const open = b.status === "open";
+    // `claiming` is the state a completed bounty lands in — the progress
+    // updater flips it there the moment the target is met. Gating on `open`
+    // meant this trigger could never fire for exactly the bounties that had
+    // reached their target, which is the only case it exists to catch.
+    const terminal = b.status === "paid";
 
-    if (filled && open) {
+    if (filled && !terminal) {
       out.push({
         id: `claimable-${b.id}`,
         kind: "bounty-claimable",
@@ -90,7 +94,7 @@ export async function getNotifications(
       continue;
     }
 
-    if (open && b.expiresAt) {
+    if (!terminal && b.expiresAt) {
       const left = daysUntil(b.expiresAt);
       if (left >= 0 && left <= EXPIRY_SOON_DAYS) {
         out.push({

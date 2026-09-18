@@ -3,10 +3,11 @@
 // contributors run the speed test, the readings are verified by others,
 // the bounty pays out.
 //
-// This component is the demo-stage visualization: real data lives in
-// lib/bounties.ts, the "Fund a bounty" action is preview-only. Real
-// implementation would back this with a `bounties` table and a Stripe or
-// M-Pesa hold/release flow.
+// Real data lives in lib/bounties.ts: bounties are Base44 Bounty entities
+// (falling back to a bundled snapshot when Base44 is unconfigured), progress
+// is advanced by the `update-bounty-progress` function after each measurement
+// insert, and payouts are real NIM transfers via @nimiq/mini-app-sdk. The
+// "Fund a bounty" action links to /partners.
 
 import Link from "next/link";
 import { getBounties, sponsorBadgeStyle, bountyKindLabel, type Bounty } from "@/lib/bounties";
@@ -46,11 +47,11 @@ function BountyCard({ bounty, index }: { bounty: Bounty; index: number }) {
         {/* Sponsor strip */}
         <div className="flex items-center justify-between gap-3">
           <span
-            className={`${sponsor.bg} ${sponsor.ink} font-mono text-[9px] tracking-[0.22em] uppercase px-2 py-1`}
+            className={`${sponsor.bg} ${sponsor.ink} font-mono text-[10px] tracking-[0.22em] uppercase px-2 py-1`}
           >
             {sponsor.label}
           </span>
-          <span className="font-mono text-[9px] tracking-[0.16em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint">
             {bountyKindLabel(bounty.kind)}
           </span>
         </div>
@@ -71,7 +72,7 @@ function BountyCard({ bounty, index }: { bounty: Bounty; index: number }) {
         {/* Bounty + progress */}
         <div className="mt-auto pt-3 border-t border-cream-deep flex items-end justify-between gap-3">
           <div>
-            <p className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+            <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
               Bounty
             </p>
             <div className="flex items-center gap-2 mt-1">
@@ -82,12 +83,12 @@ function BountyCard({ bounty, index }: { bounty: Bounty; index: number }) {
             </div>
           </div>
           <div className="text-right">
-            <p className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+            <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
               Progress
             </p>
             <p className="font-mono text-[12px] tabular-nums text-ink mt-1">
               {bounty.progress}/{bounty.target}
-              <span className={`ml-1.5 text-[9px] tracking-[0.16em] uppercase ${filled ? "text-express" : "text-ink-faint"}`}>
+              <span className={`ml-1.5 text-[10px] tracking-[0.16em] uppercase ${filled ? "text-express" : "text-ink-faint"}`}>
                 {filled ? "ready" : `${pct}%`}
               </span>
             </p>
@@ -165,7 +166,7 @@ export async function BountiesBoard({
         {[
           { n: "01", verb: "Stake", body: "Pre-pay a small bounty for a target — first café in an area, or the 10th verified test at a spot." },
           { n: "02", verb: "Run", body: "Walk in, run a real speed test, snap a photo, fill the metadata. The reading lands on the map." },
-          { n: "03", verb: "Verify + pay", body: "Solo readings wait for a second test. Once verified, the bounty pays out in NIM to your wallet." },
+          { n: "03", verb: "Attribute + pay", body: "The reward is bound to the contributor whose reading closed the bounty. Claim it from the same wallet you contributed with." },
         ].map((step) => (
           <li
             key={step.n}

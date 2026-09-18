@@ -5,6 +5,7 @@ import type { CafeDetail, CafeStation, MeasurementReading, Tier, TimeBucket } fr
 import { slugify } from "@/lib/slug";
 import { MeasurementForm } from "./measurement-form";
 import { SignalQuality } from "./signal-quality";
+import { CapabilityRow } from "./capability-row";
 import { VibeChips } from "./vibe-chips";
 import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
@@ -56,7 +57,7 @@ function Distribution({ detail }: { detail: CafeDetail }) {
     <div>
       <div className="flex items-baseline justify-between">
         <p className="stamp">Speed by time of day</p>
-        <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-faint">
+        <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint">
           median Mbps
         </p>
       </div>
@@ -74,7 +75,7 @@ function Distribution({ detail }: { detail: CafeDetail }) {
           className="absolute inset-x-0 border-t border-dashed border-express/50"
           style={{ bottom: `${(50 / peak) * 100}%` }}
         >
-          <span className="absolute -top-3 right-0 font-mono text-[8px] tracking-[0.15em] uppercase text-express/80 bg-cream px-1">
+          <span className="absolute -top-3 right-0 font-mono text-[10px] tracking-[0.15em] uppercase text-express/80 bg-cream px-1">
             express · 50
           </span>
         </div>
@@ -105,10 +106,10 @@ function Distribution({ detail }: { detail: CafeDetail }) {
           const d = byBucket.get(bucket);
           return (
             <div key={bucket} className="flex-1 text-center">
-              <p className="font-mono text-[9px] tracking-[0.16em] uppercase text-ink-soft">
+              <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-soft">
                 {BUCKET_LABEL[bucket]}
               </p>
-              <p className="font-mono text-[8px] text-ink-faint">
+              <p className="font-mono text-[10px] text-ink-faint">
                 {d ? `${d.sampleSize} obs` : "no data"}
               </p>
             </div>
@@ -132,7 +133,7 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+      <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
         {label}
       </div>
       <div className="font-display font-black text-3xl text-ink leading-none mt-1 tabular-nums">
@@ -270,7 +271,7 @@ export function CafeDetail({
   const existingCheckIn = station ? getCheckIn(station.id) : null;
   const alreadyCheckedIn = existingCheckIn?.verified ?? false;
   const alreadyCheckedInBadge = alreadyCheckedIn ? (
-    <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-express inline-flex items-center gap-1">
+    <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-express inline-flex items-center gap-1">
       <span aria-hidden>✓</span> Verified visitor
     </span>
   ) : null;
@@ -424,6 +425,21 @@ export function CafeDetail({
               <SignalQuality
                 jitterMs={d.medianJitterMs}
                 lossPct={d.medianLossPct}
+              />
+            </div>
+
+            {/* Answers the actual question — can I take a call here? — from
+                every direction of the measurement, not just download. */}
+            <div className="mt-5 pt-4 border-t border-ink/15">
+              <CapabilityRow
+                tier={d.tier}
+                metrics={{
+                  downMbps: d.medianDownMbps,
+                  upMbps: d.medianUpMbps,
+                  latencyMs: d.medianLatencyMs,
+                  lossPct: d.medianLossPct,
+                  samples: d.measurementCount,
+                }}
               />
             </div>
             {d.measurementCount > 0 ? (

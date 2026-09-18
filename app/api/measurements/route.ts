@@ -11,6 +11,7 @@ import { log, reqIdFrom } from "@/lib/log";
 import { base44Configured, b44InsertMeasurement } from "@/lib/base44-data";
 import { getBase44 } from "@/lib/base44";
 import { addLocalMeasurement } from "@/lib/local-contributions";
+import { attributeBountyContributor, matchedBountyIds } from "@/lib/bounties";
 
 export const dynamic = "force-dynamic";
 
@@ -96,13 +97,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fire-and-forget: update bounty progress after measurement insert.
+    // Fire-and-forget: advance bounty progress, then attribute each bounty
+    // this reading pushed forward to its contributor. The attribution must be
+    // recorded here (and only here) because it is what the claim route checks
+    // before paying out — an unattributed bounty cannot be claimed.
     after(async () => {
       try {
-        await getBase44().functions.invoke("update-bounty-progress", {
+        const result = await getBase44().functions.invoke("update-bounty-progress", {
           cafe_id: body.cafeId,
           down_mbps: body.downMbps,
+          contributor_id: contributorUserId,
         });
+        for (const bountyId of matchedBountyIds(result)) {
+          await attributeBountyContributor(bountyId, contributorUserId);
+        }
       } catch (err) {
         log.warn("bounty progress update failed (non-fatal)", {
           reqId,

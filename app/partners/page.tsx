@@ -115,7 +115,7 @@ export default function PartnersPage() {
               {(["express", "local", "suspended"] as Tier[]).map((tier) => (
                 <span key={tier} className="inline-flex items-center gap-2">
                   <span className="inline-block w-6 h-[5px]" style={{ background: TIER_COLOUR[tier] }} />
-                  <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-soft">
+                  <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft">
                     {tier} · <span className="font-serif italic normal-case tracking-normal text-[11px]">{TIER_USE[tier]}</span>
                   </span>
                 </span>

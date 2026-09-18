@@ -51,13 +51,36 @@ describe("bountyState", () => {
     expect(await bountyState.tryAcquireClaimLock("b-1")).toBeNull();
   });
 
+  it("records contributors against a bounty, de-duplicated", async () => {
+    expect(await bountyState.getContributors("b-1")).toEqual([]);
+
+    await bountyState.recordContributor("b-1", "contrib-a-aaa111");
+    await bountyState.recordContributor("b-1", "contrib-b-bbb222");
+    await bountyState.recordContributor("b-1", "contrib-a-aaa111");
+
+    const contributors = await bountyState.getContributors("b-1");
+    expect(contributors).toHaveLength(2);
+    expect(contributors).toContain("contrib-a-aaa111");
+    expect(contributors).toContain("contrib-b-bbb222");
+  });
+
+  it("keeps contributor sets separate per bounty", async () => {
+    await bountyState.recordContributor("b-1", "contrib-a-aaa111");
+    await bountyState.recordContributor("b-2", "contrib-b-bbb222");
+
+    expect(await bountyState.getContributors("b-1")).toEqual(["contrib-a-aaa111"]);
+    expect(await bountyState.getContributors("b-2")).toEqual(["contrib-b-bbb222"]);
+  });
+
   it("resets all state for tests", async () => {
     await bountyState.markPaid("b-1");
     await bountyState.tryAcquireClaimLock("b-2");
+    await bountyState.recordContributor("b-3", "contrib-a-aaa111");
 
     await bountyState.resetForTests();
 
     expect(await bountyState.getPaidBounties()).toEqual([]);
+    expect(await bountyState.getContributors("b-3")).toEqual([]);
     expect(await bountyState.tryAcquireClaimLock("b-2")).toBeTruthy();
   });
 

@@ -4,22 +4,20 @@
 // an empty board when Base44 is unconfigured (the mock snapshot carries no
 // contributor attribution by design — it's pre-seeded data).
 //
-// Ranks are ordered by stations touched in the city, then readings. The
+// Ranks are ordered by stations touched in the city, then readings, and scoped
+// to a rolling window (see LEADERBOARD_WINDOW_DAYS). The window matters: the
+// board previously ranked the most recent N readings with no date filter while
+// the UI advertised "this month", so the label and the maths disagreed. The
 // requesting contributor (if provided) is always returned with their own
 // totals even when they don't crack the top N, so /me can show "you're #12".
 
 import { getBase44, base44Configured } from "./base44";
 import { contributorHandle } from "./contributor";
 import { log } from "./log";
+import { LEADERBOARD_WINDOW_DAYS, type LeaderboardEntry } from "./leaderboard-types";
 
-export interface LeaderboardEntry {
-  contributorId: string;
-  handle: string;
-  displayName: string | null;
-  readings: number;
-  stations: number;
-  rank: number;
-}
+export type { LeaderboardEntry };
+export { LEADERBOARD_WINDOW_DAYS };
 
 interface LeaderboardRow {
   contributor_user_id: string;
@@ -29,8 +27,23 @@ interface LeaderboardRow {
 
 // Page size when scanning the measurement log. Large enough to rank a city,
 // small enough not to melt a cold serverless function.
+//
+// Caveat: this is a fixed scan, so in a city with more than SCAN_LIMIT
+// measurements inside the window the board undercounts rather than erroring.
+// Acceptable while the network is small and the window is 30 days; it becomes
+// wrong the moment it isn't, and should move to a windowed query server-side.
 const SCAN_LIMIT = 500;
 const TOP_N = 10;
+
+/** True when a reading falls inside the ranking window. Readings with an
+ *  unparseable or missing timestamp are excluded rather than assumed recent —
+ *  a countable reading must be dated. */
+function withinWindow(measuredAt: string | undefined, cutoffMs: number): boolean {
+  if (!measuredAt) return false;
+  const at = new Date(measuredAt).getTime();
+  if (Number.isNaN(at)) return false;
+  return at >= cutoffMs;
+}
 
 /**
  * Compute the leaderboard for a city.
@@ -53,11 +66,18 @@ export async function getLeaderboard(
       "-measured_at",
       SCAN_LIMIT,
       0,
-    )) as unknown as Array<{ contributor_user_id?: string; cafe_id?: string }>;
+    )) as unknown as Array<{
+      contributor_user_id?: string;
+      cafe_id?: string;
+      measured_at?: string;
+    }>;
 
+    const cutoffMs = Date.now() - LEADERBOARD_WINDOW_DAYS * 24 * 60 * 60 * 1000;
     const withContributor = rows.filter(
       (r): r is LeaderboardRow =>
-        Boolean(r.contributor_user_id) && Boolean(r.cafe_id),
+        Boolean(r.contributor_user_id) &&
+        Boolean(r.cafe_id) &&
+        withinWindow(r.measured_at, cutoffMs),
     );
     if (withContributor.length === 0) return { entries: [], me: null };
 

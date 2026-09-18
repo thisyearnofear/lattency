@@ -181,7 +181,7 @@ export function CitySwitcher({
                         {isCurated ? CITIES[city.id].country : `${city.count} station${city.count === 1 ? "" : "s"}`}
                       </p>
                     </div>
-                    <span className={`font-mono text-[9px] tracking-[0.22em] uppercase ${isCurrent ? "text-express" : "text-ink-faint"}`}>
+                    <span className={`font-mono text-[10px] tracking-[0.22em] uppercase ${isCurrent ? "text-express" : "text-ink-faint"}`}>
                       {isCurrent ? "Active" : isCurated ? "Live" : "Live"}
                     </span>
                   </VTLink>
@@ -191,7 +191,7 @@ export function CitySwitcher({
 
             {SOON_CITIES.length > 0 && (
               <li className="px-4 py-2 border-t border-ink/10">
-                <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
+                <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">
                   Coming soon · tap to request
                 </p>
               </li>
@@ -217,7 +217,7 @@ export function CitySwitcher({
                       </p>
                     </div>
                     <span
-                      className={`font-mono text-[9px] tracking-[0.22em] uppercase inline-flex items-center gap-1 ${
+                      className={`font-mono text-[10px] tracking-[0.22em] uppercase inline-flex items-center gap-1 ${
                         voted ? "text-express" : "text-ink-faint"
                       }`}
                     >
@@ -236,7 +236,7 @@ export function CitySwitcher({
           </ul>
 
           <div className="px-4 py-3 border-t border-ink/15 bg-cream-edge/40">
-            <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">
+            <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">
               Your city missing?{" "}
               <a href={`${cityPath(current || CITY_ORDER[0])}?contribute=1`} className="text-ink">
                 Map a café →

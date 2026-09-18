@@ -18,6 +18,17 @@ export interface BountyState {
   /** Return all bounty ids currently marked as paid. */
   getPaidBounties(): Promise<string[]>;
 
+  /** Record a contributor as having pushed a bounty forward. Idempotent.
+   *
+   *  This is the attribution that makes a payout auditable: the claim route
+   *  only pays identities that appear in this set, so without a durable
+   *  contributor set a filled bounty is claimable by anyone who finds its id. */
+  recordContributor(bountyId: string, contributorId: string): Promise<void>;
+  /** Contributor ids recorded against a bounty, or [] when unattributed.
+   *  An empty result is meaningful: it means no identified contributor is
+   *  on record, so the bounty must not be paid out. */
+  getContributors(bountyId: string): Promise<string[]>;
+
   /** Try to acquire an exclusive claim lock. Returns a lease token when
    *  the lock is acquired, or null if it is already held and its lease
    *  has not yet expired.
@@ -61,6 +72,7 @@ export const CLAIM_LOCK_TTL_MS = 300_000;
 export class InMemoryBountyState implements BountyState {
   private paid = new Set<string>();
   private claiming = new Map<string, { expiresAt: number; token: string }>();
+  private contributors = new Map<string, Set<string>>();
 
   async markPaid(bountyId: string): Promise<void> {
     this.paid.add(bountyId);
@@ -68,6 +80,19 @@ export class InMemoryBountyState implements BountyState {
 
   async getPaidBounties(): Promise<string[]> {
     return Array.from(this.paid);
+  }
+
+  async recordContributor(bountyId: string, contributorId: string): Promise<void> {
+    let set = this.contributors.get(bountyId);
+    if (!set) {
+      set = new Set();
+      this.contributors.set(bountyId, set);
+    }
+    set.add(contributorId);
+  }
+
+  async getContributors(bountyId: string): Promise<string[]> {
+    return Array.from(this.contributors.get(bountyId) ?? []);
   }
 
   async tryAcquireClaimLock(
@@ -112,6 +137,7 @@ export class InMemoryBountyState implements BountyState {
   async resetForTests(): Promise<void> {
     this.paid.clear();
     this.claiming.clear();
+    this.contributors.clear();
   }
 }
 
@@ -164,6 +190,10 @@ export function getBountyState(): Promise<BountyState> {
 export const bountyState: BountyState = {
   markPaid: async (bountyId) => (await getBountyState()).markPaid(bountyId),
   getPaidBounties: async () => (await getBountyState()).getPaidBounties(),
+  recordContributor: async (bountyId, contributorId) =>
+    (await getBountyState()).recordContributor(bountyId, contributorId),
+  getContributors: async (bountyId) =>
+    (await getBountyState()).getContributors(bountyId),
   tryAcquireClaimLock: async (bountyId, options) =>
     (await getBountyState()).tryAcquireClaimLock(bountyId, options),
   releaseClaimLock: async (bountyId, token) =>

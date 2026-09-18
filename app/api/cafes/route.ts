@@ -8,7 +8,11 @@ import type { CafeCreationInput } from "@/lib/types";
 import { log, reqIdFrom } from "@/lib/log";
 import { base44Configured, b44CreateCafe } from "@/lib/base44-data";
 import { getBase44 } from "@/lib/base44";
-import { createFounderBountyEntity } from "@/lib/bounties";
+import {
+  attributeBountyContributor,
+  createFounderBountyEntity,
+  matchedBountyIds,
+} from "@/lib/bounties";
 import { addLocalCafe } from "@/lib/local-contributions";
 
 // Force dynamic — each POST runs as a function.
@@ -154,13 +158,25 @@ export async function POST(req: NextRequest) {
       // update normal bounty progress for the new café. The helper is
       // idempotent (it checks for an existing first-cafe bounty), so we can
       // safely call it on every café creation.
+      //
+      // Both the founder reward and any matched bounty get attributed to the
+      // creating contributor. The founder bounty is created pre-filled
+      // (progress 1 / target 1), so without this attribution it would be
+      // immediately filled yet unclaimable by anyone — the exact corner where
+      // "must be a contributor" would strand a legitimate reward.
       after(async () => {
         try {
-          await createFounderBountyEntity(city);
-          await getBase44().functions.invoke("update-bounty-progress", {
+          const founderBountyId = await createFounderBountyEntity(city);
+          await attributeBountyContributor(founderBountyId, contributorUserId);
+
+          const result = await getBase44().functions.invoke("update-bounty-progress", {
             cafe_id: cafeId,
             down_mbps: body.measurement.downMbps,
+            contributor_id: contributorUserId,
           });
+          for (const bountyId of matchedBountyIds(result)) {
+            await attributeBountyContributor(bountyId, contributorUserId);
+          }
         } catch (err) {
           log.warn("bounty progress/founder update failed (non-fatal)", {
             reqId,

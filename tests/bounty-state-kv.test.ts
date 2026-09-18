@@ -58,13 +58,29 @@ describe("RedisBountyState", () => {
     expect(await state.extendClaimLock("b-missing", "any-token")).toBe(false);
   });
 
-  it("clears all lock keys and paid bounties on resetForTests", async () => {
+  it("records contributors in a per-bounty Redis set", async () => {
+    await state.recordContributor("b-1", "contrib-a-aaa111");
+    await state.recordContributor("b-1", "contrib-a-aaa111");
+    await state.recordContributor("b-2", "contrib-b-bbb222");
+
+    expect(await state.getContributors("b-1")).toEqual(["contrib-a-aaa111"]);
+    expect(await state.getContributors("b-2")).toEqual(["contrib-b-bbb222"]);
+    expect(client.getSets().get("bounty:contributors:b-1")?.size).toBe(1);
+  });
+
+  it("returns an empty contributor list for an unknown bounty", async () => {
+    expect(await state.getContributors("b-missing")).toEqual([]);
+  });
+
+  it("clears all lock keys, contributor sets and paid bounties on resetForTests", async () => {
     await state.markPaid("b-1");
+    await state.recordContributor("b-1", "contrib-a-aaa111");
     const token = (await state.tryAcquireClaimLock("b-1", { ttlMs: 60_000 }))!;
 
     await state.resetForTests();
 
     expect(await state.getPaidBounties()).toEqual([]);
+    expect(await state.getContributors("b-1")).toEqual([]);
     expect(await state.releaseClaimLock("b-1", token)).toBe(false);
   });
 

@@ -107,7 +107,7 @@ export function NotificationInbox({ city }: { city: string }) {
       >
         <span aria-hidden className="text-[13px]">✉</span>
         {count > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] px-0.5 grid place-items-center bg-express text-cream font-mono text-[8px] leading-none">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] px-0.5 grid place-items-center bg-express text-cream font-mono text-[10px] leading-none">
             {count > 9 ? "9+" : count}
           </span>
         )}

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { executeNimiqPayout } from "@/lib/nimiq-payout";
 import { log, reqIdFrom } from "@/lib/log";
 import { bountyState, CLAIM_LOCK_TTL_MS } from "@/lib/bounty-state";
+import { evaluateClaimEligibility } from "@/lib/bounty-claim";
+import { sanitizeContributorId } from "@/lib/measurements";
 import type { Bounty } from "@/lib/bounties";
 import { markBountyPaid } from "@/lib/bounties";
 
@@ -13,26 +15,31 @@ const LOCK_REFRESH_MS = 30_000;
 interface ClaimRequest {
   bountyId: string;
   nimiqAddress: string;
+  /** The contributor identity asserting the claim. Required — see lib/bounty-claim.ts. */
+  contributorId?: string;
 }
 
-// Eligibility check against the current fallback + Base44 bounties. In
-// production, this would query the live Base44 / Aurora bounties table,
-// verify progress, and mark the row as `claiming` under a transaction.
-async function findEligibleBounty(
-  bountyId: string,
-): Promise<Bounty | null> {
+// Look up the bounty being claimed. Eligibility (is it filled? may *this*
+// caller claim it?) is decided by evaluateClaimEligibility — this only has to
+// find the row. Reads Base44 when configured, the bundled snapshot otherwise.
+async function findBounty(bountyId: string): Promise<Bounty | null> {
   const { getBounties } = await import("@/lib/bounties");
   const bounties = await getBounties();
-  const bounty = bounties.find((b) => b.id === bountyId);
-  if (!bounty) return null;
-  if (bounty.status !== "open") return null;
-  if (bounty.progress < bounty.target) return null;
-  return bounty;
+  return bounties.find((b) => b.id === bountyId) ?? null;
 }
 
 // POST /api/bounties/claim
-// Body: { bountyId, nimiqAddress }
-// Verifies the bounty is complete and pays out the NIM reward.
+// Body: { bountyId, nimiqAddress, contributorId }
+//
+// Pays out a completed bounty in NIM, but only to a contributor on record for
+// that bounty. The eligibility gate is deliberate and lives in
+// lib/bounty-claim.ts: without it, any caller who knew a bounty id could drain
+// it to their own wallet, with nothing tying the money to the reading that
+// filled it.
+//
+// Ordering note: eligibility is evaluated *before* the lock is acquired, so a
+// rejected claim never takes the lock. Taking it first would let anyone lock a
+// bounty out from under its rightful claimant just by spamming rejections.
 export async function POST(req: NextRequest) {
   const reqId = reqIdFrom(req);
   let body: ClaimRequest;
@@ -50,9 +57,53 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "valid Nimiq address required" }, { status: 400 });
   }
 
-  // Lock the bounty for the duration of the claim. TTL is generous so
-  // slow RPC broadcasts don't lose exclusivity mid-flight. The lock is
-  // refreshed regularly while the payout is in progress.
+  const contributorId = sanitizeContributorId(body.contributorId);
+
+  // ── Eligibility: is this bounty filled, and did this caller fill it? ──────
+  let bounty: Bounty;
+  try {
+    const found = await findBounty(bountyId);
+    if (!found) {
+      return Response.json({ error: "bounty not eligible for claim" }, { status: 400 });
+    }
+
+    const contributors = await bountyState.getContributors(bountyId);
+    const eligibility = evaluateClaimEligibility({
+      bounty: found,
+      contributorId,
+      contributors,
+      payoutAddress: nimiqAddress,
+    });
+    if (!eligibility.eligible) {
+      log.warn("claim rejected", {
+        reqId,
+        scope: "bounties.claim",
+        bountyId,
+        status: eligibility.status,
+        reason: eligibility.error,
+      });
+      return Response.json(
+        { error: eligibility.error },
+        { status: eligibility.status },
+      );
+    }
+    bounty = found;
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    log.error("claim eligibility check failed", {
+      reqId,
+      scope: "bounties.claim",
+      bountyId,
+      reason,
+    });
+    return Response.json(
+      { error: "payout failed — please try again" },
+      { status: 500 },
+    );
+  }
+
+  // ── Lock for the payout window only ──────────────────────────────────────
+  // TTL is generous so slow RPC broadcasts don't lose exclusivity mid-flight.
   const lockToken = await bountyState.tryAcquireClaimLock(bountyId, {
     ttlMs: CLAIM_LOCK_TTL_MS,
   });
@@ -76,16 +127,12 @@ export async function POST(req: NextRequest) {
   }, LOCK_REFRESH_MS);
 
   try {
-    const bounty = await findEligibleBounty(bountyId);
-    if (!bounty) {
-      return Response.json({ error: "bounty not eligible for claim" }, { status: 400 });
-    }
-
     log.info("claiming bounty", {
       reqId,
       scope: "bounties.claim",
       bountyId,
       nimiqAddress,
+      contributorId,
       rewardNim: bounty.rewardNim,
     });
 

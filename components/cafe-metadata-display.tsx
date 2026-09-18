@@ -17,7 +17,7 @@ export function CafeMetadataChips({ cafe }: { cafe: Pick<CafeStation, "metadata"
       {chips.map((chip) => (
         <li
           key={chip}
-          className="font-mono text-[9px] tracking-[0.14em] px-1.5 py-[2px] uppercase border border-ink/25 text-ink-soft bg-cream-edge/60"
+          className="font-mono text-[10px] tracking-[0.14em] px-1.5 py-[2px] uppercase border border-ink/25 text-ink-soft bg-cream-edge/60"
         >
           {chip}
         </li>
@@ -29,7 +29,7 @@ export function CafeMetadataChips({ cafe }: { cafe: Pick<CafeStation, "metadata"
 export function VenueTypeChip({ venueType }: { venueType?: string }) {
   if (!venueType) return null;
   return (
-    <span className="font-mono text-[9px] tracking-[0.14em] px-1.5 py-[2px] uppercase border border-ink/25 text-ink-soft bg-cream-edge/60">
+    <span className="font-mono text-[10px] tracking-[0.14em] px-1.5 py-[2px] uppercase border border-ink/25 text-ink-soft bg-cream-edge/60">
       {VENUE_TYPE_LABELS[venueType as keyof typeof VENUE_TYPE_LABELS] ?? venueType}
     </span>
   );

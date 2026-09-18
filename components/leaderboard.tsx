@@ -7,7 +7,7 @@
 
 import { useContributor } from "@/hooks/use-contributor";
 import { useLeaderboard } from "@/hooks/use-leaderboard";
-import type { LeaderboardEntry } from "@/lib/leaderboard";
+import { LEADERBOARD_WINDOW_DAYS, type LeaderboardEntry } from "@/lib/leaderboard-types";
 
 function RankRow({
   entry,
@@ -29,7 +29,7 @@ function RankRow({
       <span className="font-display font-black uppercase text-ink text-lg leading-none flex-1 truncate">
         {entry.displayName ?? entry.handle}
         {isMe && (
-          <span className="ml-2 font-mono text-[9px] tracking-[0.2em] uppercase text-express align-middle">
+          <span className="ml-2 font-mono text-[10px] tracking-[0.2em] uppercase text-express align-middle">
             you
           </span>
         )}
@@ -58,7 +58,7 @@ export function Leaderboard({ city }: { city: string }) {
         Who&rsquo;s mapping here
       </h2>
       <p className="font-mono text-[11px] md:text-[12px] tracking-[0.22em] uppercase text-ink-soft mt-3">
-        Ranked by stations touched this month.
+        Ranked by stations touched in the last {LEADERBOARD_WINDOW_DAYS} days.
       </p>
 
       <div className="mt-6 border border-ink/15 bg-cream-edge/30">
@@ -84,7 +84,7 @@ export function Leaderboard({ city }: { city: string }) {
             </ul>
             {showMeRow && me && (
               <div className="border-t border-dashed border-ink/20">
-                <p className="px-4 pt-2 pb-1 font-mono text-[8px] tracking-[0.2em] uppercase text-ink-faint">
+                <p className="px-4 pt-2 pb-1 font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
                   your standing
                 </p>
                 <ul>

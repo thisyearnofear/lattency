@@ -14,7 +14,7 @@ export function VibeChips({
 }) {
   if (!tags || tags.length === 0) return null;
   const size = dense
-    ? "text-[9px] tracking-[0.14em] px-1.5 py-[2px]"
+    ? "text-[10px] tracking-[0.14em] px-1.5 py-[2px]"
     : "text-[10px] tracking-[0.16em] px-2 py-[3px]";
   return (
     <ul

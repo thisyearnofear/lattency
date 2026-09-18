@@ -12,6 +12,7 @@ import { TickNumber } from "./tick-number";
 import { VTLink } from "./vt-link";
 import { CopyShareLink } from "./copy-share-link";
 import { SignalQuality } from "./signal-quality";
+import { CapabilityRow } from "./capability-row";
 import { VibeChips } from "./vibe-chips";
 import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
@@ -61,7 +62,7 @@ function DistributionChart({ detail }: { detail: CafeDetailType }) {
     <div className="w-full">
       <div className="flex items-baseline justify-between">
         <p className="stamp">Speed by time of day</p>
-        <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-faint">
+        <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint">
           median Mbps
         </p>
       </div>
@@ -79,7 +80,7 @@ function DistributionChart({ detail }: { detail: CafeDetailType }) {
           className="absolute inset-x-0 border-t border-dashed border-express/50"
           style={{ bottom: `${(50 / peak) * 100}%` }}
         >
-          <span className="absolute -top-3 right-0 font-mono text-[8px] tracking-[0.15em] uppercase text-express/80 bg-cream px-1">
+          <span className="absolute -top-3 right-0 font-mono text-[10px] tracking-[0.15em] uppercase text-express/80 bg-cream px-1">
             express · 50
           </span>
         </div>
@@ -116,7 +117,7 @@ function DistributionChart({ detail }: { detail: CafeDetailType }) {
               <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft">
                 {BUCKET_LABEL[bucket]}
               </p>
-              <p className="font-mono text-[9px] text-ink-faint">
+              <p className="font-mono text-[10px] text-ink-faint">
                 {d ? `${d.sampleSize} obs` : "no data"}
               </p>
             </div>
@@ -249,6 +250,21 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
             <SignalQuality
               jitterMs={cafe.medianJitterMs}
               lossPct={cafe.medianLossPct}
+            />
+          </div>
+          {/* The answer to the question someone actually arrived with. This is
+              the page a shared link lands on, so the correction has to be here
+              and not only behind a drawer click. */}
+          <div className="pt-4 border-t border-ink/15">
+            <CapabilityRow
+              tier={cafe.tier}
+              metrics={{
+                downMbps: cafe.medianDownMbps,
+                upMbps: cafe.medianUpMbps,
+                latencyMs: cafe.medianLatencyMs,
+                lossPct: cafe.medianLossPct,
+                samples: cafe.measurementCount,
+              }}
             />
           </div>
           {cafe.metadata && (

@@ -1088,7 +1088,7 @@ export function MapShell({
             className="pointer-events-none inline-flex items-center gap-2 border border-express bg-express text-cream px-2.5 py-1.5 shadow-[3px_4px_0_0_var(--color-ink)] transition-all duration-300"
           >
             <span className="inline-block h-1.5 w-1.5 bg-cream" aria-hidden />
-            <span className="font-mono text-[9px] uppercase tracking-[0.18em] max-w-[42vw] sm:max-w-[220px] truncate">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] max-w-[42vw] sm:max-w-[220px] truncate">
               {readingFlashText}
             </span>
           </div>
@@ -1104,7 +1104,7 @@ export function MapShell({
       {/* Tap-target hint, bottom-right */}
       <p
         aria-hidden
-        className="absolute bottom-4 right-4 z-[500] font-mono text-[9px] tracking-[0.24em] uppercase text-ink-faint pointer-events-none"
+        className="absolute bottom-4 right-4 z-[500] font-mono text-[10px] tracking-[0.24em] uppercase text-ink-faint pointer-events-none"
       >
         {view === "schematic" ? "tap any station →" : "tap any pin →"}
       </p>

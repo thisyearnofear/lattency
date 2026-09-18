@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useContributor } from "@/hooks/use-contributor";
 import { useLeaderboard } from "@/hooks/use-leaderboard";
 import { useNimiq } from "@/hooks/use-nimiq";
-import { MILESTONES, milestoneFor, nextMilestone } from "@/lib/milestones";
+import { MILESTONES, milestoneFor, nextMilestone, rankProgressPct } from "@/lib/milestones";
 import { YourLine, type TrailStation } from "./your-line";
 import { getLastVisitedCity } from "./city-visit-tracker";
 import { GrowBar } from "./grow-bar";
@@ -56,10 +56,10 @@ function trailToStations(trail: Trail): TrailStation[] {
 function StatBlock({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="border border-ink/20 bg-cream-edge/40 p-4 text-center">
-      <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">{label}</p>
+      <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">{label}</p>
       <p className="font-display font-black text-4xl text-ink leading-none mt-2 tabular-nums">{value}</p>
       {sub && (
-        <p className="font-mono text-[9px] tracking-[0.16em] uppercase text-ink-faint mt-1.5">{sub}</p>
+        <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint mt-1.5">{sub}</p>
       )}
     </div>
   );
@@ -129,9 +129,9 @@ export function ContributorProfile() {
     }
   }
 
-  const nextPct = next
-    ? Math.min(100, Math.round((cafesMapped / next.milestone.at) * 100))
-    : 100;
+  // Progress within the current rung, not from zero — on the later ranks
+  // (25 stations apart) a from-zero bar would sit still for hours.
+  const nextPct = rankProgressPct(cafesMapped);
 
   return (
     <main className="mx-auto max-w-[920px] px-6 md:px-12 py-10 pb-24">
@@ -191,9 +191,9 @@ export function ContributorProfile() {
         </div>
 
         <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-ink/30 bg-cream-edge/40">
-          <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-faint">Rank</span>
+          <span className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">Rank</span>
           <span className="font-display font-black text-lg uppercase text-ink">{rank.title}</span>
-          <span className="font-mono text-[9px] text-ink-faint">· {rank.sub}</span>
+          <span className="font-mono text-[10px] text-ink-faint">· {rank.sub}</span>
         </div>
       </header>
 

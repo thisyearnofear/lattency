@@ -82,7 +82,7 @@ export function AiVenueSummary({
           <button
             type="button"
             onClick={() => void reask()}
-            className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-faint transition-colors hover:text-ink"
+            className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-faint transition-colors hover:text-ink"
             aria-label="Ask the oracle again"
           >
             re-ask
@@ -119,7 +119,7 @@ export function AiVenueSummary({
       )}
 
       {state === "ready" && measurementCount > 0 && (
-        <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.18em] text-ink-faint">
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-faint">
           drawn from {measurementCount} verified reading{measurementCount === 1 ? "" : "s"}
         </p>
       )}

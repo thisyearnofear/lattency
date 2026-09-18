@@ -13,6 +13,7 @@ import { base44Configured, getBase44 } from "./base44";
 import { b44MarkBountyPaid } from "./base44-data";
 import { cityDisplayName } from "./cities";
 import { bountyState } from "./bounty-state";
+import { sanitizeContributorId } from "./measurements";
 
 export type { Bounty, BountyKind, BountyCreationInput } from "./bounty-types";
 export {
@@ -349,6 +350,46 @@ export async function getBounties(city?: string, cafeCount?: number): Promise<Bo
     return injectFounderBounty(cityLive, city, cafeCount);
   }
   return live;
+}
+
+/**
+ * Attribute a bounty's progress to the contributor whose reading pushed it
+ * forward. This is the attribution the claim route checks, so it must be
+ * recorded at write time, by every path that can advance a bounty (new café,
+ * new reading, founder reward).
+ *
+ * Durable when Redis is configured, so attribution survives the serverless
+ * cold start that so often sits between a reading and a claim. No-ops without
+ * an identity: an unattributable bounty is intentionally left unclaimable
+ * rather than falling back to paying whoever asks first.
+ */
+export async function attributeBountyContributor(
+  bountyId: string | null | undefined,
+  contributorId: string | null | undefined,
+): Promise<void> {
+  // No bounty id (e.g. the founder bounty failed to materialize) or no
+  // identity means there is nothing to attribute — both are no-ops rather
+  // than errors, since attribution is best-effort by design.
+  const cleanId = sanitizeContributorId(bountyId);
+  const clean = sanitizeContributorId(contributorId);
+  if (!cleanId || !clean) return;
+  await bountyState.recordContributor(cleanId, clean);
+}
+
+/**
+ * Extract the bounty ids a `update-bounty-progress` invocation matched. The
+ * Base44 SDK wraps function results inconsistently (`{ data }` vs bare), so
+ * this tolerates both shapes and never throws — attribution is best-effort
+ * and must not fail a contribution that already committed.
+ */
+export function matchedBountyIds(result: unknown): string[] {
+  const outer = result as Record<string, unknown> | null;
+  const data = (outer?.data ?? outer) as Record<string, unknown> | null;
+  const matched = data?.matched;
+  if (!Array.isArray(matched)) return [];
+  return matched
+    .map((row) => (row as { id?: unknown })?.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
 }
 
 /** Reset mutable bounty state. Exported only for tests. */

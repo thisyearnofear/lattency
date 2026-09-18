@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNimiq } from "@/hooks/use-nimiq";
+import { useContributor } from "@/hooks/use-contributor";
 import type { Bounty } from "@/lib/bounties";
 import { haptic } from "@/lib/haptics";
 
@@ -9,13 +10,18 @@ type ClaimState = "idle" | "loading" | "success" | "error";
 
 export function BountyClaim({ bounty }: { bounty: Bounty }) {
   const { address, inMiniApp, loading: providerLoading } = useNimiq();
+  // The server only pays a contributor on record for this bounty, so the
+  // claim must carry the identity the reading was written under.
+  const contributor = useContributor();
   const [state, setState] = useState<ClaimState>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const autoClaimed = useRef(false);
 
   const filled = bounty.progress >= bounty.target;
-  const claimable = filled && bounty.status === "open";
+  // `claiming` means the bounty is filled and awaiting payout — the server
+  // pays a filled bounty in either the `open` or `claiming` state.
+  const claimable = filled && (bounty.status === "open" || bounty.status === "claiming");
 
   async function handleClaim() {
     if (!address) return;
@@ -26,7 +32,11 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
       const res = await fetch("/api/bounties/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bountyId: bounty.id, nimiqAddress: address }),
+        body: JSON.stringify({
+          bountyId: bounty.id,
+          nimiqAddress: address,
+          contributorId: contributor.id,
+        }),
       });
       const data = (await res.json()) as {
         success?: boolean;
@@ -97,7 +107,7 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
             href={explorerUrl}
             target="_blank"
             rel="noreferrer"
-            className="block font-mono text-[9px] tracking-[0.16em] uppercase text-ink-soft hover:text-express transition-colors"
+            className="block font-mono text-[10px] tracking-[0.16em] uppercase text-ink-soft hover:text-express transition-colors"
           >
             View on Nimiq explorer →
           </a>

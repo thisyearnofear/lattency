@@ -70,7 +70,7 @@ export function FirstTimerBountyNudge({ city }: { city: string }) {
 
   return (
     <div className="mt-4 border border-express/40 bg-express/5 p-3.5 max-w-sm">
-      <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-express">
+      <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-express">
         Bounty almost filled · {bounty.area}
       </p>
       <p className="font-display font-black uppercase text-ink text-[17px] leading-tight mt-1">
@@ -82,7 +82,7 @@ export function FirstTimerBountyNudge({ city }: { city: string }) {
           className="h-[3px] bg-cream-deep flex-1"
           barClassName="bg-express"
         />
-        <span className="font-mono text-[9px] tabular-nums text-ink-soft">
+        <span className="font-mono text-[10px] tabular-nums text-ink-soft">
           {bounty.progress}/{bounty.target}
         </span>
       </div>

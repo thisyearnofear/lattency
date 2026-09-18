@@ -177,7 +177,7 @@ export function LoopStoryboard() {
             <foreignObject x={468} y={58} width={334} height={272} style={{ opacity: drawerOpen ? 1 : 0, transition: "opacity 250ms" }} pointerEvents={drawerOpen ? "auto" : "none"}>
               <div className="w-full h-full" style={{ fontFamily: "var(--font-mono)" }}>
                 <div className="bg-cream border border-ink shadow-[4px_5px_0_0_var(--color-ink)] p-3.5">
-                  <p style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--color-ink-faint)" }}>
+                  <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--color-ink-faint)" }}>
                     Station · Shoreditch
                   </p>
                   <p style={{ fontFamily: "var(--font-display)", fontWeight: 900, textTransform: "uppercase", fontSize: 19, lineHeight: 1, color: "var(--color-ink)", marginTop: 4 }}>
@@ -249,7 +249,7 @@ export function LoopStoryboard() {
                     </div>
                     <span style={{ fontSize: 10, color: "var(--color-ink-soft)" }} className="tabular-nums">8/10</span>
                   </div>
-                  <p style={{ fontSize: 9, color: "var(--color-ink-faint)", marginTop: 4, fontStyle: "italic", fontFamily: "var(--font-serif)" }}>
+                  <p style={{ fontSize: 10, color: "var(--color-ink-faint)", marginTop: 4, fontStyle: "italic", fontFamily: "var(--font-serif)" }}>
                     2 more verified readings · NIM pays out at 10/10
                   </p>
                 </div>
@@ -275,12 +275,12 @@ export function LoopStoryboard() {
             {(["express", "local", "suspended"] as const).map((t) => (
               <span key={t} className="inline-flex items-center gap-2">
                 <span className="inline-block w-6 h-[5px]" style={{ background: TIER_COLOUR[t], ...(t === "suspended" ? { backgroundImage: `repeating-linear-gradient(90deg, ${TIER_COLOUR[t]} 0 6px, transparent 6px 10px)`, background: "transparent" } : {}) }} />
-                <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-soft">
+                <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft">
                   {t} · <span className="font-serif italic normal-case tracking-normal text-[11px]">{TIER_USE[t]}</span>
                 </span>
               </span>
             ))}
-            <span className="ml-auto font-mono text-[9px] tracking-[0.18em] uppercase text-ink-faint">
+            <span className="ml-auto font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint">
               reel {String(loop + 1).padStart(2, "0")}
             </span>
           </div>
@@ -290,8 +290,8 @@ export function LoopStoryboard() {
         <div className="flex flex-col gap-5">
           <div className="bg-ink text-cream shadow-[6px_8px_0_0_rgba(26,22,18,0.35)]" role="list" aria-label="Loop steps">
             <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid rgba(244,236,216,0.2)" }}>
-              <p className="font-mono text-[9px] tracking-[0.24em] uppercase text-cream/60">The loop · departure board</p>
-              <span className="inline-flex items-center gap-1.5 font-mono text-[9px] tracking-[0.2em] uppercase text-cream/60">
+              <p className="font-mono text-[10px] tracking-[0.24em] uppercase text-cream/60">The loop · departure board</p>
+              <span className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.2em] uppercase text-cream/60">
                 <span className={`inline-block w-1.5 h-1.5 rounded-full bg-express ${reduced ? "" : "animate-pulse"}`} aria-hidden />
                 {reduced ? "static" : "live"}
               </span>
@@ -311,7 +311,7 @@ export function LoopStoryboard() {
                       <span className={`font-display font-black uppercase text-2xl leading-none tracking-[-0.01em] flex-1 ${active || done ? "" : "opacity-35"}`}>
                         {st.verb}
                       </span>
-                      <span className={`font-mono text-[9px] tracking-[0.18em] uppercase ${active ? "text-express" : done ? "text-cream/50" : "text-cream/25"}`}>
+                      <span className={`font-mono text-[10px] tracking-[0.18em] uppercase ${active ? "text-express" : done ? "text-cream/50" : "text-cream/25"}`}>
                         {done ? "✓ done" : active ? "▸ now" : "·"}
                       </span>
                     </div>

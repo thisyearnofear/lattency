@@ -553,7 +553,7 @@ export function CafeContributionForm({
                   placeholder="e.g. nairobi"
                   className="w-full px-3 py-2 border border-ink/30 bg-cream text-ink focus:outline-none focus:border-ink"
                 />
-                <p className="font-mono text-[9px] tracking-[0.16em] uppercase text-ink-faint mt-1">
+                <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint mt-1">
                   pre-filled from the map you opened · edit only to map a new city
                 </p>
               </Field>
@@ -882,13 +882,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
     <div className="border border-ink/15 py-2">
-      <div className="font-mono text-[8px] tracking-[0.14em] uppercase text-ink-faint">
+      <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-faint">
         {label}
       </div>
       <div className="font-display font-black text-lg text-ink leading-none mt-1">
         {value}
       </div>
-      <div className="font-mono text-[8px] text-ink-faint mt-0.5">
+      <div className="font-mono text-[10px] text-ink-faint mt-0.5">
         {unit}
       </div>
     </div>

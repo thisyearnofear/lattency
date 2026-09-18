@@ -246,7 +246,7 @@ export function MeasurementForm({
         {/* Bounty connection — the reward this reading just pushed forward. */}
         {bounty && (
           <div className="mt-3 border-t border-ink/10 pt-3">
-            <p className="font-mono text-[9px] tracking-[0.22em] uppercase text-express">
+            <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-express">
               Bounty in your area
             </p>
             <p className="font-display font-black text-[15px] uppercase text-ink leading-tight mt-0.5">
@@ -295,13 +295,13 @@ export function MeasurementForm({
         <p className="stamp">Contribute a reading</p>
         <div className="flex items-center gap-1.5">
           {autoResult && (
-            <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-express">
+            <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-express">
               auto
             </span>
           )}
           {previewTier && (
             <span
-              className={`${TIER_BG[previewTier]} px-2 py-0.5 text-cream font-mono text-[9px] tracking-[0.2em] uppercase`}
+              className={`${TIER_BG[previewTier]} px-2 py-0.5 text-cream font-mono text-[10px] tracking-[0.2em] uppercase`}
             >
               → {TIER_LABEL[previewTier]} line
             </span>
@@ -351,7 +351,7 @@ export function MeasurementForm({
               Test complete — review below
             </p>
             {autoResult?.targetServer && autoResult.targetServer !== "unknown" && (
-              <p className="font-mono text-[9px] tracking-[0.12em] uppercase text-ink-faint mt-0.5">
+              <p className="font-mono text-[10px] tracking-[0.12em] uppercase text-ink-faint mt-0.5">
                 Measured against {autoResult.targetServer.split("::")[0]}
               </p>
             )}
@@ -359,7 +359,7 @@ export function MeasurementForm({
           <button
             type="button"
             onClick={runTest}
-            className="font-mono text-[9px] tracking-[0.2em] uppercase text-express underline underline-offset-4 hover:text-ink shrink-0"
+            className="font-mono text-[10px] tracking-[0.2em] uppercase text-express underline underline-offset-4 hover:text-ink shrink-0"
           >
             Run again
           </button>
@@ -374,7 +374,7 @@ export function MeasurementForm({
           <button
             type="button"
             onClick={runTest}
-            className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-soft underline underline-offset-4 hover:text-ink"
+            className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-soft underline underline-offset-4 hover:text-ink"
           >
             Retry
           </button>
@@ -388,7 +388,7 @@ export function MeasurementForm({
           { label: "Ping", unit: "ms", val: ping, set: setPing, ph: "20" },
         ].map((f) => (
           <label key={f.label} className="block">
-            <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+            <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
               {f.label} · {f.unit}
             </span>
             <input

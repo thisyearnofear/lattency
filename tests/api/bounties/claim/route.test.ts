@@ -23,6 +23,33 @@ function makeRequest(body: unknown): NextRequest {
   });
 }
 
+/** The contributor the bounty is attributed to in these tests. Anonymous
+ *  (unbound) shape, so the payout-destination rule does not apply. */
+const CONTRIB = "contrib-test-abc123";
+
+/** A syntactically valid Nimiq address: NQ + exactly 38 alphanumerics. */
+function nq(tag: string): string {
+  return `NQ${tag.toUpperCase().replace(/[^0-9A-Z]/g, "").padEnd(38, "A").slice(0, 38)}`;
+}
+
+function bountyFixture(id: string, overrides: Partial<Bounty> = {}): Bounty {
+  return {
+    id,
+    goal: "Test bounty",
+    area: "Test area",
+    amountUsd: 5,
+    rewardNim: 5,
+    target: 1,
+    progress: 1,
+    sponsor: "Test",
+    sponsorKind: "community",
+    kind: "first-in-neighbourhood",
+    expiresAt: "2099-12-31",
+    status: "open",
+    ...overrides,
+  };
+}
+
 describe("POST /api/bounties/claim", () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
@@ -51,6 +78,7 @@ describe("POST /api/bounties/claim", () => {
       expiresAt: "2099-12-31",
       status: "open",
     });
+    await bountyState.recordContributor("b-locked", CONTRIB);
 
     const lockSpy = vi.spyOn(bountyState, "tryAcquireClaimLock");
     const extendSpy = vi.spyOn(bountyState, "extendClaimLock");
@@ -61,6 +89,7 @@ describe("POST /api/bounties/claim", () => {
       makeRequest({
         bountyId: "b-locked",
         nimiqAddress: "NQ07 LOCK0000000000000000000000000000",
+        contributorId: CONTRIB,
       }),
     );
 
@@ -94,11 +123,13 @@ describe("POST /api/bounties/claim", () => {
       status: "open",
     };
     mockBounties.push(bounty);
+    await bountyState.recordContributor("b-claimable", CONTRIB);
 
     const { POST } = await import("@/app/api/bounties/claim/route");
     const req = makeRequest({
       bountyId: "b-claimable",
       nimiqAddress: "NQ07 CLAIM0000000000000000000000000000",
+      contributorId: CONTRIB,
     });
 
     const res = await POST(req);
@@ -221,6 +252,7 @@ describe("POST /api/bounties/claim", () => {
       expiresAt: "2099-12-31",
       status: "open",
     });
+    await bountyState.recordContributor("b-concurrent", CONTRIB);
 
     let release: (() => void) | undefined;
     executeNimiqPayout.mockImplementation(
@@ -236,6 +268,7 @@ describe("POST /api/bounties/claim", () => {
       makeRequest({
         bountyId: "b-concurrent",
         nimiqAddress: "NQ07 TEST0000000000000000000000000000",
+        contributorId: CONTRIB,
       }),
     );
 
@@ -245,6 +278,7 @@ describe("POST /api/bounties/claim", () => {
       makeRequest({
         bountyId: "b-concurrent",
         nimiqAddress: "NQ07 TEST0000000000000000000000000000",
+        contributorId: CONTRIB,
       }),
     );
 
@@ -272,6 +306,7 @@ describe("POST /api/bounties/claim", () => {
       expiresAt: "2099-12-31",
       status: "open",
     });
+    await bountyState.recordContributor("b-payout-fail", CONTRIB);
     executeNimiqPayout.mockRejectedValue(new Error("RPC timeout"));
 
     const { POST } = await import("@/app/api/bounties/claim/route");
@@ -279,6 +314,7 @@ describe("POST /api/bounties/claim", () => {
       makeRequest({
         bountyId: "b-payout-fail",
         nimiqAddress: "NQ07 TEST0000000000000000000000000000",
+        contributorId: CONTRIB,
       }),
     );
 
@@ -303,6 +339,7 @@ describe("POST /api/bounties/claim", () => {
       expiresAt: "2099-12-31",
       status: "open",
     });
+    await bountyState.recordContributor("b-long", CONTRIB);
 
     vi.useFakeTimers();
     executeNimiqPayout.mockImplementation(
@@ -320,6 +357,7 @@ describe("POST /api/bounties/claim", () => {
       makeRequest({
         bountyId: "b-long",
         nimiqAddress: "NQ07 LONG0000000000000000000000000000",
+        contributorId: CONTRIB,
       }),
     );
 
@@ -348,5 +386,133 @@ describe("POST /api/bounties/claim", () => {
       lockToken,
       { ttlMs: CLAIM_LOCK_TTL_MS },
     );
+  });
+
+  // ── Contributor eligibility — the payout gate ────────────────────────────
+  //
+  // These are the regression tests for the hole this rule closes: a filled
+  // bounty used to pay any caller who knew its id, regardless of whether they
+  // had anything to do with the reading that filled it.
+
+  it("returns 403 when the claimant presents no contributor identity", async () => {
+    mockBounties.push(bountyFixture("b-anon"));
+    await bountyState.recordContributor("b-anon", CONTRIB);
+
+    const { POST } = await import("@/app/api/bounties/claim/route");
+    const res = await POST(
+      makeRequest({
+        bountyId: "b-anon",
+        nimiqAddress: nq("anon"),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "claim requires the contributor identity that completed this bounty",
+    });
+    expect(executeNimiqPayout).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for a filled bounty with no attributed contributors", async () => {
+    mockBounties.push(bountyFixture("b-unattributed", { progress: 1, target: 1 }));
+
+    const { POST } = await import("@/app/api/bounties/claim/route");
+    const res = await POST(
+      makeRequest({
+        bountyId: "b-unattributed",
+        nimiqAddress: nq("unattributed"),
+        contributorId: CONTRIB,
+      }),
+    );
+
+    // Failing closed is deliberate: an unattributed bounty is precisely the
+    // old, exploitable state, so it must not be payable.
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "this bounty has no attributed contributors and cannot be claimed",
+    });
+    expect(executeNimiqPayout).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the claimant did not contribute to the bounty", async () => {
+    mockBounties.push(bountyFixture("b-not-mine"));
+    await bountyState.recordContributor("b-not-mine", "contrib-someone-else1");
+
+    const { POST } = await import("@/app/api/bounties/claim/route");
+    const res = await POST(
+      makeRequest({
+        bountyId: "b-not-mine",
+        nimiqAddress: nq("attacker"),
+        contributorId: CONTRIB,
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "only a contributor to this bounty can claim it",
+    });
+    expect(executeNimiqPayout).not.toHaveBeenCalled();
+  });
+
+  it("claims a filled bounty in the `claiming` state", async () => {
+    // `update-bounty-progress` flips completed bounties to `claiming`. Requiring
+    // `open` here previously made every genuinely completed Base44 bounty
+    // permanently unclaimable.
+    mockBounties.push(bountyFixture("b-claiming", { status: "claiming" }));
+    await bountyState.recordContributor("b-claiming", CONTRIB);
+
+    const { POST } = await import("@/app/api/bounties/claim/route");
+    const res = await POST(
+      makeRequest({
+        bountyId: "b-claiming",
+        nimiqAddress: nq("claiming"),
+        contributorId: CONTRIB,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ success: true, bountyId: "b-claiming" });
+  });
+
+  it("pays a wallet-bound contributor to their own wallet", async () => {
+    const wallet = nq("author");
+    mockBounties.push(bountyFixture("b-bound"));
+    await bountyState.recordContributor("b-bound", wallet);
+
+    const { POST } = await import("@/app/api/bounties/claim/route");
+    const res = await POST(
+      makeRequest({
+        bountyId: "b-bound",
+        nimiqAddress: wallet,
+        contributorId: wallet,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(executeNimiqPayout).toHaveBeenCalledWith(wallet, 5);
+  });
+
+  it("refuses to redirect a wallet-bound contributor's payout elsewhere", async () => {
+    // The key property of the rule: knowing another contributor's id lets you
+    // *trigger* their payout, never divert it.
+    const author = nq("author");
+    const attacker = nq("attacker");
+    mockBounties.push(bountyFixture("b-bound-redirect"));
+    await bountyState.recordContributor("b-bound-redirect", author);
+
+    const { POST } = await import("@/app/api/bounties/claim/route");
+    const res = await POST(
+      makeRequest({
+        bountyId: "b-bound-redirect",
+        nimiqAddress: attacker,
+        contributorId: author,
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "payout must go to the wallet that completed this bounty",
+    });
+    expect(executeNimiqPayout).not.toHaveBeenCalled();
   });
 });

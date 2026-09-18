@@ -19,7 +19,7 @@ function SponsorChip({
   asLink: boolean;
 }) {
   const size = compact
-    ? "text-[9px] tracking-[0.16em] px-1.5 py-[3px]"
+    ? "text-[10px] tracking-[0.16em] px-1.5 py-[3px]"
     : "text-[10px] tracking-[0.2em] px-2 py-[4px]";
   // Ink-on-cream with a leading `$` glyph: keeps the badge unmistakably a
   // "sponsorship" signal without borrowing the express-tier green that

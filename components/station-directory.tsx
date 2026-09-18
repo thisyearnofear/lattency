@@ -6,6 +6,7 @@ import { cityPath, resolveCityConfig, type CityConfig } from "@/lib/cities";
 import { TIER_USE } from "@/lib/map-data";
 import { CafeDetail } from "./cafe-detail";
 import { SignalQuality } from "./signal-quality";
+import { CapabilityCaveat } from "./capability-row";
 import { VibeChips } from "./vibe-chips";
 import { SponsorBadge } from "./sponsor-badge";
 import { CafeMetadataChips } from "./cafe-metadata-display";
@@ -145,6 +146,18 @@ function StationCard({
         </div>
 
         <VibeChips tags={cafe.vibeTags} dense />
+        {/* Only renders when the download-derived tier overstates what the
+            connection can do, so the badge and the caveat never look like
+            they contradict each other without explanation. */}
+        <CapabilityCaveat
+          metrics={{
+            downMbps: cafe.medianDownMbps,
+            upMbps: cafe.medianUpMbps,
+            latencyMs: cafe.medianLatencyMs,
+            lossPct: cafe.medianLossPct,
+            samples: cafe.measurementCount,
+          }}
+        />
         <SponsorBadge sponsor={cafe.sponsor} compact asLink={false} />
         <CafeMetadataChips cafe={cafe} />
 
@@ -155,7 +168,7 @@ function StationCard({
             { l: "Ping", v: Math.round(cafe.medianLatencyMs), u: "ms" },
           ].map((s) => (
             <div key={s.l}>
-              <div className="text-[9px] tracking-[0.2em] uppercase text-ink-faint">{s.l}</div>
+              <div className="text-[10px] tracking-[0.2em] uppercase text-ink-faint">{s.l}</div>
               <div className="text-base text-ink font-medium tabular-nums">
                 {s.v}
                 <span className="text-[10px] text-ink-faint ml-1">{s.u}</span>
@@ -264,7 +277,7 @@ export function StationDirectory({
   }
 
   return (
-    <section className="mt-24 pt-10 border-t border-ink/80">
+    <section id="directory" className="mt-24 pt-10 border-t border-ink/80 scroll-mt-16">
       <div className="flex items-baseline justify-between mb-6">
         <div>
           <p className="stamp">Section II</p>

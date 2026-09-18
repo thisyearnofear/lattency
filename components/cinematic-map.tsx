@@ -220,7 +220,7 @@ function RouteCard({
             }}
           />
         </div>
-        <div className="mt-1.5 flex justify-between text-[9px] text-ink-faint">
+        <div className="mt-1.5 flex justify-between text-[10px] text-ink-faint">
           <span>Route progress</span>
           <span className="tabular-nums text-ink">
             {Math.round((stopsVisited / Math.max(1, stopsTotal)) * 100)}%
@@ -246,7 +246,7 @@ function ViewToggle({
     <div className="absolute bottom-8 left-6 md:left-10 z-20 pointer-events-auto max-w-[260px]">
       {/* Contextual caption — spells out what the metaphor toggle does, so the
           "lines are speed, not streets" idea never needs explaining twice. */}
-      <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-soft mb-1.5 leading-snug">
+      <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft mb-1.5 leading-snug">
         {view === "schematic" ? (
           <>
             <span className="text-ink">Schematic</span> · lines are speed tiers

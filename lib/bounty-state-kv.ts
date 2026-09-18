@@ -52,12 +52,24 @@ export class RedisBountyState implements BountyState {
     return this.prefixedKey(`bounty:lock:${bountyId}`);
   }
 
+  private contributorsKey(bountyId: string): string {
+    return this.prefixedKey(`bounty:contributors:${bountyId}`);
+  }
+
   async markPaid(bountyId: string): Promise<void> {
     await this.redis.sadd(this.paidKey, bountyId);
   }
 
   async getPaidBounties(): Promise<string[]> {
     return this.redis.smembers(this.paidKey);
+  }
+
+  async recordContributor(bountyId: string, contributorId: string): Promise<void> {
+    await this.redis.sadd(this.contributorsKey(bountyId), contributorId);
+  }
+
+  async getContributors(bountyId: string): Promise<string[]> {
+    return this.redis.smembers(this.contributorsKey(bountyId));
   }
 
   async tryAcquireClaimLock(
@@ -101,13 +113,18 @@ export class RedisBountyState implements BountyState {
   }
 
   async resetForTests(): Promise<void> {
-    // Clean up any locks and the paid set under this key prefix. This is
-    // intended for tests that run with UPSTASH_REDIS_REST_FORCE=1 against a
-    // dedicated test database or prefix.
+    // Clean up any locks, contributor sets, and the paid set under this key
+    // prefix. This is intended for tests that run with
+    // UPSTASH_REDIS_REST_FORCE=1 against a dedicated test database or prefix.
     const lockPattern = this.lockKey("*");
+    const contributorPattern = this.prefixedKey("bounty:contributors:*");
     const lockKeys = await this.redis.keys(lockPattern);
     if (lockKeys.length > 0) {
       await this.redis.del(...lockKeys);
+    }
+    const contributorKeys = await this.redis.keys(contributorPattern);
+    if (contributorKeys.length > 0) {
+      await this.redis.del(...contributorKeys);
     }
     await this.redis.del(this.paidKey);
   }

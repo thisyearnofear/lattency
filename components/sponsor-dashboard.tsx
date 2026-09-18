@@ -114,7 +114,7 @@ export function SponsorDashboard() {
       <form onSubmit={handleSubmit} className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <label className="block">
-            <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+            <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
               Bounty goal
             </span>
             <input
@@ -128,7 +128,7 @@ export function SponsorDashboard() {
         </div>
 
         <label className="block">
-          <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
             Area
           </span>
           <input
@@ -140,7 +140,7 @@ export function SponsorDashboard() {
         </label>
 
         <label className="block">
-          <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
             Target contributions
           </span>
           <input
@@ -153,7 +153,7 @@ export function SponsorDashboard() {
         </label>
 
         <label className="block">
-          <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
             Reward (NIM)
           </span>
           <input
@@ -167,7 +167,7 @@ export function SponsorDashboard() {
         </label>
 
         <label className="block">
-          <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
             Sponsor name
           </span>
           <input
@@ -179,7 +179,7 @@ export function SponsorDashboard() {
         </label>
 
         <label className="block">
-          <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
             Sponsor type
           </span>
           <select
@@ -196,7 +196,7 @@ export function SponsorDashboard() {
         </label>
 
         <label className="block md:col-span-2">
-          <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
             Bounty type
           </span>
           <select
@@ -213,7 +213,7 @@ export function SponsorDashboard() {
         </label>
 
         <label className="block md:col-span-2">
-          <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
             Expires (optional)
           </span>
           <input
@@ -266,11 +266,11 @@ export function SponsorDashboard() {
                   <p className="font-display font-black uppercase text-sm text-ink">
                     {b.goal}
                   </p>
-                  <p className="font-mono text-[9px] tracking-[0.16em] uppercase text-ink-soft">
+                  <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-soft">
                     {b.area} · {b.rewardNim} NIM
                   </p>
                 </div>
-                <span className="font-mono text-[9px] tracking-[0.16em] uppercase text-express">
+                <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-express">
                   open
                 </span>
               </li>

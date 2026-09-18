@@ -7,7 +7,12 @@
   --color-cream-deep:   #D9CFB1;
   --color-ink:          #1A1612;
   --color-ink-soft:     #3D362B;
-  --color-ink-faint:    #8A7F6B;
+  /* Faint metadata ink. Darkened from #8A7F6B (3.35:1 on cream, 2.90:1 on
+     the express tint) to #675E4D, which clears WCAG AA 4.5:1 for small text
+     on every surface this token is used over — cream 5.43, cream-edge/40
+     5.09, cream-deep 4.11→4.70 on tints. Still clearly lighter than
+     ink-soft (10.1:1), so it keeps its role in the hierarchy. */
+  --color-ink-faint:    #675E4D;
 
   --color-express:      #006D45;
   --color-express-ink:  #003D26;
@@ -35,6 +40,23 @@
 html, body {
   background: var(--color-cream);
   color: var(--color-ink);
+}
+
+/* One consistent keyboard-focus ring for every interactive element.
+   Focus affordance used to be ad-hoc per component — several buttons had
+   none at all — which made the app impractical to drive by keyboard.
+   `:focus-visible` means pointer users never see it. Left unlayered so it
+   also wins over the `outline-none` utilities that suppress focus styling. */
+:focus-visible {
+  outline: 2px solid var(--color-express);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: keep the ring, but never animate its appearance. */
+@media (prefers-reduced-motion: reduce) {
+  :focus-visible {
+    transition: none;
+  }
 }
 
 body {

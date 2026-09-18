@@ -169,7 +169,7 @@ export function ConciergeChat() {
             ?
           </span>
           <span className="text-left">
-            <span className="block font-mono text-[9px] uppercase leading-none tracking-[0.24em] text-cream/60">
+            <span className="block font-mono text-[10px] uppercase leading-none tracking-[0.24em] text-cream/60">
               Workspace concierge
             </span>
             <span className="block font-display font-black uppercase leading-tight tracking-[-0.01em] text-[15px]">
@@ -236,10 +236,10 @@ export function ConciergeChat() {
                   {/* Departure board of suggested queries */}
                   <div className="mt-5 border border-ink/80 bg-cream shadow-[4px_5px_0_0_var(--color-ink)]">
                     <div className="flex items-center justify-between border-b border-ink/80 bg-ink px-3 py-2">
-                      <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-cream">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-cream">
                         Departures
                       </span>
-                      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-cream/50">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream/50">
                         Suggested queries
                       </span>
                     </div>
@@ -259,7 +259,7 @@ export function ConciergeChat() {
                                 {d.dest}
                               </span>
                             </span>
-                            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-faint group-hover:text-cream/70">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint group-hover:text-cream/70">
                               Ask
                             </span>
                           </button>

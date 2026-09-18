@@ -4,12 +4,18 @@ import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
 // Finds open bounties whose area/criteria match the new reading and bumps
 // progress. When progress >= target, the bounty status flips to "claiming".
 //
-// Expects body: { cafe_id, down_mbps }
+// Expects body: { cafe_id, down_mbps?, contributor_id? }
 // Runs under service role (no user context when called via HTTP).
+//
+// Returns the matched bounty ids so the caller can record contributor
+// attribution (in durable BountyState) for each one it advanced. Attribution
+// deliberately does NOT live here: this function runs under the service role
+// and the Bounty entity stores progress, not identity.
 
 interface Input {
   cafe_id: string;
   down_mbps?: number;
+  contributor_id?: string | null;
 }
 
 interface B44Bounty {
@@ -58,6 +64,7 @@ Deno.serve(async (req) => {
     )) as B44Bounty[];
 
     let updated = 0;
+    const matched: Array<{ id: string; progress: number; target: number }> = [];
     for (const bounty of bounties) {
       // Area match: if the bounty targets a city/neighbourhood, the café
       // must be in it. Bounties with no area target count globally.
@@ -69,21 +76,23 @@ Deno.serve(async (req) => {
         (cafe.neighbourhood ?? "") === bounty.target_neighbourhood;
       if (!cityMatch || !hoodMatch) continue;
 
+      const target = bounty.target ?? 1;
       const newProgress = (bounty.progress ?? 0) + 1;
       await base44.asServiceRole.entities.Bounty.update(bounty.id, {
         progress: newProgress,
       });
       updated++;
+      matched.push({ id: bounty.id, progress: newProgress, target });
 
       // If this reading completes the bounty, it's now claimable.
-      if (newProgress >= (bounty.target ?? 1)) {
+      if (newProgress >= target) {
         await base44.asServiceRole.entities.Bounty.update(bounty.id, {
           status: "claiming",
         });
       }
     }
 
-    return Response.json({ updated, cafe_id: cafeId });
+    return Response.json({ updated, cafe_id: cafeId, matched });
   } catch (err) {
     return Response.json(
       { error: (err as Error).message },

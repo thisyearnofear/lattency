@@ -36,7 +36,7 @@ export function SignalQuality({
   return (
     <div className={compact ? "" : "flex items-start justify-between gap-3"}>
       <div>
-        <div className="font-mono text-[9px] tracking-[0.2em] uppercase text-ink-faint">
+        <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint">
           Signal
         </div>
         <div className="flex items-center gap-1.5 mt-1">
@@ -62,7 +62,7 @@ export function SignalQuality({
           </span>
         </div>
         {hasData && (
-          <p className="font-mono text-[9px] text-ink-faint tabular-nums mt-0.5">
+          <p className="font-mono text-[10px] text-ink-faint tabular-nums mt-0.5">
             {jitterMs.toFixed(1)} ms jitter · {lossPct.toFixed(1)}% loss
           </p>
         )}

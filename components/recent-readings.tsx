@@ -104,7 +104,7 @@ export function RecentReadings({
                 </span>
                 <span className="tabular-nums">
                   {Math.round(r.downMbps)}{" "}
-                  <span className="text-[9px] tracking-[0.18em] uppercase text-ink-faint">
+                  <span className="text-[10px] tracking-[0.18em] uppercase text-ink-faint">
                     Mbps
                   </span>
                 </span>

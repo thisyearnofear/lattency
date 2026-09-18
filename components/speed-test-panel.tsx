@@ -35,13 +35,13 @@ function Stat({
 }) {
   return (
     <div className="border border-ink/15 py-2 text-center">
-      <div className="font-mono text-[8px] tracking-[0.14em] uppercase text-ink-faint">
+      <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-faint">
         {label}
       </div>
       <div className="font-display font-black text-lg text-ink leading-none mt-1">
         <TickNumber value={value} decimals={decimals} countUp={rollUp} />
       </div>
-      <div className="font-mono text-[8px] text-ink-faint mt-0.5">{unit}</div>
+      <div className="font-mono text-[10px] text-ink-faint mt-0.5">{unit}</div>
     </div>
   );
 }
@@ -115,13 +115,13 @@ export function SpeedTestPanel({ onResult, onContribute, compact }: SpeedTestPan
             <Stat label="JITTER" value={result.jitterMs} unit="ms" decimals={1} rollUp />
           ) : (
             <div className="border border-ink/15 py-2 text-center">
-              <div className="font-mono text-[8px] tracking-[0.14em] uppercase text-ink-faint">
+              <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-faint">
                 JITTER
               </div>
               <div className="font-display font-black text-lg text-ink leading-none mt-1">
                 —
               </div>
-              <div className="font-mono text-[8px] text-ink-faint mt-0.5">ms</div>
+              <div className="font-mono text-[10px] text-ink-faint mt-0.5">ms</div>
             </div>
           )}
         </div>
