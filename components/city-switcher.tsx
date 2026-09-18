@@ -2,26 +2,28 @@
 
 // Dropdown surfacing the multi-city architecture. Live cities come from
 // lib/cities.ts; adding a city there automatically surfaces it here.
-// "Coming soon" slots are static teases of the global expansion story.
+// Anyone can open a new board via the form — first reading draws the line.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CITIES, CITY_ORDER, cityPath, type LiveCity } from "@/lib/cities";
 import type { CityId } from "@/lib/types";
 import { VTLink } from "./vt-link";
+import { OpenCityForm } from "./open-city-form";
 
-type SoonCity = {
+type SuggestedCity = {
   id: CityId;
   name: string;
   country: string;
 };
 
-const SOON_CITIES: SoonCity[] = [
+/** Starter boards people can open before any readings exist. */
+const SUGGESTED_CITIES: SuggestedCity[] = [
   { id: "lagos", name: "Lagos", country: "Nigeria" },
-  { id: "capetown", name: "Cape Town", country: "South Africa" },
+  { id: "cape-town", name: "Cape Town", country: "South Africa" },
   { id: "accra", name: "Accra", country: "Ghana" },
-  { id: "kampala", name: "Kampala", country: "Uganda" },
-  { id: "kigali", name: "Kigali", country: "Rwanda" },
+  { id: "berlin", name: "Berlin", country: "Germany" },
+  { id: "new-york", name: "New York", country: "USA" },
 ];
 
 export function CitySwitcher({
@@ -41,39 +43,16 @@ export function CitySwitcher({
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // "Coming soon" cities are votable — a click stamps REQUESTED (persisted
-  // locally). It's a wish-list signal and gives the expansion story a door
-  // the reader can knock on, instead of a disabled row.
-  const VOTES_KEY = "lattency:city-votes";
-  const [votes, setVotes] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      return new Set(JSON.parse(localStorage.getItem(VOTES_KEY) ?? "[]") as string[]);
-    } catch {
-      return new Set();
-    }
-  });
-
-  function toggleVote(id: string) {
-    setVotes((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      try {
-        localStorage.setItem(VOTES_KEY, JSON.stringify(Array.from(next)));
-      } catch {
-        /* non-fatal */
-      }
-      return next;
-    });
-  }
-
   const cities = useMemo(
     () => liveCities ?? CITY_ORDER.map((id) => ({ ...CITIES[id], count: 0 })),
     [liveCities],
+  );
+
+  const liveIds = useMemo(() => new Set(cities.map((c) => c.id)), [cities]);
+
+  const suggestions = useMemo(
+    () => SUGGESTED_CITIES.filter((s) => !liveIds.has(s.id) && s.id !== current),
+    [liveIds, current],
   );
 
   const activeName =
@@ -145,7 +124,7 @@ export function CitySwitcher({
         <div
           role="listbox"
           aria-label="Switch city"
-          className={`fixed left-2 right-2 top-14 w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-72 bg-cream border border-ink/80 shadow-[6px_8px_0_0_var(--color-ink)] z-50 ${
+          className={`fixed left-2 right-2 top-14 w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80 bg-cream border border-ink/80 shadow-[6px_8px_0_0_var(--color-ink)] z-50 ${
             open ? "" : "board-closing"
           }`}
         >
@@ -154,12 +133,12 @@ export function CitySwitcher({
               Network · {liveCount} {liveCount === 1 ? "city" : "cities"} live
             </p>
             <p className="font-serif italic text-ink-faint text-xs mt-1">
-              One engine, every city — schematic positions auto-derived from
-              each café&rsquo;s longitude.
+              One engine, every city — open a board anywhere; the first
+              reading draws the line.
             </p>
           </div>
 
-          <ul className="max-h-[60vh] overflow-y-auto">
+          <ul className="max-h-[40vh] overflow-y-auto">
             {cities.map((city, i) => {
               const isCurrent = city.id === current;
               const isCurated = city.id in CITIES;
@@ -178,70 +157,55 @@ export function CitySwitcher({
                         {city.name}
                       </p>
                       <p className="font-serif italic text-xs mt-0.5 text-ink-soft">
-                        {isCurated ? CITIES[city.id].country : `${city.count} station${city.count === 1 ? "" : "s"}`}
+                        {isCurated
+                          ? CITIES[city.id].country
+                          : `${city.count} station${city.count === 1 ? "" : "s"}`}
                       </p>
                     </div>
-                    <span className={`font-mono text-[10px] tracking-[0.22em] uppercase ${isCurrent ? "text-express" : "text-ink-faint"}`}>
-                      {isCurrent ? "Active" : isCurated ? "Live" : "Live"}
+                    <span
+                      className={`font-mono text-[10px] tracking-[0.22em] uppercase ${
+                        isCurrent ? "text-express" : "text-ink-faint"
+                      }`}
+                    >
+                      {isCurrent ? "Active" : "Live"}
                     </span>
                   </VTLink>
                 </li>
               );
             })}
 
-            {SOON_CITIES.length > 0 && (
+            {suggestions.length > 0 && (
               <li className="px-4 py-2 border-t border-ink/10">
                 <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">
-                  Coming soon · tap to request
+                  Open a starter board
                 </p>
               </li>
             )}
-            {SOON_CITIES.map((slot) => {
-              const voted = votes.has(slot.id);
-              return (
-                <li key={slot.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggleVote(slot.id)}
-                    aria-pressed={voted}
-                    className={`pressable w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left transition-colors ${
-                      voted ? "bg-express/10" : "bg-cream hover:bg-cream-edge"
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-display font-black uppercase tracking-[-0.01em] text-lg leading-none ${voted ? "text-ink" : "text-ink-faint"}`}>
-                        {slot.name}
-                      </p>
-                      <p className={`font-serif italic text-xs mt-0.5 ${voted ? "text-ink-soft" : "text-ink-faint/70"}`}>
-                        {slot.country}
-                      </p>
-                    </div>
-                    <span
-                      className={`font-mono text-[10px] tracking-[0.22em] uppercase inline-flex items-center gap-1 ${
-                        voted ? "text-express" : "text-ink-faint"
-                      }`}
-                    >
-                      {voted ? (
-                        <>
-                          <span aria-hidden>✓</span> Requested
-                        </>
-                      ) : (
-                        "Request"
-                      )}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
+            {suggestions.map((slot) => (
+              <li key={slot.id}>
+                <VTLink
+                  href={`${cityPath(slot.id)}?contribute=1`}
+                  onClick={() => closeBoard()}
+                  className="pressable w-full px-4 py-3 flex items-baseline justify-between gap-3 text-left bg-cream hover:bg-cream-edge"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display font-black uppercase tracking-[-0.01em] text-lg leading-none text-ink-soft">
+                      {slot.name}
+                    </p>
+                    <p className="font-serif italic text-xs mt-0.5 text-ink-faint/70">
+                      {slot.country} · no stations yet
+                    </p>
+                  </div>
+                  <span className="font-mono text-[10px] tracking-[0.22em] uppercase text-express">
+                    Open →
+                  </span>
+                </VTLink>
+              </li>
+            ))}
           </ul>
 
           <div className="px-4 py-3 border-t border-ink/15 bg-cream-edge/40">
-            <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">
-              Your city missing?{" "}
-              <a href={`${cityPath(current || CITY_ORDER[0])}?contribute=1`} className="text-ink">
-                Map a café →
-              </a>
-            </p>
+            <OpenCityForm onOpened={closeBoard} compact />
           </div>
         </div>
       )}

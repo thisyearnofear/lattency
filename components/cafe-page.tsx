@@ -19,6 +19,7 @@ import { RecentReadings } from "./recent-readings";
 import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
 import { AiVenueSummary } from "./ai-venue-summary";
 import { peakBucket } from "@/lib/time-of-day";
+import { resolveCafePhoto } from "@/lib/cafe-photos";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -174,25 +175,12 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
       <header className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-10 mb-10">
         <div className="relative aspect-[5/3] lg:aspect-auto lg:h-full overflow-hidden border border-ink/15 bg-cream-edge">
           <div className={`absolute inset-y-0 left-0 w-1.5 ${tierBg}`} />
-          {cafe.latestPhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cafe.latestPhotoUrl}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover grayscale-[35%] contrast-[1.05]"
-            />
-          ) : (
-            <div className="absolute inset-0 grid place-items-center">
-              <span className="font-display font-black text-[160px] text-ink-faint/25 leading-none">
-                {cafe.name
-                  .split(/\s+/)
-                  .filter((w) => !/^(the|of|a)$/i.test(w))
-                  .slice(0, 2)
-                  .map((w) => w[0]?.toUpperCase() ?? "")
-                  .join("")}
-              </span>
-            </div>
-          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={resolveCafePhoto(cafe.latestPhotoUrl, cafe.id || cafe.name)}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover grayscale-[35%] contrast-[1.05]"
+          />
           <div
             className={`${tierBg} absolute top-0 right-0 px-4 py-2 text-cream font-mono text-[11px] tracking-[0.22em] uppercase`}
           >

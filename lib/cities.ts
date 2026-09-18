@@ -97,6 +97,18 @@ export function cityDisplayName(cityId: string): string {
     .join(" ");
 }
 
+/** Turn free text into a route slug (`Cape Town` → `cape-town`). */
+export function slugifyCityName(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
 /** Compute a Leaflet centre from a set of cafés. */
 function computeCentroid(cafes: CafeStation[]): { lat: number; lng: number } {
   if (cafes.length === 0) return { lat: 0, lng: 0 };

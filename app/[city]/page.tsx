@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCafes } from "@/lib/cafes";
-import { CITIES, cityPath, resolveCityConfig, getLiveCities } from "@/lib/cities";
+import { CITIES, cityPath, resolveCityConfig, getLiveCities, isCuratedCity } from "@/lib/cities";
 import { TopNav } from "@/components/top-nav";
 import { LiveMap } from "@/components/live-map";
 import { StationDirectory } from "@/components/station-directory";
@@ -15,6 +15,8 @@ import { MapToastProvider } from "@/components/map-toast";
 import { OnboardingOverlay } from "@/components/onboarding-overlay";
 import { OverlayProvider } from "@/components/overlay-context";
 import { CityVisitTracker } from "@/components/city-visit-tracker";
+import { NearYouCityNudge } from "@/components/near-you-city-nudge";
+import { OpenCityForm } from "@/components/open-city-form";
 import { currentBucket } from "@/lib/time-of-day";
 
 export const revalidate = 60;
@@ -98,29 +100,59 @@ export default async function CityHome({
               cityConfig={cityConfig}
               hero={
                 <div className="bg-cream/95 border border-ink/80 shadow-[4px_5px_0_0_var(--color-ink)] p-4 sm:p-5">
-                  <p className="stamp pr-8">{cityConfig.name} · {cityConfig.country}</p>
+                  <p className="stamp pr-8">
+                    {cityConfig.name}
+                    {cityConfig.country ? ` · ${cityConfig.country}` : ""}
+                    {cafes.length === 0 ? " · Unopened board" : ""}
+                  </p>
                   <h1
                     className="font-display font-black uppercase text-ink leading-[0.92] tracking-[-0.02em] mt-2"
                     style={{ fontSize: "clamp(24px, 3.6vw, 42px)" }}
                   >
-                    Where can you work
-                    <br />
-                    in {cityConfig.name} {whenPhrase}?
+                    {cafes.length === 0 ? (
+                      <>
+                        Be the first to draw
+                        <br />
+                        the {cityConfig.name} line
+                      </>
+                    ) : (
+                      <>
+                        Where can you work
+                        <br />
+                        in {cityConfig.name} {whenPhrase}?
+                      </>
+                    )}
                   </h1>
                   <p className="hidden sm:block font-mono text-[10px] md:text-[11px] tracking-[0.22em] uppercase text-ink-soft mt-3">
-                    Contributors map.
-                    <span className="text-ink-faint mx-1.5">·</span>
-                    Sponsors fund coffees.
-                    <span className="text-ink-faint mx-1.5">·</span>
-                    You find the line you can work on.
+                    {cafes.length === 0 ? (
+                      <>
+                        No stations yet.
+                        <span className="text-ink-faint mx-1.5">·</span>
+                        One verified speed test opens this city.
+                        <span className="text-ink-faint mx-1.5">·</span>
+                        Founder bounty waiting.
+                      </>
+                    ) : (
+                      <>
+                        Contributors map.
+                        <span className="text-ink-faint mx-1.5">·</span>
+                        Sponsors fund coffees.
+                        <span className="text-ink-faint mx-1.5">·</span>
+                        You find the line you can work on.
+                      </>
+                    )}
                   </p>
                   <Link
                     href={`${cityPath(city)}?contribute=1`}
                     className="bg-ink text-cream font-mono text-[11px] tracking-[0.22em] uppercase px-4 py-2.5 inline-flex items-center gap-1.5 hover:bg-ink/90 transition-colors mt-4"
                   >
-                    <span aria-hidden>+</span> Map a café in 60 seconds
+                    <span aria-hidden>+</span>{" "}
+                    {cafes.length === 0
+                      ? "Map the first café"
+                      : "Map a café in 60 seconds"}
                   </Link>
                   <FirstTimerBountyNudge city={city} />
+                  <NearYouCityNudge currentCity={city} />
                 </div>
               }
             />
@@ -156,6 +188,27 @@ export default async function CityHome({
             this board never runs out. */}
         <QuestBoard city={city} cityName={cityConfig.name} />
 
+        {/* Escape hatch for visitors outside the three curated boards. */}
+        <section
+          id="open-city"
+          className="mt-16 scroll-mt-20 border border-ink/80 bg-cream p-5 sm:p-6 shadow-[3px_4px_0_0_var(--color-ink)]"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] gap-6 items-end">
+            <div>
+              <p className="stamp">Not in {cityConfig.name}?</p>
+              <h2 className="font-display font-black uppercase text-3xl md:text-4xl tracking-[-0.02em] text-ink mt-1">
+                Open your city&rsquo;s board
+              </h2>
+              <p className="font-serif italic text-ink-soft text-base mt-2 max-w-xl">
+                {isCuratedCity(city)
+                  ? "London, Nairobi, and SF are live. Anywhere else starts empty — your speed test is the first station."
+                  : "This board is waiting for its first reading. Or open a different city and map there instead."}
+              </p>
+            </div>
+            <OpenCityForm />
+          </div>
+        </section>
+
         <section className="pb-24">
           <BountiesBoard city={city} cafeCount={cafes.length} compact />
           <Leaderboard city={city} />
@@ -174,7 +227,7 @@ export default async function CityHome({
         </footer>
       </main>
 
-      <OnboardingOverlay cityName={cityConfig.name} />
+      <OnboardingOverlay cityName={cityConfig.name} isEmpty={cafes.length === 0} />
       </OverlayProvider>
     </MapToastProvider>
   );

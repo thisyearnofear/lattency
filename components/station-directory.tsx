@@ -12,6 +12,7 @@ import { SponsorBadge } from "./sponsor-badge";
 import { CafeMetadataChips } from "./cafe-metadata-display";
 import { useOverlay } from "@/components/overlay-context";
 import { haversineKm } from "@/lib/geo";
+import { resolveCafePhoto } from "@/lib/cafe-photos";
 
 const TIER_BG: Record<Tier, string> = {
   express: "bg-express",
@@ -101,15 +102,14 @@ function StationCard({
         </div>
         <div className={`absolute inset-y-0 left-0 w-1 ${TIER_BG[cafe.tier]}`} />
 
-        {cafe.latestPhotoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={cafe.latestPhotoUrl}
-            alt=""
-            loading="lazy"
-            className="absolute inset-0 w-full h-full object-cover grayscale-[40%] contrast-[1.05] group-hover:grayscale-0 transition-[filter] duration-500"
-          />
-        )}
+        {/* Always show a coffee still — real uploads win; picsum/null → brand art. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={resolveCafePhoto(cafe.latestPhotoUrl, cafe.id || cafe.name)}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 w-full h-full object-cover grayscale-[40%] contrast-[1.05] group-hover:grayscale-0 transition-[filter] duration-500"
+        />
 
         <div
           className={`${TIER_BG[cafe.tier]} absolute top-0 right-0 px-3 py-1.5 text-cream font-mono text-[10px] tracking-[0.2em] uppercase`}

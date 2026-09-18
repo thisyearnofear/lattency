@@ -11,9 +11,9 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "picsum.photos" },
+      // Contributor uploads may land on Base44 / CDN hosts later; keep Unsplash
+      // for any editorial assets. Picsum placeholders were removed.
       { protocol: "https", hostname: "images.unsplash.com" },
-      { protocol: "https", hostname: "fastly.picsum.photos" },
     ],
   },
 };

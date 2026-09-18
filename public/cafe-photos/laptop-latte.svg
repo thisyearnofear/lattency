@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" role="img" aria-label="Laptop and latte">
+  <rect width="600" height="400" fill="#F4ECD8"/>
+  <rect x="24" y="24" width="552" height="352" fill="none" stroke="#1A1612" stroke-width="2.5" opacity="0.35"/>
+  <g transform="translate(220 210)">
+    <rect x="-90" y="-55" width="180" height="110" rx="4" fill="#1A1612"/>
+    <rect x="-78" y="-42" width="156" height="84" fill="#006D45" opacity="0.35"/>
+    <rect x="-100" y="55" width="200" height="14" fill="#1A1612"/>
+    <rect x="-40" y="58" width="80" height="6" fill="#F4ECD8" opacity="0.4"/>
+  </g>
+  <g transform="translate(420 230)">
+    <path d="M-28 0 H28 L24 42 Q23 52 14 52 H-14 Q-23 52 -24 42 Z" fill="#1A1612"/>
+    <ellipse cx="0" cy="0" rx="28" ry="8" fill="#E8D5B5"/>
+    <ellipse cx="0" cy="-2" rx="16" ry="4" fill="#C45C26" opacity="0.7"/>
+    <path d="M28 8 Q48 8 48 26 Q48 42 28 42" fill="none" stroke="#1A1612" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <text x="300" y="360" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" letter-spacing="3" fill="#5F5750">WORKSPACE · LATTENCY</text>
+</svg>

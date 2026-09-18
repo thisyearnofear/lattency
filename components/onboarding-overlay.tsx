@@ -15,7 +15,14 @@ const EXIT_MS = 260;
 
 type Phase = "hidden" | "entering" | "visible" | "leaving";
 
-export function OnboardingOverlay({ cityName }: { cityName: string }) {
+export function OnboardingOverlay({
+  cityName,
+  isEmpty = false,
+}: {
+  cityName: string;
+  /** When true, the coach pushes mapping the first station. */
+  isEmpty?: boolean;
+}) {
   const [phase, setPhase] = useState<Phase>("hidden");
   const { active } = useOverlay();
   const isAnyOverlayOpen = active !== null;
@@ -130,12 +137,21 @@ export function OnboardingOverlay({ cityName }: { cityName: string }) {
             First time on the network · {cityName}
           </p>
           <p className="font-display font-black uppercase text-2xl leading-[0.95] tracking-[-0.01em] text-ink mt-1.5">
-            Tap any station.
+            {isEmpty ? "Draw the first line." : "Tap any station."}
           </p>
           <p className="font-serif italic text-ink-soft text-[15px] leading-snug mt-2">
-            Every dot is a real place to work. The lines are speed tiers —
-            green rides video calls, red won&rsquo;t. Run a test where
-            you&rsquo;re sitting to add your own.
+            {isEmpty ? (
+              <>
+                This board is empty. Run a speed test where you&rsquo;re
+                sitting — that reading opens {cityName} on the network.
+              </>
+            ) : (
+              <>
+                Every dot is a real place to work. The lines are speed tiers —
+                green rides video calls, red won&rsquo;t. Run a test where
+                you&rsquo;re sitting to add your own.
+              </>
+            )}
           </p>
 
           <div className="flex items-center justify-between gap-3 mt-3.5">
@@ -144,7 +160,8 @@ export function OnboardingOverlay({ cityName }: { cityName: string }) {
               onClick={dismiss}
               className="bg-express text-cream font-mono text-[10px] tracking-[0.22em] uppercase px-3 py-2 hover:bg-express/90 transition-colors inline-flex items-center gap-1.5"
             >
-              <span aria-hidden>+</span> Map a café
+              <span aria-hidden>+</span>{" "}
+              {isEmpty ? "Map the first café" : "Map a café"}
             </Link>
             <Link
               href="/tour"

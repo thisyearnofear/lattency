@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" role="img" aria-label="Flat white">
+  <rect width="600" height="400" fill="#F4ECD8"/>
+  <rect x="24" y="24" width="552" height="352" fill="none" stroke="#1A1612" stroke-width="2.5" opacity="0.35"/>
+  <g transform="translate(300 210)">
+    <ellipse cx="0" cy="80" rx="85" ry="11" fill="#1A1612" opacity="0.12"/>
+    <path d="M-60 5 H60 L52 70 Q50 85 36 85 H-36 Q-50 85 -52 70 Z" fill="#1A1612"/>
+    <ellipse cx="0" cy="5" rx="60" ry="16" fill="#EDE0C8"/>
+    <circle cx="0" cy="2" r="22" fill="#3D2B1F" opacity="0.55"/>
+    <path d="M60 20 Q98 20 98 48 Q98 76 60 76" fill="none" stroke="#1A1612" stroke-width="7" stroke-linecap="round"/>
+    <path d="M-12 -50 Q0 -68 12 -50" fill="none" stroke="#006D45" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <text x="300" y="360" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" letter-spacing="3" fill="#5F5750">FLAT WHITE · LATTENCY</text>
+</svg>

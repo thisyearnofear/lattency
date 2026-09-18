@@ -18,7 +18,7 @@ import {
   SEATING_LABELS,
   MILK_LABELS,
 } from "@/lib/cafe-metadata";
-import { CITIES, DEFAULT_CITY_ID } from "@/lib/cities";
+import { CITIES, DEFAULT_CITY_ID, cityDisplayName } from "@/lib/cities";
 import { postWithRetry } from "@/lib/fetch-retry";
 import { TIER_COLOUR, TIER_USE, tierForDown } from "@/lib/map-data";
 import { CrossfadePanel } from "@/components/crossfade-panel";
@@ -84,7 +84,26 @@ function buildDemoPhoto(name: string, neighbourhood: string): string {
 // repeat demos from stacking pins. Everything except the speed test is
 // filled — judges run a real test, see real numbers, and submit.
 function buildDemoPrefill(currentCity: string): FormState {
-  const cityConfig = CITIES[currentCity] ?? CITIES["nairobi"];
+  const curated = CITIES[currentCity];
+  if (!curated) {
+    const name = `Pioneer Pour · ${cityDisplayName(currentCity)} #${randomSuffix()}`;
+    return {
+      lat: null,
+      lng: null,
+      name,
+      neighbourhood: "Centre",
+      city: currentCity,
+      vibe: "first on the line",
+      priceTier: "mid",
+      milkOptions: ["dairy", "oat"],
+      powerOutlets: true,
+      seating: "tables",
+      wifiNetwork: `${currentCity}_guest`,
+      measurement: null,
+      photo: buildDemoPhoto(name, "Centre"),
+    };
+  }
+  const cityConfig = curated;
   const hoods = cityConfig.demoLocations;
   const hood = hoods[Math.floor(Math.random() * hoods.length)];
   // ~500m jitter
