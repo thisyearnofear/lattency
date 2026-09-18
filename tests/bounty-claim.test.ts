@@ -39,6 +39,24 @@ describe("evaluateClaimEligibility", () => {
     });
   });
 
+  it("refuses an unfunded seed bounty even though it is filled", () => {
+    // Seed progress is derived from the live map, so an example target can
+    // genuinely reach its target. There is still no sponsor behind it, and a
+    // payout would be money nobody staked.
+    const result = evaluateClaimEligibility({
+      bounty: filled({ synthetic: true }),
+      contributorId: ANON,
+      contributors: [ANON],
+      payoutAddress: nq("wallet"),
+    });
+
+    expect(result).toEqual({
+      eligible: false,
+      status: 400,
+      error: "this bounty has no sponsor funds behind it and cannot pay out",
+    });
+  });
+
   it("rejects a terminal (paid) bounty", () => {
     const result = evaluateClaimEligibility({
       bounty: filled({ status: "paid" }),

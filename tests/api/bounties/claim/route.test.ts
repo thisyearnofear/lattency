@@ -237,6 +237,37 @@ describe("POST /api/bounties/claim", () => {
     expect(executeNimiqPayout).not.toHaveBeenCalled();
   });
 
+  it("returns 400 and pays nothing for an unfunded seed bounty", async () => {
+    // The seed board is served whenever the backend has no sponsor rows, and
+    // its progress now comes from the live map — so a filled example is
+    // reachable in production. It must never reach the payout call.
+    mockBounties.push(
+      bountyFixture("b-seed-example", {
+        synthetic: true,
+        target: 5,
+        progress: 5,
+        status: "claiming",
+      }),
+    );
+    await bountyState.recordContributor("b-seed-example", CONTRIB);
+
+    const { POST } = await import("@/app/api/bounties/claim/route");
+    const res = await POST(
+      makeRequest({
+        bountyId: "b-seed-example",
+        nimiqAddress: "NQ07 TEST0000000000000000000000000000",
+        contributorId: CONTRIB,
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "this bounty has no sponsor funds behind it and cannot pay out",
+    });
+    expect(executeNimiqPayout).not.toHaveBeenCalled();
+    expect(markBountyPaid).not.toHaveBeenCalled();
+  });
+
   it("returns 409 when the same bounty is already being claimed", async () => {
     mockBounties.push({
       id: "b-concurrent",

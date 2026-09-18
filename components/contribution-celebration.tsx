@@ -251,16 +251,18 @@ export function ContributionCelebration({
         </div>
       )}
 
-      {/* Bounty connection — closes the contribution-to-reward loop */}
+      {/* Bounty connection — closes the contribution-to-reward loop.
+          For an unfunded seed target the loop still closes, but on the map
+          rather than on money: same progress, no NIM claimed. */}
       {bounty && (
         <div className="border border-express/40 bg-express/5 p-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="bg-express text-cream font-display font-black text-lg w-8 h-10 flex items-center justify-center shrink-0">
-              $
+              {bounty.synthetic ? "◎" : "$"}
             </span>
             <div>
               <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-express">
-                Bounty in your area
+                {bounty.synthetic ? "Map gap in your area" : "Bounty in your area"}
               </p>
               <p className="font-display font-black text-lg text-ink leading-tight mt-0.5">
                 {bounty.goal}
@@ -272,7 +274,7 @@ export function ContributionCelebration({
               {bounty.progress}/{bounty.target} · {bountyPct}%
             </p>
             <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint">
-              {bounty.rewardNim} NIM reward
+              {bounty.synthetic ? "Unfunded target" : `${bounty.rewardNim} NIM reward`}
             </p>
           </div>
           <GrowBar
@@ -281,9 +283,11 @@ export function ContributionCelebration({
             barClassName="bg-express"
           />
           <p className="font-serif italic text-[13px] text-ink-soft mt-2">
-            Your reading just pushed this bounty to {bountyPct}%.
+            Your reading just pushed this {bounty.synthetic ? "target" : "bounty"} to {bountyPct}%.
             {bounty.progress + 1 >= bounty.target
-              ? " One more to unlock the reward!"
+              ? bounty.synthetic
+                ? " Target reached — no sponsor behind it yet."
+                : " One more to unlock the reward!"
               : ` ${bounty.target - bounty.progress - 1} more to unlock.`}
           </p>
         </div>

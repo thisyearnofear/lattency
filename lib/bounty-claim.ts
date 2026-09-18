@@ -8,17 +8,23 @@
 // it can be reasoned about (and tested) independently of the HTTP route.
 //
 // The rule, in order:
-//   1. The bounty must be open/claiming (a paying/paid bounty is terminal).
-//   2. It must actually be filled (progress >= target).
-//   3. The claimant must present a contributor identity.
-//   4. That identity must be one the bounty recorded as having contributed.
-//   5. When the identity is a bound Nimiq address, the payout must go to that
+//   1. The bounty must be funded (seed-board examples carry no money).
+//   2. The bounty must be open/claiming (a paying/paid bounty is terminal).
+//   3. It must actually be filled (progress >= target).
+//   4. The claimant must present a contributor identity.
+//   5. That identity must be one the bounty recorded as having contributed.
+//   6. When the identity is a bound Nimiq address, the payout must go to that
 //      same address — so funds can only ever reach the wallet that authored
 //      the qualifying reading.
 //
-// Step 5 is what makes the mechanism defensible without accounts: an attacker
+// Step 6 is what makes the mechanism defensible without accounts: an attacker
 // who learns someone else's contributor id can still only trigger a payout
 // *to that contributor*. Griefing is limited to paying the rightful party.
+//
+// Step 1 is the newest and the subtlest. The bundled seed board's progress is
+// derived from the live map (lib/bounty-progress.ts), so a seed can genuinely
+// reach its target — which would otherwise make an example with no sponsor
+// behind it look payable. No sponsor, no payout.
 //
 // Pure: no DB, no SDK, no clock. Callers gather the inputs.
 
@@ -31,6 +37,8 @@ export interface ClaimableBounty {
   status: string;
   progress: number;
   target: number;
+  /** True for the unfunded seed board — see step 1 in the module comment. */
+  synthetic?: boolean;
 }
 
 export interface ClaimEligibilityInput {
@@ -82,7 +90,18 @@ export function evaluateClaimEligibility({
   contributors,
   payoutAddress,
 }: ClaimEligibilityInput): ClaimEligibility {
-  // 1 + 2 — the original preconditions keep their exact wording, since the
+  // 1 — unfunded examples are never payable, whatever their derived progress
+  // says. Checked first because it is the most specific reason, and because a
+  // filled seed would otherwise satisfy every later condition.
+  if (bounty.synthetic) {
+    return {
+      eligible: false,
+      status: 400,
+      error: "this bounty has no sponsor funds behind it and cannot pay out",
+    };
+  }
+
+  // 2 + 3 — the original preconditions keep their exact wording, since the
   // client already surfaces this string and the failure is not adversarial.
   if (!CLAIMABLE_STATUSES.has(bounty.status)) {
     return { eligible: false, status: 400, error: "bounty not eligible for claim" };
@@ -91,7 +110,7 @@ export function evaluateClaimEligibility({
     return { eligible: false, status: 400, error: "bounty not eligible for claim" };
   }
 
-  // 3 — an unattributed claimant cannot be verified against the bounty.
+  // 4 — an unattributed claimant cannot be verified against the bounty.
   const claimant = sanitizeContributorId(contributorId);
   if (!claimant) {
     return {
@@ -101,7 +120,7 @@ export function evaluateClaimEligibility({
     };
   }
 
-  // 4 — a bounty with no recorded contributors is not payable. Failing closed
+  // 5 — a bounty with no recorded contributors is not payable. Failing closed
   // is the point: an unattributed bounty is exactly the old, exploitable state.
   if (contributors.length === 0) {
     return {
@@ -118,7 +137,7 @@ export function evaluateClaimEligibility({
     };
   }
 
-  // 5 — for wallet-bound identities, bind the destination to the author.
+  // 6 — for wallet-bound identities, bind the destination to the author.
   if (isBoundContributorId(claimant)) {
     if (normalizeAddress(claimant) !== normalizeAddress(payoutAddress)) {
       return {

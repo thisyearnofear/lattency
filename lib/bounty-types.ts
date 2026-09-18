@@ -40,6 +40,20 @@ export interface Bounty {
   claimedByAddress?: string | null;
   /** On-chain transaction hash for the payout (if paid). */
   txHash?: string | null;
+  /**
+   * True for the bundled seed board — an unfunded example shown so the
+   * mechanic is visible before the first sponsor arrives.
+   *
+   * There is no money behind an unfunded bounty, so it is never payable. Every
+   * payout-adjacent surface must check this before promising a reward: the
+   * claim rule refuses it (lib/bounty-claim.ts), notifications stay silent
+   * about a "reward waiting", and the UI offers "Fund this bounty" instead of
+   * a claim button. Its `progress` is derived from the live map rather than
+   * authored (lib/bounty-progress.ts).
+   *
+   * Absent for every real bounty, including sponsor-created ones.
+   */
+  synthetic?: boolean;
 }
 
 export interface BountyCreationInput {

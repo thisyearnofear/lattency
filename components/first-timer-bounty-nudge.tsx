@@ -9,6 +9,11 @@
 // contribution (the celebration screen already does the post-contribution
 // version). It only appears for genuine first-timers, so it never pesters
 // returning contributors.
+//
+// Funded bounties are preferred, because a reward is the stronger pull. If the
+// city only has unfunded seed-board targets, the closest one still shows — but
+// the copy stops promising NIM and frames it as the map gap it actually is,
+// and the action becomes "Map it" rather than "Close this bounty".
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -46,12 +51,16 @@ export function FirstTimerBountyNudge({ city }: { city: string }) {
         const data = (await res.json()) as { bounties?: Bounty[] };
         const open = (data.bounties ?? []).filter((b) => b.status === "open");
         if (open.length === 0) return;
+        // Prefer a funded bounty; fall back to unfunded examples only when
+        // that is all the city has.
+        const funded = open.filter((b) => !b.synthetic);
+        const pool = funded.length > 0 ? funded : open;
         // Nearest-to-completion = highest progress/target ratio (goal-gradient).
-        const nearest = open.reduce((best, b) => {
+        const nearest = pool.reduce((best, b) => {
           const ratio = b.progress / b.target;
           const bestRatio = best.progress / best.target;
           return ratio > bestRatio ? b : best;
-        }, open[0]);
+        }, pool[0]);
         if (!cancelled) setBounty(nearest);
       } catch {
         /* non-fatal — the nudge simply doesn't show */
@@ -67,11 +76,12 @@ export function FirstTimerBountyNudge({ city }: { city: string }) {
 
   const remaining = Math.max(0, bounty.target - bounty.progress);
   const pct = Math.round((bounty.progress / bounty.target) * 100);
+  const unfunded = bounty.synthetic === true;
 
   return (
     <div className="mt-4 border border-express/40 bg-express/5 p-3.5 max-w-sm">
       <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-express">
-        Bounty almost filled · {bounty.area}
+        {unfunded ? "Map gap" : "Bounty almost filled"} · {bounty.area}
       </p>
       <p className="font-display font-black uppercase text-ink text-[17px] leading-tight mt-1">
         {bounty.goal}
@@ -90,13 +100,15 @@ export function FirstTimerBountyNudge({ city }: { city: string }) {
         {remaining === 1
           ? "One more reading closes it. Yours could be the one."
           : `${remaining} readings short. Map one to push it over.`}{" "}
-        Reward: {bounty.rewardNim} NIM.
+        {unfunded
+          ? "No reward attached yet — this one is the map filling itself in."
+          : `Reward: ${bounty.rewardNim} NIM.`}
       </p>
       <Link
         href={`/${city}?contribute=1`}
         className="mt-2.5 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.2em] uppercase text-express hover:text-ink transition-colors"
       >
-        Close this bounty <span aria-hidden>→</span>
+        {unfunded ? "Map it" : "Close this bounty"} <span aria-hidden>→</span>
       </Link>
     </div>
   );

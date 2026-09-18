@@ -16,6 +16,13 @@ export interface BountyMatch {
   progress: number;
   target: number;
   status: string;
+  /**
+   * True for an unfunded seed-board target. Carried through so the pay-off
+   * screens can drop their NIM promise — "unlock 20 NIM" over a bounty with no
+   * sponsor would be a false reward, told to someone at the moment they are
+   * most likely to believe it.
+   */
+  synthetic?: boolean;
 }
 
 export function useBountyMatch(

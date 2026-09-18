@@ -1,5 +1,14 @@
 "use client";
 
+// Claiming a bounty — the money moment.
+//
+// Two kinds of card reach this component. A funded bounty gets the claim
+// button (auto-claiming inside the Nimiq Pay mini-app). An unfunded seed-board
+// example gets a "Fund this bounty" link instead: its target is real enough to
+// reach, but there is no money behind it, and offering a claim button that the
+// server refuses would be the worst of both worlds.
+
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useNimiq } from "@/hooks/use-nimiq";
 import { useContributor } from "@/hooks/use-contributor";
@@ -21,7 +30,9 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
   const filled = bounty.progress >= bounty.target;
   // `claiming` means the bounty is filled and awaiting payout — the server
   // pays a filled bounty in either the `open` or `claiming` state.
-  const claimable = filled && (bounty.status === "open" || bounty.status === "claiming");
+  // Unfunded examples are never claimable; see lib/bounty-claim.ts step 1.
+  const claimable =
+    !bounty.synthetic && filled && (bounty.status === "open" || bounty.status === "claiming");
 
   async function handleClaim() {
     if (!address) return;
@@ -73,6 +84,26 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
       <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express">
         Claimed{bounty.txHash ? ` · tx ${bounty.txHash.slice(0, 12)}…` : ""}
       </p>
+    );
+  }
+
+  // Unfunded examples: no claim button, because there is nothing to claim.
+  // Offered as the sponsor action instead — this is the pitch, sitting exactly
+  // where a reward button would have been. Must come before the `!claimable`
+  // branch below, which would otherwise swallow it with "Not yet complete".
+  if (bounty.synthetic) {
+    return (
+      <div className="space-y-2">
+        <Link
+          href="/partners"
+          className="w-full border border-ink/40 text-ink font-mono text-[10px] tracking-[0.22em] uppercase py-2 flex items-center justify-center gap-1.5 hover:bg-ink hover:text-cream transition-colors"
+        >
+          Fund this bounty <span aria-hidden>→</span>
+        </Link>
+        <p className="font-serif italic text-ink-faint text-xs">
+          No sponsor yet — this target pays nothing.
+        </p>
+      </div>
     );
   }
 

@@ -243,11 +243,13 @@ export function MeasurementForm({
             : `Thanks — your measurement is now part of ${cafeName}’s ${TIER_LABEL[newTier]} line.`}
         </p>
 
-        {/* Bounty connection — the reward this reading just pushed forward. */}
+        {/* Bounty connection — the reward this reading just pushed forward.
+            An unfunded seed target shows the same progress, minus the NIM
+            promise, since there is no sponsor behind it. */}
         {bounty && (
           <div className="mt-3 border-t border-ink/10 pt-3">
             <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-express">
-              Bounty in your area
+              {bounty.synthetic ? "Map gap in your area" : "Bounty in your area"}
             </p>
             <p className="font-display font-black text-[15px] uppercase text-ink leading-tight mt-0.5">
               {bounty.goal}
@@ -260,8 +262,12 @@ export function MeasurementForm({
             <p className="font-serif italic text-[12px] text-ink-soft mt-1.5">
               {Math.min(bounty.progress + 1, bounty.target)}/{bounty.target} ·{" "}
               {bounty.progress + 1 >= bounty.target
-                ? "Filled — claim it on the bounties board."
-                : `${bounty.target - bounty.progress - 1} more to unlock ${bounty.rewardNim} NIM.`}
+                ? bounty.synthetic
+                  ? "Target reached — no sponsor behind it yet."
+                  : "Filled — claim it on the bounties board."
+                : bounty.synthetic
+                  ? `${bounty.target - bounty.progress - 1} more to close the gap.`
+                  : `${bounty.target - bounty.progress - 1} more to unlock ${bounty.rewardNim} NIM.`}
             </p>
           </div>
         )}

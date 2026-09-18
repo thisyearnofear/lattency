@@ -9,6 +9,10 @@
 //   2. Expiring bounties — an open bounty in their city expires within 3 days (scarcity)
 //   3. Claimable bounties — a bounty reached its target and awaits claiming (Zeigarnik)
 //
+// Bounty triggers apply to funded bounties only. The bundled seed board is
+// unfunded, and "NIM is waiting" would be a lie about it — see the guard in
+// the bounty loop.
+//
 // Stale-station detection needs the contributor's touched cafés. In v1 those
 // live client-side (the personal trail), so the client passes them as a query
 // param; the server only decides *which* are stale from the canonical
@@ -74,8 +78,15 @@ export async function getNotifications(
   }
 
   // 2 + 3. Bounty triggers (expiry soon, claimable now).
+  //
+  // Unfunded seed-board examples are skipped entirely. Both triggers exist to
+  // pull someone toward money — "your reward is waiting" / "expires in 2d" —
+  // and a seed has no sponsor behind it, so both would be manufactured
+  // urgency for a target nobody staked. Needs for readings on those stations
+  // are surfaced honestly by the quest board instead.
   const bounties = await getBounties(city);
   for (const b of bounties) {
+    if (b.synthetic) continue;
     const filled = b.progress >= b.target;
     // `claiming` is the state a completed bounty lands in — the progress
     // updater flips it there the moment the target is met. Gating on `open`

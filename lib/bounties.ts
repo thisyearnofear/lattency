@@ -14,6 +14,9 @@ import { b44MarkBountyPaid } from "./base44-data";
 import { cityDisplayName } from "./cities";
 import { bountyState } from "./bounty-state";
 import { sanitizeContributorId } from "./measurements";
+import { deriveSeedProgress, type SeedCriterion } from "./bounty-progress";
+import { getCafes } from "./cafes";
+import type { CafeStation } from "./types";
 
 export type { Bounty, BountyKind, BountyCreationInput } from "./bounty-types";
 export {
@@ -44,36 +47,53 @@ function daysFromNow(days: number): string {
 }
 
 // Seed board — served when Base44 is unconfigured, when the Bounty table is
-// empty (a fresh backend with no sponsors yet), or when the read fails. Kept
-// in sync by hand with the Base44 bounty seeds. Expiries are relative, so this
-// never rots again; a couple sit inside the 3-day window so the
-// expiring-bounty notification is demonstrable.
+// empty (a fresh backend with no sponsors yet), or when the read fails. These
+// are UNFUNDED examples (see `synthetic` on Bounty): they make the mechanic
+// visible before the first sponsor arrives, and they are never payable.
+//
+// Two rules keep them honest, and both are load-bearing:
+//
+//   1. `progress: 0` below is a placeholder, not data. A seed's real progress
+//      comes from SEED_CRITERIA via deriveSeedProgress, computed against the
+//      live map, so the board moves as people contribute instead of sitting
+//      at an authored number forever. The zero survives only as the failure
+//      mode: if the station read fails we show an unfilled target rather than
+//      a fabricated completion.
+//   2. Each goal names its criterion exactly. "3 express-tier cafés in Hoxton"
+//      IS the count of express-tier stations in Hoxton, so the prose and the
+//      number cannot drift apart. Two seeds were retargeted when this was
+//      introduced: "First verified café on Brick Lane" was already satisfied
+//      (Shoreditch holds five), and the old prose named a street that no
+//      criterion could measure.
+//
+// Expiries are relative, so this never rots; a couple sit inside the 3-day
+// window so the expiring-bounty path stays exercisable.
 const FALLBACK_BOUNTIES: Bounty[] = [
   // — London —
   {
-    id: "b-shoreditch-first",
-    goal: "First verified café on Brick Lane",
+    id: "b-shoreditch-express-5",
+    goal: "5 express-tier cafés in Shoreditch",
     area: "Shoreditch · London",
     city: "london",
-    amountUsd: 5,
-    rewardNim: 5,
-    target: 1,
+    amountUsd: 20,
+    rewardNim: 20,
+    target: 5,
     progress: 0,
     sponsor: "@londonremote",
     sponsorKind: "community",
-    kind: "first-in-neighbourhood",
+    kind: "tier-target",
     expiresAt: daysFromNow(30),
     status: "open",
   },
   {
     id: "b-hoxton-express-3",
-    goal: "3 express-tier cafés around Hoxton Square",
+    goal: "3 express-tier cafés in Hoxton",
     area: "Hoxton · London",
     city: "london",
     amountUsd: 20,
     rewardNim: 20,
     target: 3,
-    progress: 1,
+    progress: 0,
     sponsor: "Community Fibre",
     sponsorKind: "isp",
     kind: "tier-target",
@@ -82,13 +102,13 @@ const FALLBACK_BOUNTIES: Bounty[] = [
   },
   {
     id: "b-old-st-oat",
-    goal: "Map 2 oat-milk cafés near Old Street roundabout",
+    goal: "2 oat-milk cafés in Old Street",
     area: "Old Street · London",
     city: "london",
     amountUsd: 10,
     rewardNim: 10,
     target: 2,
-    progress: 1,
+    progress: 0,
     sponsor: "Ozone Coffee Roasters",
     sponsorKind: "café",
     kind: "attribute-match",
@@ -103,7 +123,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     amountUsd: 5,
     rewardNim: 5,
     target: 10,
-    progress: 4,
+    progress: 0,
     sponsor: "@e2coworker",
     sponsorKind: "community",
     kind: "nth-contributor",
@@ -128,13 +148,13 @@ const FALLBACK_BOUNTIES: Bounty[] = [
   },
   {
     id: "b-safaricom-kilimani-oat",
-    goal: "Map 3 oat-milk cafés in Kilimani",
+    goal: "3 oat-milk cafés in Kilimani",
     area: "Kilimani · Nairobi",
     city: "nairobi",
     amountUsd: 15,
     rewardNim: 15,
     target: 3,
-    progress: 1,
+    progress: 0,
     sponsor: "Safaricom Fibre",
     sponsorKind: "isp",
     kind: "attribute-match",
@@ -143,13 +163,13 @@ const FALLBACK_BOUNTIES: Bounty[] = [
   },
   {
     id: "b-cbd-express-5",
-    goal: "5 express-tier cafés across CBD",
+    goal: "5 express-tier cafés in CBD",
     area: "CBD · Nairobi",
     city: "nairobi",
     amountUsd: 25,
     rewardNim: 25,
     target: 5,
-    progress: 2,
+    progress: 0,
     sponsor: "Liquid Telecom",
     sponsorKind: "isp",
     kind: "tier-target",
@@ -179,7 +199,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     amountUsd: 5,
     rewardNim: 5,
     target: 10,
-    progress: 6,
+    progress: 0,
     sponsor: "Savanna Coffee Lounge",
     sponsorKind: "café",
     kind: "nth-contributor",
@@ -195,7 +215,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     amountUsd: 20,
     rewardNim: 20,
     target: 3,
-    progress: 1,
+    progress: 0,
     sponsor: "Sonic.net",
     sponsorKind: "isp",
     kind: "tier-target",
@@ -203,21 +223,72 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     status: "open",
   },
   {
-    id: "b-sf-hayes-first",
-    goal: "First verified café in Hayes Valley",
+    id: "b-sf-hayes-express-3",
+    goal: "3 express-tier cafés in Hayes Valley",
     area: "Hayes Valley · San Francisco",
     city: "sf",
-    amountUsd: 5,
-    rewardNim: 5,
-    target: 1,
+    amountUsd: 20,
+    rewardNim: 20,
+    target: 3,
     progress: 0,
     sponsor: "@sfremote",
     sponsorKind: "community",
-    kind: "first-in-neighbourhood",
+    kind: "tier-target",
     expiresAt: daysFromNow(33),
     status: "open",
   },
 ];
+
+// Mark the whole board unfunded in one place rather than on each row, so a
+// seed added later cannot silently claim to be payable. Defaulting to unfunded
+// is the safe direction: the failure mode is a bounty that under-promises,
+// never one that pays out money nobody staked.
+for (const seed of FALLBACK_BOUNTIES) seed.synthetic = true;
+
+/**
+ * What each seed bounty counts, keyed by seed id.
+ *
+ * Separate from the Bounty shape on purpose: a criterion is seed-only
+ * knowledge (a real bounty's progress is advanced by the
+ * `update-bounty-progress` function from its entity), so it stays out of the
+ * shared, client-safe type rather than widening every bounty with fields only
+ * eleven demo rows use.
+ *
+ * Keep in sync with FALLBACK_BOUNTIES — `tests/bounties.test.ts` asserts every
+ * seed id appears here, so a new seed cannot silently ship with a frozen
+ * `progress: 0` and no way to advance.
+ */
+export const SEED_CRITERIA: Record<string, SeedCriterion> = {
+  // — London —
+  "b-shoreditch-express-5": {
+    kind: "tier-target",
+    neighbourhood: "Shoreditch",
+    tier: "express",
+  },
+  "b-hoxton-express-3": { kind: "tier-target", neighbourhood: "Hoxton", tier: "express" },
+  "b-old-st-oat": { kind: "attribute-match", neighbourhood: "Old Street", milk: "oat" },
+  "b-bethnal-10th": { kind: "nth-contributor", neighbourhood: "Bethnal Green" },
+  // — Nairobi —
+  "b-eastleigh-first": { kind: "first-in-neighbourhood", neighbourhood: "Eastleigh" },
+  "b-safaricom-kilimani-oat": {
+    kind: "attribute-match",
+    neighbourhood: "Kilimani",
+    milk: "oat",
+  },
+  "b-cbd-express-5": { kind: "tier-target", neighbourhood: "CBD", tier: "express" },
+  "b-lavington-first": { kind: "first-in-neighbourhood", neighbourhood: "Lavington" },
+  "b-savanna-10th-contrib": {
+    kind: "nth-contributor",
+    cafeName: "Savanna Coffee Lounge",
+  },
+  // — San Francisco —
+  "b-sf-mission-fast-3": { kind: "tier-target", neighbourhood: "Mission", tier: "express" },
+  "b-sf-hayes-express-3": {
+    kind: "tier-target",
+    neighbourhood: "Hayes Valley",
+    tier: "express",
+  },
+};
 
 /**
  * In-process store for sponsor-created bounties. Used ONLY when Base44 is
@@ -278,7 +349,11 @@ function splitArea(area: string): { neighbourhood: string; city: string | null }
   return { neighbourhood: area, city: null };
 }
 
-/** Synthetic founder-bounty id prefix. */
+/**
+ * Founder-bounty id prefix. The "synth" names the in-memory placeholder shown
+ * before a city has any cafés — unrelated to `Bounty.synthetic`, which means
+ * "unfunded". This one is funded by Lattency once the first café is written.
+ */
 const FOUNDER_PREFIX = "synth-founder-";
 
 export function buildFounderBounty(city: string): Bounty {
@@ -325,19 +400,63 @@ function isExpired(bounty: Bounty, now: string): boolean {
 }
 
 /**
+ * Recompute the seed board's progress from the live map.
+ *
+ * Only the seed board is derived — a sponsor-created bounty's progress is
+ * advanced by the `update-bounty-progress` function from its entity, and
+ * overwriting that here would fight the backend. So this runs on the fallback
+ * path only, where there is no backend row to defer to.
+ *
+ * A station read that fails leaves the authored zeros in place. That is
+ * deliberate: an unfilled target is a smaller lie than a fabricated
+ * completion, and it keeps a backend outage from rendering a board full of
+ * "ready" bounties nobody can claim.
+ */
+async function deriveSeedBoard(board: Bounty[]): Promise<Bounty[]> {
+  const hasSeeds = board.some((b) => b.synthetic);
+  if (!hasSeeds) return board;
+
+  let stations: CafeStation[];
+  try {
+    stations = await getCafes({ all: true });
+  } catch (err) {
+    log.warn("seed progress: station read failed, leaving seeds unfilled", {
+      scope: "bounties.seed",
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return board;
+  }
+
+  return board.map((b) => {
+    const criterion = b.synthetic ? SEED_CRITERIA[b.id] : undefined;
+    // A seed with no criterion stays at its authored zero — the coverage test
+    // in tests/bounties.test.ts exists to keep that from happening.
+    if (!criterion) return b;
+    // Clamped to the target because the raw count keeps rising past it: once
+    // Shoreditch holds 7 express cafés, a 5-target bounty should read 5/5
+    // rather than 7/5.
+    return { ...b, progress: Math.min(deriveSeedProgress(criterion, stations, b.city), b.target) };
+  });
+}
+
+/**
  * Returns the open coffee bounties — those not yet paid out or expired.
  * Reads from Base44 when configured; falls back to the bundled snapshot +
  * in-process creations otherwise. Inline expiry replaces the legacy
  * expire-bounties cron automation.
  * When `city` is provided, only bounties for that city are returned.
- * When `cafeCount` is 0, a synthetic founder bounty is injected so newly
- * activated cities still have an incentive to map the first station.
+ * When `cafeCount` is 0, an in-memory founder bounty is injected so newly
+ * activated cities still have an incentive to map the first station. It is NOT
+ * marked `synthetic`: Lattency does pay founder rewards, via the real entity
+ * created when that first café lands.
  */
 export async function getBounties(city?: string, cafeCount?: number): Promise<Bounty[]> {
   const now = todayStamp();
 
-  // Kept in one place so the three fallback paths can't drift apart.
-  const seedBoard = (): Bounty[] => [...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES];
+  // Kept in one place so the three fallback paths can't drift apart, and
+  // derived so the board reflects the map rather than a snapshot of it.
+  const seedBoard = async (): Promise<Bounty[]> =>
+    deriveSeedBoard([...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES]);
 
   let source: Bounty[];
   if (base44Configured) {
@@ -359,22 +478,22 @@ export async function getBounties(city?: string, cafeCount?: number): Promise<Bo
         // only when it actually has rows.
         //
         // Deliberately all-or-nothing rather than merged: once a real bounty
-        // exists, live rows are the source of truth. Keeping synthetic bounties
+        // exists, live rows are the source of truth. Keeping unfunded examples
         // alongside real ones would offer rewards nobody has funded.
         log.info("bounty table is empty — serving seed board", {
           scope: "bounties.seed",
         });
-        source = seedBoard();
+        source = await seedBoard();
       }
     } catch (err) {
       log.warn("getBounties: Base44 read failed, serving fallback", {
         scope: "bounties",
         reason: err instanceof Error ? err.message : String(err),
       });
-      source = seedBoard();
+      source = await seedBoard();
     }
   } else {
-    source = seedBoard();
+    source = await seedBoard();
   }
 
   // Inline expiry applies to every source; paid bounties are filtered via the

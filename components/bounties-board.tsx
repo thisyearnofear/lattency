@@ -8,6 +8,12 @@
 // is advanced by the `update-bounty-progress` function after each measurement
 // insert, and payouts are real NIM transfers via @nimiq/mini-app-sdk. The
 // "Fund a bounty" action links to /partners.
+//
+// Some cards are unfunded examples from that snapshot (`bounty.synthetic`):
+// their progress is derived from the live map, so they read as genuine gaps,
+// but no sponsor has staked them and they can never pay out. They are labelled
+// here and in bounty-claim.tsx rather than hidden, because a visible target
+// with no sponsor behind it is both an honest demo and the sponsor pitch.
 
 import Link from "next/link";
 import { getBounties, sponsorBadgeStyle, bountyKindLabel, type Bounty } from "@/lib/bounties";
@@ -46,12 +52,22 @@ function BountyCard({ bounty, index }: { bounty: Bounty; index: number }) {
       <div className="p-5 flex flex-col gap-4 h-full">
         {/* Sponsor strip */}
         <div className="flex items-center justify-between gap-3">
-          <span
-            className={`${sponsor.bg} ${sponsor.ink} font-mono text-[10px] tracking-[0.22em] uppercase px-2 py-1`}
-          >
-            {sponsor.label}
+          <span className="flex items-center gap-2 min-w-0">
+            <span
+              className={`${sponsor.bg} ${sponsor.ink} font-mono text-[10px] tracking-[0.22em] uppercase px-2 py-1 whitespace-nowrap`}
+            >
+              {sponsor.label}
+            </span>
+            {bounty.synthetic && (
+              <span
+                title="An example target with no sponsor behind it — it cannot pay out"
+                className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint border border-ink/25 px-1.5 py-[3px] whitespace-nowrap"
+              >
+                Unfunded
+              </span>
+            )}
           </span>
-          <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint">
+          <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint whitespace-nowrap">
             {bountyKindLabel(bounty.kind)}
           </span>
         </div>
@@ -88,8 +104,10 @@ function BountyCard({ bounty, index }: { bounty: Bounty; index: number }) {
             </p>
             <p className="font-mono text-[12px] tabular-nums text-ink mt-1">
               {bounty.progress}/{bounty.target}
+              {/* "ready" is the claim state, so an unfunded target that has
+                  been met says "met" instead — nothing is ready to pay out. */}
               <span className={`ml-1.5 text-[10px] tracking-[0.16em] uppercase ${filled ? "text-express" : "text-ink-faint"}`}>
-                {filled ? "ready" : `${pct}%`}
+                {filled ? (bounty.synthetic ? "met" : "ready") : `${pct}%`}
               </span>
             </p>
           </div>
@@ -125,6 +143,10 @@ export async function BountiesBoard({
 }) {
   const all = await getBounties(city, cafeCount);
   const items = limit ? all.slice(0, limit) : all;
+  // Any unfunded example on the visible board needs the disclosure below —
+  // the cards are otherwise indistinguishable from funded ones, and the label
+  // only fits in card chrome, not as an explanation.
+  const hasUnfunded = items.some((b) => b.synthetic);
   return (
     <section
       id="bounties"
@@ -149,6 +171,13 @@ export async function BountiesBoard({
           <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-3 max-w-2xl">
             Claim a completed bounty in Nimiq Pay to get your NIM reward.
           </p>
+          )}
+          {hasUnfunded && (
+            <p className="font-serif italic text-ink-soft text-sm mt-2 max-w-2xl">
+              Targets marked <span className="font-mono text-[10px] tracking-[0.18em] uppercase not-italic text-ink-faint border border-ink/25 px-1.5 py-[2px] mx-0.5">Unfunded</span> are
+              real gaps in the map with no sponsor behind them yet — they pay nothing. Fund one
+              and it starts paying the contributor who closes it.
+            </p>
           )}
         </div>
         <Link
