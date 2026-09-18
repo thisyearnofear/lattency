@@ -5,12 +5,15 @@ const mockB44 = {
   b44MarkBountyPaid: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
 };
 const bountyCreate = vi.fn();
+const bountyFilter = vi.fn();
 
 vi.mock("@/lib/base44", () => ({
   get base44Configured() {
     return mockConfig.base44Configured;
   },
-  getBase44: () => ({ entities: { Bounty: { create: bountyCreate } } }),
+  getBase44: () => ({
+    entities: { Bounty: { create: bountyCreate, filter: bountyFilter } },
+  }),
 }));
 
 vi.mock("@/lib/base44-data", () => ({
@@ -24,6 +27,8 @@ describe("bounties", () => {
     mockConfig.base44Configured = false;
     mockB44.b44MarkBountyPaid.mockReset().mockResolvedValue(true);
     bountyCreate.mockReset().mockResolvedValue({ id: "b44-created-1" });
+    // Default: an empty Bounty table, which is what a fresh backend returns.
+    bountyFilter.mockReset().mockResolvedValue([]);
 
     const { __resetBountyStateForTests } = await import("@/lib/bounties");
     await __resetBountyStateForTests();
@@ -120,6 +125,71 @@ describe("bounties", () => {
       await markBountyPaid("b-shoreditch-first", "NQ07 ABC123", "0x789");
 
       expect(mockB44.b44MarkBountyPaid).not.toHaveBeenCalled();
+    });
+  });
+
+  // Regression coverage for two coupled bugs: a configured-but-empty Bounty
+  // table produced an empty board, and the seed expiries had all passed so the
+  // fallback board was empty too. Together they meant the bounty board rendered
+  // nothing in every mode, including the offline demo it exists to serve.
+  describe("seed board fallback", () => {
+    beforeEach(() => {
+      mockConfig.base44Configured = true;
+    });
+
+    it("serves the seed board when the Bounty table is empty", async () => {
+      bountyFilter.mockResolvedValue([]);
+      const { getBounties } = await import("@/lib/bounties");
+
+      const bounties = await getBounties();
+
+      expect(bounties.find((b) => b.id === "b-shoreditch-first")).toBeDefined();
+      expect(bounties.length).toBeGreaterThan(0);
+    });
+
+    it("serves the seed board when the read fails", async () => {
+      bountyFilter.mockRejectedValue(new Error("503"));
+      const { getBounties } = await import("@/lib/bounties");
+
+      const bounties = await getBounties();
+
+      expect(bounties.find((b) => b.id === "b-shoreditch-first")).toBeDefined();
+    });
+
+    it("prefers live rows once any sponsor bounty exists", async () => {
+      // All-or-nothing by design: offering synthetic rewards alongside real
+      // funded ones would promise money nobody has committed.
+      bountyFilter.mockResolvedValue([
+        {
+          id: "b44-live-1",
+          title: "Real funded bounty",
+          reward: 7,
+          target: 1,
+          progress: 0,
+          status: "open",
+          expires_at: "2099-12-31",
+        },
+      ]);
+      const { getBounties } = await import("@/lib/bounties");
+
+      const bounties = await getBounties();
+
+      expect(bounties.map((b) => b.id)).toEqual(["b44-live-1"]);
+    });
+
+    it("keeps every seed bounty in the future so the board is never empty", async () => {
+      // Seeds carried fixed calendar dates that had all elapsed, so `isExpired`
+      // silently filtered the entire board away.
+      bountyFilter.mockResolvedValue([]);
+      const { getBounties } = await import("@/lib/bounties");
+
+      const today = new Date().toISOString().slice(0, 10);
+      const bounties = await getBounties();
+
+      expect(bounties.length).toBe(11);
+      for (const bounty of bounties) {
+        expect(bounty.expiresAt >= today).toBe(true);
+      }
     });
   });
 

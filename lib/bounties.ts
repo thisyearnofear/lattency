@@ -29,8 +29,25 @@ const LUNAS_PER_NIM = 100_000;
 /** Display price of a NIM bounty in USD (coffees). */
 const USD_PER_NIM = 0.05;
 
-// Fallback snapshot served when Base44 is unconfigured or returns no rows.
-// This IS the seed data, kept in sync by hand with the Base44 bounty seeds.
+/**
+ * ISO date `days` from today, for seed expiries.
+ *
+ * Seeds previously carried fixed calendar dates, which had all passed — so
+ * every fallback bounty was filtered out by `isExpired` and the board rendered
+ * empty in *every* mode, including the offline demo it exists to serve. A
+ * rolling offset keeps demo content alive without pretending these are real
+ * sponsor commitments; the comment on `expiresAt` in bounty-types.ts already
+ * described seeds as evergreen, which is the intent this restores.
+ */
+function daysFromNow(days: number): string {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+// Seed board — served when Base44 is unconfigured, when the Bounty table is
+// empty (a fresh backend with no sponsors yet), or when the read fails. Kept
+// in sync by hand with the Base44 bounty seeds. Expiries are relative, so this
+// never rots again; a couple sit inside the 3-day window so the
+// expiring-bounty notification is demonstrable.
 const FALLBACK_BOUNTIES: Bounty[] = [
   // — London —
   {
@@ -45,7 +62,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "@londonremote",
     sponsorKind: "community",
     kind: "first-in-neighbourhood",
-    expiresAt: "2026-08-15",
+    expiresAt: daysFromNow(30),
     status: "open",
   },
   {
@@ -60,7 +77,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "Community Fibre",
     sponsorKind: "isp",
     kind: "tier-target",
-    expiresAt: "2026-08-10",
+    expiresAt: daysFromNow(3),
     status: "open",
   },
   {
@@ -75,7 +92,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "Ozone Coffee Roasters",
     sponsorKind: "café",
     kind: "attribute-match",
-    expiresAt: "2026-08-20",
+    expiresAt: daysFromNow(35),
     status: "open",
   },
   {
@@ -90,7 +107,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "@e2coworker",
     sponsorKind: "community",
     kind: "nth-contributor",
-    expiresAt: "2026-08-30",
+    expiresAt: daysFromNow(45),
     status: "open",
   },
   // — Nairobi —
@@ -106,7 +123,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "@nairobikiwi",
     sponsorKind: "community",
     kind: "first-in-neighbourhood",
-    expiresAt: "2026-08-15",
+    expiresAt: daysFromNow(28),
     status: "open",
   },
   {
@@ -121,7 +138,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "Safaricom Fibre",
     sponsorKind: "isp",
     kind: "attribute-match",
-    expiresAt: "2026-08-08",
+    expiresAt: daysFromNow(2),
     status: "open",
   },
   {
@@ -136,7 +153,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "Liquid Telecom",
     sponsorKind: "isp",
     kind: "tier-target",
-    expiresAt: "2026-08-12",
+    expiresAt: daysFromNow(25),
     status: "open",
   },
   {
@@ -151,7 +168,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "@workmunyao",
     sponsorKind: "community",
     kind: "first-in-neighbourhood",
-    expiresAt: "2026-08-22",
+    expiresAt: daysFromNow(40),
     status: "open",
   },
   {
@@ -166,7 +183,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "Savanna Coffee Lounge",
     sponsorKind: "café",
     kind: "nth-contributor",
-    expiresAt: "2026-08-30",
+    expiresAt: daysFromNow(45),
     status: "open",
   },
   // — San Francisco —
@@ -182,7 +199,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "Sonic.net",
     sponsorKind: "isp",
     kind: "tier-target",
-    expiresAt: "2026-08-09",
+    expiresAt: daysFromNow(21),
     status: "open",
   },
   {
@@ -197,7 +214,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
     sponsor: "@sfremote",
     sponsorKind: "community",
     kind: "first-in-neighbourhood",
-    expiresAt: "2026-08-18",
+    expiresAt: daysFromNow(33),
     status: "open",
   },
 ];
@@ -319,6 +336,9 @@ function isExpired(bounty: Bounty, now: string): boolean {
 export async function getBounties(city?: string, cafeCount?: number): Promise<Bounty[]> {
   const now = todayStamp();
 
+  // Kept in one place so the three fallback paths can't drift apart.
+  const seedBoard = (): Bounty[] => [...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES];
+
   let source: Bounty[];
   if (base44Configured) {
     try {
@@ -328,16 +348,33 @@ export async function getBounties(city?: string, cafeCount?: number): Promise<Bo
         100,
         0,
       )) as unknown as BountyEntity[];
-      source = rows.map(rowToBounty);
+
+      if (rows.length > 0) {
+        source = rows.map(rowToBounty);
+      } else {
+        // A configured-but-empty Bounty table means no sponsor has funded
+        // anything yet — a fresh backend, not a network with no bounties. Serve
+        // the seed board so the mechanic is visible before the first sponsor
+        // arrives. Mirrors getCafes, which likewise prefers the live source
+        // only when it actually has rows.
+        //
+        // Deliberately all-or-nothing rather than merged: once a real bounty
+        // exists, live rows are the source of truth. Keeping synthetic bounties
+        // alongside real ones would offer rewards nobody has funded.
+        log.info("bounty table is empty — serving seed board", {
+          scope: "bounties.seed",
+        });
+        source = seedBoard();
+      }
     } catch (err) {
       log.warn("getBounties: Base44 read failed, serving fallback", {
         scope: "bounties",
         reason: err instanceof Error ? err.message : String(err),
       });
-      source = [...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES];
+      source = seedBoard();
     }
   } else {
-    source = [...FALLBACK_BOUNTIES, ...CREATED_BOUNTIES];
+    source = seedBoard();
   }
 
   // Inline expiry applies to every source; paid bounties are filtered via the
