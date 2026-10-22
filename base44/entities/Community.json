@@ -1,0 +1,21 @@
+{
+  "name": "Community",
+  "type": "object",
+  "title": "Community",
+  "properties": {
+    "name":        { "type": "string", "minLength": 1 },
+    "focus":       { "type": "string" },
+    "lead":        { "type": "string" },
+    "city":        { "type": "string", "default": "london" },
+    "website_url": { "type": "string" },
+    "luma_url":    { "type": "string" },
+    "approved":    { "type": "boolean", "default": false }
+  },
+  "required": ["name"],
+  "rls": {
+    "create": true,
+    "read": { "approved": true },
+    "update": { "created_by": "{{user.email}}" },
+    "delete": { "created_by": "{{user.email}}" }
+  }
+}

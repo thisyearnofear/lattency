@@ -1,0 +1,23 @@
+{
+  "name": "Event",
+  "type": "object",
+  "title": "Event",
+  "properties": {
+    "title":        { "type": "string", "minLength": 1 },
+    "starts_at":    { "type": "string", "format": "date-time" },
+    "venue_id":     { "type": "string" },
+    "community_id": { "type": "string" },
+    "community_name": { "type": "string" },
+    "city":         { "type": "string", "default": "london" },
+    "link":         { "type": "string" },
+    "submitted_by": { "type": "string" },
+    "approved":     { "type": "boolean", "default": false }
+  },
+  "required": ["title", "starts_at", "venue_id"],
+  "rls": {
+    "create": true,
+    "read": { "approved": true },
+    "update": { "created_by": "{{user.email}}" },
+    "delete": { "created_by": "{{user.email}}" }
+  }
+}

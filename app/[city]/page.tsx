@@ -6,6 +6,7 @@ import { CITIES, cityPath, resolveCityConfig, getLiveCities, isCuratedCity } fro
 import { TopNav } from "@/components/top-nav";
 import { LiveMap } from "@/components/live-map";
 import { StationDirectory } from "@/components/station-directory";
+import { EventsBoard } from "@/components/events-board";
 import { QuestBoard } from "@/components/quest-board";
 import { NetworkPulse } from "@/components/network-pulse";
 import { BountiesBoard } from "@/components/bounties-board";
@@ -183,6 +184,10 @@ export default async function CityHome({
         <section className="mt-16">
           <StationDirectory cafes={cafes} city={city} cityConfig={cityConfig} />
         </section>
+
+        {/* The open database: the stations above, and what organisers schedule
+            in them. Submissions are pending until approved. */}
+        <EventsBoard city={city} cityName={cityConfig.name} cafes={cafes} />
 
         {/* Gaps, before rewards. Bounties depend on sponsor money arriving;
             this board never runs out. */}

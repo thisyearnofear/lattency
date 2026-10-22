@@ -30,7 +30,8 @@ export function hashIp(ip: string | null): string | null {
 export type RateLimitScope =
   | { kind: "measurement"; cafeId: string }
   | { kind: "cafe" }
-  | { kind: "bounty" };
+  | { kind: "bounty" }
+  | { kind: "event" };
 
 const LIMITS: Record<RateLimitScope["kind"], { limit: number; windowMs: number }> = {
   // One reading per café per IP per 10 minutes.
@@ -40,6 +41,8 @@ const LIMITS: Record<RateLimitScope["kind"], { limit: number; windowMs: number }
   // Sponsor bounties are funded client-side, so this is spam protection
   // for the board, not money protection.
   bounty: { limit: 5, windowMs: 60 * 60_000 },
+  // Open submissions are the spam surface of an open database.
+  event: { limit: 5, windowMs: 60 * 60_000 },
 };
 
 interface RateLimitBackend {

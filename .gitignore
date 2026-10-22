@@ -70,3 +70,6 @@ base44/.types/
 *.mov
 *.webm
 *.mkv
+
+# Local demo captures
+demo-capture/

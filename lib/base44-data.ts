@@ -6,6 +6,7 @@
 
 import { getBase44, base44Configured } from "./base44";
 import type { CafeDetail, CafeStation } from "./types";
+import type { Community, CommunityEvent } from "./events";
 import { log } from "./log";
 
 export { base44Configured };
@@ -161,6 +162,65 @@ export async function b44CreateCafe(input: B44CafeCreate): Promise<{
   const cafeId = unwrap<string>(res, "cafeId");
   const measurementId = unwrap<string>(res, "measurementId");
   return { cafeId, measurementId };
+}
+
+/** Raw Event rows from Base44. Approval is enforced by the entity read rule
+ *  and re-checked in `filterApprovedEvents`. */
+export async function b44ListEvents(opts: { city?: string }): Promise<CommunityEvent[]> {
+  const rows = (await getBase44().entities.Event.filter(
+    opts.city ? { city: opts.city, approved: true } : { approved: true },
+    "starts_at",
+    200,
+    0,
+  )) as unknown as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    id: String(r.id),
+    title: String(r.title ?? ""),
+    startsAt: String(r.starts_at ?? ""),
+    venueId: String(r.venue_id ?? ""),
+    communityName: (r.community_name as string) ?? null,
+    city: String(r.city ?? "london"),
+    link: (r.link as string) ?? null,
+    approved: r.approved === true,
+    submittedBy: (r.submitted_by as string) ?? null,
+  }));
+}
+
+/** Raw Community rows from Base44. Approval is enforced by the entity read rule
+ *  and re-checked in `filterApprovedCommunities`. */
+export async function b44ListCommunities(opts: { city?: string }): Promise<Community[]> {
+  const rows = (await getBase44().entities.Community.filter(
+    opts.city ? { city: opts.city, approved: true } : { approved: true },
+    "name",
+    200,
+    0,
+  )) as unknown as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    id: String(r.id),
+    name: String(r.name ?? ""),
+    focus: (r.focus as string) ?? null,
+    lead: (r.lead as string) ?? null,
+    city: String(r.city ?? "london"),
+    websiteUrl: (r.website_url as string) ?? null,
+    lumaUrl: (r.luma_url as string) ?? null,
+    approved: r.approved === true,
+  }));
+}
+
+/** Writes an organiser submission as unapproved. Approval is a separate,
+ *  privileged action — the submitter never sets `approved`. */
+export async function b44InsertEvent(e: CommunityEvent): Promise<string> {
+  const id = (await getBase44().entities.Event.save({
+    title: e.title,
+    starts_at: e.startsAt,
+    venue_id: e.venueId,
+    community_name: e.communityName,
+    city: e.city,
+    link: e.link,
+    submitted_by: e.submittedBy,
+    approved: false,
+  })) as unknown as string;
+  return String(id);
 }
 
 export function b44Available(): boolean {
