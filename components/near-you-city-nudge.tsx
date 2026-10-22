@@ -37,7 +37,7 @@ export function NearYouCityNudge({ currentCity }: { currentCity: string }) {
         let best: { id: string; name: string; km: number } | null = null;
         for (const id of CITY_ORDER) {
           const c = CITIES[id];
-          const km = haversineKm(lat, lng, c.centre.lat, c.centre.lng);
+          const km = haversineKm({ lat, lng }, { lat: c.centre.lat, lng: c.centre.lng });
           if (!best || km < best.km) {
             best = { id, name: c.name, km };
           }
