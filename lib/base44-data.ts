@@ -207,10 +207,24 @@ export async function b44ListCommunities(opts: { city?: string }): Promise<Commu
   }));
 }
 
+/** Writes a community submission as unapproved. */
+export async function b44InsertCommunity(c: Community): Promise<string> {
+  const id = (await getBase44().entities.Community.create({
+    name: c.name,
+    focus: c.focus,
+    lead: c.lead,
+    city: c.city,
+    website_url: c.websiteUrl,
+    luma_url: c.lumaUrl,
+    approved: false,
+  })) as unknown as string;
+  return String(id);
+}
+
 /** Writes an organiser submission as unapproved. Approval is a separate,
  *  privileged action — the submitter never sets `approved`. */
 export async function b44InsertEvent(e: CommunityEvent): Promise<string> {
-  const id = (await getBase44().entities.Event.save({
+  const id = (await getBase44().entities.Event.create({
     title: e.title,
     starts_at: e.startsAt,
     venue_id: e.venueId,
