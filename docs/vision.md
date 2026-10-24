@@ -46,11 +46,15 @@ The brand stays **Lattency**. The word "café" stays in the story, but the map i
 
 ---
 
-## Metadata: objective, not subjective
+## Claims and corroboration
 
-We do **not** collect subjective coffee-quality ratings. They are unverifiable, noisy, and gameable.
+Nothing on the board is trusted on submission. Every field is a **claim**, and every claim carries a corroboration count built by later contributors. That stance has two tiers:
 
-We do collect:
+**Tier 1 — observable facts.** The core of the record, collected today:
+
+**Tier 2 — anchored subjective claims.** Not 5-star scales — gameable and meaningless — but structured statements a stranger can confirm or deny: *"quiet enough for calls"*, *"they don't mind laptops after 6pm"*, *"wifi drops during lunch rush"*. Shown as **"corroborated by N"**, never averaged into a score. A lone claim earns nothing and surfaces nothing — reward is deferred to corroboration (see the contribution hypothesis).
+
+Tier 1 fields we collect:
 
 | Field | Type | Why it matters |
 |---|---|---|
@@ -63,6 +67,8 @@ We do collect:
 | `wifiNetwork` | string | Reduces friction |
 
 These are all observable. A new contributor can walk in and fill the form in 60 seconds.
+
+The old posture — *no subjective ratings* — was really "no unverifiable claims." Corroboration is the stronger position: subjectivity is earned, not excluded.
 
 ---
 
@@ -100,6 +106,37 @@ Distribution is engineered into the product:
 - **Venues** display tier badges (QR table tents, window stickers) to attract remote workers.
 - **Sponsors** promote bounties because they want the data.
 - **Nimiq ecosystem** promotes real Mini Apps that generate real transactions.
+
+---
+
+## The contribution hypothesis
+
+The open question is not whether the map is useful — it is whether contribution is **ambient** enough to reach density. Working hypothesis: *contribution should find the contributor, not the reverse.*
+
+1. **Ambient offers.** With location permission, the app gently offers a speed test wherever the user is — "you're somewhere we don't have a reading for." One tap, no form first. The test *is* the contribution; venue metadata comes after, or from the next person.
+2. **Kudos before cash.** A reading that proves useful — first at a venue, corroborates a stale one, closes a bounty — earns visible reputation: rank, line colour on `/me`, leaderboard position. Kudos is the always-on reward; NIM is the occasional spike.
+3. **Venue-funded kickbacks.** When venue organisers pay for verified information about their place, a share flows back to the contributors who built that venue's record — early readings earn more than late ones.
+4. **Diminishing returns per venue.** Reward weight decays with a venue's verification count. A fifth reading at a mapped café earns less than a first reading at an unmapped one — reward weight chases the frontier, not the pin.
+5. **Corroboration as trust.** Reviews and metadata are not trusted on submission; they are *substantiated* when later contributors confirm them. Each new verification is simultaneously a reward event for the verifier and an audit of everyone before them.
+6. **Deferred reward kills the fake review.** A solo claim — venue or subjective — earns nothing until independent contributors corroborate it. A sock puppet's claim sits inert forever; only claims that survive contact with strangers pay out.
+
+**Known attack surface:** once venue organisers pay, corroboration itself becomes the target — astroturfed venues, contributor rings validating each other's fiction. Mitigations that fit today's architecture: weight corroboration by the corroborator's substantiated history, keep IP-hash + rate-limiting as the friction floor, and count *independent identity clusters* rather than raw numbers.
+
+In one sentence: *the network becomes meaningful when contribution is ambient, reputation accrues through corroboration, and reward weight chases the unverified.*
+
+This is a hypothesis, not a shipped feature — the pieces below move it from pull-based (open the form) to push-based (the app notices an unmeasured place).
+
+---
+
+## Near-term priorities
+
+Carried over from review — ordered by what changes the first-run impression:
+
+1. **De-clutter first paint.** One lead card on the map; queue the bounty nudge, coach card, and concierge behind scroll or dismissal.
+2. **Cold-start reads as opportunity, not absence.** Empty states and the bounty board lead with "map this area" — the current copy is right, the placement should lead.
+3. **One showreel moment.** The `CinematicMap` line ride is the seed; a whole-network self-draw sequence on `/tour` gives the design crowd their screenshot.
+4. **Ambient contribution v1.** Passive location check → gentle "run a test here?" nudge when the user is at/near an unmeasured or stale venue. Prerequisite for the hypothesis above.
+5. **Ship `pnpm base44:deploy`** — `Community.submitted_by` is local-only until the entity update lands.
 
 ---
 
