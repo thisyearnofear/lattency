@@ -513,11 +513,15 @@ export function CafeContributionForm({
           )}
         </div>
 
+        {!(["location", "submitting", "done", "error"] as Step[]).includes(step) && (
+          <CafePreviewCard form={form} />
+        )}
+
         <CrossfadePanel activeKey={step} className="px-6 py-5" render={(renderStep) => (<>
           {renderStep === "location" && (
             <div className="space-y-4">
               <p className="font-serif italic text-ink-soft text-sm leading-relaxed">
-                Map a café you&rsquo;re sitting in right now. We&rsquo;ll place it on the map, then run a speed test.
+                Map a café you&rsquo;re sitting in right now. Share your location, run a speed test, and it appears on the map as its own station — the first reading here puts it on the network.
               </p>
               <button
                 type="button"
@@ -754,12 +758,15 @@ export function CafeContributionForm({
                     <Stat label="PING" value={`${Math.round(form.measurement.latencyMs)}`} unit="ms" />
                     <Stat label="JITTER" value={`${form.measurement.jitterMs?.toFixed(1) ?? "—"}`} unit="ms" />
                   </div>
+                  <p className="font-serif italic text-ink-soft text-[13px] leading-snug">
+                    DOWN sets the line colour on the map. PING matters most for calls, so a low number there is the one to watch.
+                  </p>
                   <button
                     type="button"
                     onClick={() => setStep("photo")}
                     className="w-full py-3 bg-ink text-cream font-mono text-xs tracking-[0.22em] uppercase hover:bg-ink/90 transition-colors"
                   >
-                    Continue
+                    Continue to photo
                   </button>
                 </div>
               )}
@@ -882,6 +889,43 @@ export function CafeContributionForm({
             </div>
           )}
         </>)} />
+      </div>
+    </div>
+  );
+}
+
+// Live preview of the café card — fills in as the user works through the
+// steps, so they see what the map will show before they submit.
+function CafePreviewCard({ form }: { form: FormState }) {
+  const name = form.name.trim() || "Your café";
+  const hood = form.neighbourhood.trim();
+  const tier = form.measurement ? tierForDown(form.measurement.downMbps) : null;
+  const chips = [
+    form.priceTier && PRICE_TIER_LABELS[form.priceTier as keyof typeof PRICE_TIER_LABELS],
+    form.powerOutlets && "Outlets",
+    form.seating && SEATING_LABELS[form.seating as keyof typeof SEATING_LABELS],
+  ].filter(Boolean) as string[];
+
+  return (
+    <div className="px-6 pt-4">
+      <div className="flex items-center gap-3 border border-ink/20 bg-cream-edge/40 px-3.5 py-3">
+        <span
+          className="font-display font-black text-lg w-9 h-9 flex items-center justify-center text-cream shrink-0"
+          style={{ background: tier ? TIER_COLOUR[tier] : "var(--color-ink-faint)" }}
+          aria-hidden
+        >
+          {tier ? tier[0].toUpperCase() : "?"}
+        </span>
+        <div className="min-w-0">
+          <p className="font-display font-black uppercase text-[15px] leading-tight text-ink truncate">
+            {name}
+          </p>
+          <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-faint truncate">
+            {hood || "Neighbourhood"}
+            {chips.length > 0 && <> · {chips.join(" · ")}</>}
+            {tier ? ` · ${tier} line` : " · no reading yet"}
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@
     "city":        { "type": "string", "default": "london" },
     "website_url": { "type": "string" },
     "luma_url":    { "type": "string" },
+    "submitted_by": { "type": "string" },
     "approved":    { "type": "boolean", "default": false }
   },
   "required": ["name"],

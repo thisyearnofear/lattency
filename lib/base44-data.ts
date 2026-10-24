@@ -204,6 +204,7 @@ export async function b44ListCommunities(opts: { city?: string }): Promise<Commu
     websiteUrl: (r.website_url as string) ?? null,
     lumaUrl: (r.luma_url as string) ?? null,
     approved: r.approved === true,
+    submittedBy: (r.submitted_by as string) ?? null,
   }));
 }
 
@@ -216,6 +217,7 @@ export async function b44InsertCommunity(c: Community): Promise<string> {
     city: c.city,
     website_url: c.websiteUrl,
     luma_url: c.lumaUrl,
+    submitted_by: c.submittedBy ?? null,
     approved: false,
   })) as unknown as string;
   return String(id);

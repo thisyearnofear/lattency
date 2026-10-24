@@ -1,13 +1,18 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
+  __resetLocalCommunitiesForTests,
   __resetLocalEventsForTests,
+  approveLocalCommunity,
   approveLocalEvent,
   filterApprovedCommunities,
   filterApprovedEvents,
   getCommunities,
   getEvents,
+  getPendingCommunities,
   getPendingEvents,
+  submitCommunity,
   submitEvent,
+  validateCommunityInput,
   validateEventInput,
   MOCK_COMMUNITIES,
   MOCK_EVENTS,
@@ -158,5 +163,64 @@ describe("event submission (offline overlay)", () => {
       /http/,
     );
     expect(validateEventInput(input)).toBeNull();
+  });
+});
+
+describe("community registration (offline overlay)", () => {
+  const input = {
+    name: "Shoreditch Remote Club",
+    focus: "Remote workers and freelancers",
+    lead: "Oli",
+    city: "london",
+    websiteUrl: "https://example.com",
+    lumaUrl: "https://luma.com/src",
+    submittedBy: "contrib-tester",
+  };
+
+  beforeEach(() => {
+    __resetLocalCommunitiesForTests();
+  });
+
+  it("lands a registration as pending, never public", async () => {
+    const com = await submitCommunity(input);
+    expect(com.approved).toBe(false);
+    const board = await getCommunities({ city: "london" });
+    expect(board.some((c) => c.id === com.id)).toBe(false);
+  });
+
+  it("publishes only after approval", async () => {
+    const com = await submitCommunity(input);
+    expect(approveLocalCommunity(com.id)).toBe(true);
+    const board = await getCommunities({ city: "london" });
+    expect(board.map((c) => c.id)).toContain(com.id);
+  });
+
+  it("scopes the pending queue to the submitter", async () => {
+    const com = await submitCommunity(input);
+    expect(getPendingCommunities("contrib-tester").map((c) => c.id)).toContain(com.id);
+    expect(getPendingCommunities("contrib-stranger")).toHaveLength(0);
+    expect(getPendingCommunities(null)).toHaveLength(0);
+  });
+
+  it("rejects junk before it reaches the board", () => {
+    expect(validateCommunityInput({ ...input, name: "x" })).toMatch(/name/);
+    expect(validateCommunityInput({ ...input, city: "" })).toMatch(/city/);
+    expect(validateCommunityInput({ ...input, websiteUrl: "javascript:alert(1)" })).toMatch(
+      /websiteUrl/,
+    );
+    expect(validateCommunityInput(input)).toBeNull();
+  });
+
+  it("caps every field so an open board can't store a wall of text", () => {
+    expect(validateCommunityInput({ ...input, name: "n".repeat(61) })).toMatch(/name/);
+    expect(validateCommunityInput({ ...input, city: "c".repeat(41) })).toMatch(/city/);
+    expect(validateCommunityInput({ ...input, focus: "f".repeat(121) })).toMatch(/focus/);
+    expect(validateCommunityInput({ ...input, lead: "l".repeat(41) })).toMatch(/lead/);
+    expect(
+      validateCommunityInput({ ...input, websiteUrl: `https://e.com/${"p".repeat(500)}` }),
+    ).toMatch(/websiteUrl/);
+    expect(
+      validateCommunityInput({ ...input, lumaUrl: `https://lu.ma/${"p".repeat(500)}` }),
+    ).toMatch(/lumaUrl/);
   });
 });

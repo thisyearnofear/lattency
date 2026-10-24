@@ -1,9 +1,11 @@
 <!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+## This is NOT the Next.js you know
 
-**Keep this block, including in commits.** It is part of the project's agent setup, maintained by `next dev` for every agent that works here. If it appears as an uncommitted change, that is intentional — commit it as-is. Do not remove it to clean up a diff; it will be regenerated.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
 <!-- END:nextjs-agent-rules -->
 
 ## Local development
@@ -17,7 +19,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `pnpm dev` and `pnpm build` both run `scripts/gen-speedtest-blobs.ts` first, which generates `public/speedtest/download.bin` (10 MB random blob). This file is gitignored — it's reproducible from the script. If you see a "download.bin not found" error, run `pnpm exec tsx scripts/gen-speedtest-blobs.ts` manually.
 - The in-browser speed test (`lib/speedtest.ts`) is client-side only. It hits three endpoints: `GET /speedtest/download.bin` (static), `POST /api/speedtest/upload` (discard), and HEAD requests to the blob for ping/jitter/loss.
 - `GET /api/speedtest/whereami` returns the Vercel edge region from `x-vercel-id`. In local dev this returns `{ edge: null }` (no Vercel header) — that's expected, not a bug.
-- Rate-limiting (`lib/rate-limit.ts`) uses SHA-256 hashed IPs with fixed-window counters. Backend: Upstash Redis when `UPSTASH_REDIS_REST_URL`/`TOKEN` are set (shared across instances); otherwise an in-process Map (single-instance dev). Fails open on backend errors. In local dev without `x-forwarded-for`, the check is skipped (returns `true`). To test rate-limiting locally, pass `X-Forwarded-For` header in your curl request. Three scopes: measurements (one per IP+cafe per 10min), café creation (one per IP per hour), and bounty creation (five per IP per hour).
+- Rate-limiting (`lib/rate-limit.ts`) uses SHA-256 hashed IPs with fixed-window counters. Backend: Upstash Redis when `UPSTASH_REDIS_REST_URL`/`TOKEN` are set (shared across instances); otherwise an in-process Map (single-instance dev). Fails open on backend errors. In local dev without `x-forwarded-for`, the check is skipped (returns `true`). To test rate-limiting locally, pass `X-Forwarded-For` header in your curl request. Five scopes: measurements (one per IP+cafe per 10min), café creation (one per IP per hour), and bounty/event/community submissions (five per IP per hour each).
 
 ## Open contribution platform (v9)
 
@@ -31,6 +33,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **City-aware bounties**: `getBounties(city?)` in `lib/bounties.ts` filters bounties by city. Each fallback bounty carries a `city` field. The `BountiesBoard` component accepts an optional `city` prop.
 - **Demo prefill is hidden**: The contribution form's "Try with sample data" button only appears when `?debug=1` is in the URL. Real users see "You're the first to map this area" as the empty-state CTA.
 
+## Community board (events + communities)
+
+- `lib/events.ts` owns both `CommunityEvent` and `Community`: validation, the process-local overlay, and the moderation gate. Everything open-submitted lands `approved: false` — the Base44 RLS read rule hides unapproved rows and `filterApprovedEvents`/`filterApprovedCommunities` re-check on read. Mock lists deliberately carry one unapproved entry each to prove the gate.
+- `POST /api/events` and `POST /api/communities` accept open submissions; both carry `submitted_by` contributor attribution so `GET ?contributor=` returns the caller's own pending queue (overlay only — never leaks across contributors). `action: "approve"` in the body is a demo-only stand-in for the moderator and 403s when Base44 is configured.
+- `components/events-board.tsx` renders approved events + communities per city; `event-submit-*` and `community-submit-*` are the sheet+launcher pairs, and their launchers call `router.refresh()` on submit.
+
 ## Base44 backend (v10)
 
 Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + Deno functions + AI agent + automations). The Next.js frontend on Vercel talks to Base44 via the SDK. There is no Postgres.
@@ -40,7 +48,7 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 | File | Role |
 |---|---|
 | `lib/base44.ts` | SDK client singleton + `base44Configured` gate |
-| `lib/base44-data.ts` | Data-access layer: `b44ListCafes`, `b44GetCafeById`, `b44InsertMeasurement`, `b44CreateCafe` |
+| `lib/base44-data.ts` | Data-access layer: `b44ListCafes`, `b44GetCafeById`, `b44InsertMeasurement`, `b44CreateCafe`, `b44ListEvents`/`b44InsertEvent`, `b44ListCommunities`/`b44InsertCommunity` |
 | `lib/base44-auth.ts` | Auth wrapper (Base44 `auth.me()`, password login, logout) |
 | `lib/bounties.ts` | Bounty logic: reads Base44 entity, persists sponsor-created bounties to Base44, falls back to in-memory |
 | `lib/bounty-types.ts` | Client-safe types + helpers (no server-only imports — safe for browser bundle) |
@@ -57,7 +65,7 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 | `lib/haptics.ts` | Guarded `navigator.vibrate` no-op wrapper for pay-off moments |
 | `hooks/use-bounty-match.ts` | Client fetch that finds the open bounty a contribution is pushing forward (shared by celebration + measurement success) |
 | `hooks/use-live-doc-title.ts` | Temporarily replaces the tab title (live speed-test readout) and restores it on exit |
-| `base44/entities/` | Entity schemas: Cafe, Measurement, Sponsorship, Bounty, ContributorProfile |
+| `base44/entities/` | Entity schemas: Cafe, Measurement, Sponsorship, Bounty, ContributorProfile, Event, Community |
 | `base44/functions/` | 7 Deno backend functions (service role) |
 | `base44/agents/workspace_concierge.jsonc` | AI agent config |
 | `base44/config.jsonc` | Project config (entitiesDir, functionsDir, agentsDir) |
@@ -68,7 +76,7 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 - **No Postgres, no `pg` dep, no `lib/db.ts`** — Aurora was fully retired. All former SQL paths are deleted (not flagged or proxied). The only durable backend is Base44.
 - **No Auth.js** — `auth.ts` and the `/api/auth/*` routes are deleted. Base44 auth is browser-side (`lib/base44-auth.ts`). Server routes run in anonymous-contributor mode.
 - **`@nimiq/core` is externalized** — `serverExternalPackages: ["@nimiq/core"]` in `next.config.ts` prevents Turbopack from bundling its WASM. It's lazy-imported inside `executeNimiqPayout()`.
-- **Rate-limiting is always active** — Redis-backed when Upstash is configured, in-memory otherwise. Covers measurements, café creation, and bounty creation. Fails open on backend errors.
+- **Rate-limiting is always active** — Redis-backed when Upstash is configured, in-memory otherwise. Covers measurements, café creation, and bounty/event/community submissions. Fails open on backend errors.
 - **Bounty state is durable** — `lib/bounty-state.ts` provides a lock + paid-set interface. When `UPSTASH_REDIS_REST_URL`/`TOKEN` are set, state survives serverless cold starts via Redis Lua CAS scripts. In-memory is the dev/test fallback.
 - **Contributor identity is accountless** — `lib/contributor.ts` mints a local id (`contrib-…`) that rides on every write as `contributor_user_id`, and promotes to a Nimiq address when connected in the mini-app (portable identity). No login. Referrals use first-touch `?via=` attribution captured client-side and echoed on writes (`referred_by`).
 - **Leaderboards, notifications, and standings are read-computed** — no cron/email. `/api/leaderboard`, `/api/notifications`, and `/me` derive their state on demand from Base44 Measurement attribution + the local trail; in mock mode they degrade to empty boards rather than crashing.

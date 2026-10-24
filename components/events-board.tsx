@@ -1,6 +1,7 @@
-import { getEvents } from "@/lib/events";
+import { getCommunities, getEvents } from "@/lib/events";
 import { formatEventStart } from "@/lib/event-time";
 import type { CafeStation } from "@/lib/types";
+import { CommunitySubmitLauncher } from "./community-submit-launcher";
 import { EventSubmitLauncher } from "./event-submit-launcher";
 
 export async function EventsBoard({
@@ -12,7 +13,10 @@ export async function EventsBoard({
   cityName: string;
   cafes: CafeStation[];
 }) {
-  const events = await getEvents({ city });
+  const [events, communities] = await Promise.all([
+    getEvents({ city }),
+    getCommunities({ city }),
+  ]);
   const nameFor = new Map(cafes.map((c) => [c.id, c.name]));
   const venues = cafes.map((c) => ({ id: c.id, name: c.name }));
 
@@ -74,8 +78,61 @@ export async function EventsBoard({
         </ul>
       )}
 
-      <div className="border-t border-ink/40 px-5 py-5">
+      {communities.length > 0 && (
+        <div className="border-t border-ink/40 px-5 py-5">
+          <p className="stamp mb-3">Communities keeping this board alive</p>
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {communities.map((c) => (
+              <li
+                key={c.id}
+                className="border border-ink/40 bg-cream px-4 py-3 shadow-[2px_2px_0_0_var(--color-ink)]"
+              >
+                <p className="font-display font-black uppercase text-base leading-tight text-ink">
+                  {c.name}
+                </p>
+                {c.focus && (
+                  <p className="font-serif italic text-ink-soft text-sm mt-0.5">
+                    {c.focus}
+                  </p>
+                )}
+                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft mt-1.5">
+                  {c.lead ? `lead · ${c.lead}` : "lead · open"}
+                  {c.websiteUrl && (
+                    <>
+                      {" · "}
+                      <a
+                        href={c.websiteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline decoration-ink/30 underline-offset-2 hover:text-ink transition-colors"
+                      >
+                        site ↗
+                      </a>
+                    </>
+                  )}
+                  {c.lumaUrl && (
+                    <>
+                      {" · "}
+                      <a
+                        href={c.lumaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline decoration-ink/30 underline-offset-2 hover:text-ink transition-colors"
+                      >
+                        luma ↗
+                      </a>
+                    </>
+                  )}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="border-t border-ink/40 px-5 py-5 flex flex-wrap items-center gap-3">
         <EventSubmitLauncher city={city} cityName={cityName} venues={venues} />
+        <CommunitySubmitLauncher city={city} cityName={cityName} />
       </div>
     </section>
   );

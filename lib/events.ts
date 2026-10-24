@@ -3,7 +3,13 @@
 // `filterApprovedEvents` enforces it again on the client-facing path.
 
 import { base44Configured } from "./base44";
-import { b44InsertEvent, b44ListCommunities, b44ListEvents } from "./base44-data";
+import {
+  b44InsertCommunity,
+  b44InsertEvent,
+  b44ListCommunities,
+  b44ListEvents,
+} from "./base44-data";
+import { log } from "./log";
 
 export interface CommunityEvent {
   id: string;
@@ -26,6 +32,7 @@ export interface Community {
   websiteUrl: string | null;
   lumaUrl: string | null;
   approved: boolean;
+  submittedBy?: string | null;
 }
 
 export function filterApprovedEvents(
@@ -132,14 +139,18 @@ export const MOCK_COMMUNITIES: Community[] = [
  * bundled mock list. Falls back to mock data if the Base44 call fails.
  */
 export async function getCommunities(opts: { city?: string } = {}): Promise<Community[]> {
+  const approvedLocal = localCommunities.filter((c) => c.approved);
   if (base44Configured) {
     try {
-      return filterApprovedCommunities(await b44ListCommunities(opts), opts);
+      return filterApprovedCommunities(
+        [...(await b44ListCommunities(opts)), ...approvedLocal],
+        opts,
+      );
     } catch {
       // Fall through to the mock snapshot.
     }
   }
-  return filterApprovedCommunities(MOCK_COMMUNITIES, opts);
+  return filterApprovedCommunities([...MOCK_COMMUNITIES, ...approvedLocal], opts);
 }
 
 /**
@@ -250,4 +261,97 @@ export function getPendingEvents(submittedBy: string | null): CommunityEvent[] {
 export function __resetLocalEventsForTests(): void {
   localEvents.length = 0;
   localCounter = 0;
+}
+
+// --- Communities: the groups that keep this board alive. ---------------------
+
+export interface CommunityInput {
+  name: string;
+  focus: string | null;
+  lead: string | null;
+  city: string;
+  websiteUrl: string | null;
+  lumaUrl: string | null;
+  submittedBy: string | null;
+}
+
+/** Server-side validation for a community submission. */
+export function validateCommunityInput(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return "body must be JSON";
+  const b = raw as Record<string, unknown>;
+  if (typeof b.name !== "string" || b.name.trim().length < 2)
+    return "name required (min 2 characters)";
+  if (b.name.trim().length > 60) return "name too long (max 60 characters)";
+  if (typeof b.city !== "string" || !b.city.trim()) return "city required";
+  if (b.city.trim().length > 40) return "city too long (max 40 characters)";
+  if (b.focus != null && typeof b.focus !== "string") return "focus must be a string";
+  if (typeof b.focus === "string" && b.focus.length > 120)
+    return "focus too long (max 120 characters)";
+  if (b.lead != null && typeof b.lead !== "string") return "lead must be a string";
+  if (typeof b.lead === "string" && b.lead.length > 40)
+    return "lead too long (max 40 characters)";
+  if (b.websiteUrl != null && typeof b.websiteUrl === "string" && b.websiteUrl) {
+    if (b.websiteUrl.length > 500) return "websiteUrl too long (max 500 characters)";
+    if (!/^https?:\/\//.test(b.websiteUrl)) return "websiteUrl must be an http(s) URL";
+  }
+  if (b.lumaUrl != null && typeof b.lumaUrl === "string" && b.lumaUrl) {
+    if (b.lumaUrl.length > 500) return "lumaUrl too long (max 500 characters)";
+    if (!/^https?:\/\//.test(b.lumaUrl)) return "lumaUrl must be an http(s) URL";
+  }
+  return null;
+}
+
+const localCommunities: Community[] = [];
+let localCommunityCounter = 0;
+
+export async function submitCommunity(input: CommunityInput): Promise<Community> {
+  const clean: Community = {
+    id: `com-${Date.now().toString(36)}-${(localCommunityCounter += 1)}`,
+    name: input.name.trim(),
+    focus: input.focus?.trim() || null,
+    lead: input.lead?.trim() || null,
+    city: input.city.trim().toLowerCase(),
+    websiteUrl: input.websiteUrl?.trim() || null,
+    lumaUrl: input.lumaUrl?.trim() || null,
+    approved: false,
+    submittedBy: input.submittedBy,
+  };
+
+  if (base44Configured) {
+    try {
+      const id = await b44InsertCommunity(clean);
+      return { ...clean, id };
+    } catch (err) {
+      // Fall through to the overlay — but say so. A registration that only
+      // exists in this process can never be approved by a moderator.
+      log.warn("community write fell back to local overlay", {
+        scope: "contribute.community",
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  localCommunities.push(clean);
+  return clean;
+}
+
+export function approveLocalCommunity(id: string): boolean {
+  const found = localCommunities.find((c) => c.id === id);
+  if (!found) return false;
+  found.approved = true;
+  return true;
+}
+
+/** The submitter's own pending queue (overlay only — Base44 read rules hide it). */
+export function getPendingCommunities(submittedBy: string | null): Community[] {
+  if (!submittedBy) return [];
+  return localCommunities
+    .filter((c) => !c.approved && c.submittedBy === submittedBy)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Reset the community overlay. Exported only for tests. */
+export function __resetLocalCommunitiesForTests(): void {
+  localCommunities.length = 0;
+  localCommunityCounter = 0;
 }
