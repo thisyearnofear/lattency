@@ -219,7 +219,9 @@ def api():
 
 @app.function(
     image=worker_image,
-    gpu="L4",
+    # T4 over L4: L4 capacity was constrained at deploy time and T4 is
+    # cheaper; gsplat on a few hundred keyframes doesn't need more.
+    gpu="T4",
     secrets=secrets,
     timeout=4 * 3600,
     max_containers=1,
