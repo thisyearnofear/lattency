@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const b44InsertVenueScan = vi.fn().mockResolvedValue("vs-1");
 const b44ListPublishedVenueScans = vi.fn().mockResolvedValue([]);
 const b44RequestVenueScanTakedown = vi.fn().mockResolvedValue(undefined);
+const b44GetCafeById = vi.fn().mockResolvedValue({ city: "london" });
 const checkRateLimit = vi.fn().mockResolvedValue(true);
 const cfg = { configured: true };
 
@@ -11,6 +12,7 @@ vi.mock("@/lib/base44-data", () => ({
   get base44Configured() {
     return cfg.configured;
   },
+  b44GetCafeById: (...a: unknown[]) => b44GetCafeById(...a),
   b44InsertVenueScan: (...a: unknown[]) => b44InsertVenueScan(...a),
   b44ListPublishedVenueScans: (...a: unknown[]) => b44ListPublishedVenueScans(...a),
   b44RequestVenueScanTakedown: (...a: unknown[]) => b44RequestVenueScanTakedown(...a),
@@ -48,12 +50,48 @@ describe("venue capture policy", () => {
     vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
     expect(venueCaptureEnabled()).toBe(true);
   });
+
+  it("gates cities — enabled+listed → true, unlisted/empty → false", async () => {
+    const { venueCaptureAllowedForCity } = await import(
+      "@/lib/venue-capture-policy"
+    );
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    vi.stubEnv("VENUE_CAPTURE_CITIES", "london");
+    expect(venueCaptureAllowedForCity("london")).toBe(true);
+    expect(venueCaptureAllowedForCity("London")).toBe(true);
+    expect(venueCaptureAllowedForCity("paris")).toBe(false);
+    expect(venueCaptureAllowedForCity(undefined)).toBe(false);
+
+    vi.stubEnv("VENUE_CAPTURE_CITIES", "");
+    expect(venueCaptureAllowedForCity("london")).toBe(false);
+
+    vi.stubEnv("VENUE_CAPTURE_CITIES", "london");
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "");
+    expect(venueCaptureAllowedForCity("london")).toBe(false);
+  });
+
+  it("gates the pilot crew — unset allows anyone, set allows members only", async () => {
+    const { venueCaptureCrewAllowed } = await import(
+      "@/lib/venue-capture-policy"
+    );
+    vi.stubEnv("VENUE_CAPTURE_CREW", "");
+    expect(venueCaptureCrewAllowed("contrib-anyone")).toBe(true);
+
+    vi.stubEnv("VENUE_CAPTURE_CREW", "contrib-crew-1, contrib-crew-2");
+    expect(venueCaptureCrewAllowed("contrib-crew-1")).toBe(true);
+    expect(venueCaptureCrewAllowed("contrib-abc")).toBe(false);
+  });
 });
 
 describe("POST /api/venue-scans", () => {
   beforeEach(() => {
     cfg.configured = true;
-    [b44InsertVenueScan, b44ListPublishedVenueScans].forEach((f) => f.mockClear());
+    [b44InsertVenueScan, b44ListPublishedVenueScans, b44GetCafeById].forEach((f) =>
+      f.mockClear(),
+    );
+    b44GetCafeById.mockResolvedValue({ city: "london" });
+    vi.stubEnv("VENUE_CAPTURE_CITIES", "london");
+    vi.stubEnv("VENUE_CAPTURE_CREW", "");
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -147,12 +185,75 @@ describe("POST /api/venue-scans", () => {
     expect(res.status).toBe(503);
     expect(b44InsertVenueScan).not.toHaveBeenCalled();
   });
+
+  it("403s a venue outside the pilot cities — the record's city rules", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    b44GetCafeById.mockResolvedValue({ city: "paris" });
+    const { POST } = await import("@/app/api/venue-scans/route");
+    const res = await POST(post("http://x/api/venue-scans", VALID_SCAN));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe(
+      "Capture pilot is London-only for now",
+    );
+    expect(b44InsertVenueScan).not.toHaveBeenCalled();
+  });
+
+  it("never trusts the client city hint — spoofed london still 403s for paris", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    b44GetCafeById.mockResolvedValue({ city: "paris" });
+    const { POST } = await import("@/app/api/venue-scans/route");
+    const res = await POST(
+      post("http://x/api/venue-scans", { ...VALID_SCAN, city: "london" }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/city hint/i);
+    expect(b44InsertVenueScan).not.toHaveBeenCalled();
+  });
+
+  it("403s every venue when the pilot city list is empty", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    vi.stubEnv("VENUE_CAPTURE_CITIES", "");
+    const { POST } = await import("@/app/api/venue-scans/route");
+    const res = await POST(post("http://x/api/venue-scans", VALID_SCAN));
+    expect(res.status).toBe(403);
+    expect(b44InsertVenueScan).not.toHaveBeenCalled();
+  });
+
+  it("403s non-crew contributors when VENUE_CAPTURE_CREW is set", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    vi.stubEnv("VENUE_CAPTURE_CREW", "contrib-crew-1,contrib-crew-2");
+    const { POST } = await import("@/app/api/venue-scans/route");
+    const res = await POST(post("http://x/api/venue-scans", VALID_SCAN));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("Pilot crew only");
+    expect(b44GetCafeById).not.toHaveBeenCalled();
+    expect(b44InsertVenueScan).not.toHaveBeenCalled();
+  });
+
+  it("creates for a crew member when VENUE_CAPTURE_CREW lists them", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    vi.stubEnv("VENUE_CAPTURE_CREW", "contrib-abc");
+    const { POST } = await import("@/app/api/venue-scans/route");
+    const res = await POST(post("http://x/api/venue-scans", VALID_SCAN));
+    expect(res.status).toBe(201);
+    expect(b44InsertVenueScan).toHaveBeenCalledTimes(1);
+  });
+
+  it("404s when the venue record can't be resolved", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    b44GetCafeById.mockResolvedValue(null);
+    const { POST } = await import("@/app/api/venue-scans/route");
+    const res = await POST(post("http://x/api/venue-scans", VALID_SCAN));
+    expect(res.status).toBe(404);
+    expect(b44InsertVenueScan).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/venue-scans", () => {
   beforeEach(() => {
     cfg.configured = true;
     b44ListPublishedVenueScans.mockClear();
+    b44GetCafeById.mockClear();
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -186,6 +287,19 @@ describe("GET /api/venue-scans", () => {
     const res = await GET(new NextRequest("http://x/api/venue-scans"));
     expect(res.status).toBe(400);
     expect(b44ListPublishedVenueScans).not.toHaveBeenCalled();
+  });
+
+  it("serves published scans regardless of the pilot city list", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    vi.stubEnv("VENUE_CAPTURE_CITIES", "paris");
+    b44ListPublishedVenueScans.mockResolvedValueOnce([
+      { id: "vs-9", venueId: "c1", splatUrl: null, status: "published", created: "t" },
+    ]);
+    const { GET } = await import("@/app/api/venue-scans/route");
+    const res = await GET(new NextRequest("http://x/api/venue-scans?venue_id=c1"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).scans).toHaveLength(1);
+    expect(b44GetCafeById).not.toHaveBeenCalled();
   });
 });
 

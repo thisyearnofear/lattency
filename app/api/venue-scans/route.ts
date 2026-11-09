@@ -1,7 +1,15 @@
 import { NextRequest } from "next/server";
-import { venueCaptureEnabled, VENUE_CAPTURE_PAUSED } from "@/lib/venue-capture-policy";
+import {
+  venueCaptureAllowedForCity,
+  venueCaptureCrewAllowed,
+  venueCaptureEnabled,
+  VENUE_CAPTURE_CREW_DENIED,
+  VENUE_CAPTURE_JURISDICTION_DENIED,
+  VENUE_CAPTURE_PAUSED,
+} from "@/lib/venue-capture-policy";
 import {
   base44Configured,
+  b44GetCafeById,
   b44InsertVenueScan,
   b44ListPublishedVenueScans,
 } from "@/lib/base44-data";
@@ -110,10 +118,51 @@ export async function POST(req: NextRequest) {
       ? attestedAt
       : new Date().toISOString();
 
+  // Pilot-crew gate — when VENUE_CAPTURE_CREW is set, only listed
+  // contributor ids may create scans. Unset = open while the flag is on.
+  if (!venueCaptureCrewAllowed(contributorId)) {
+    return Response.json(
+      { error: VENUE_CAPTURE_CREW_DENIED },
+      { status: 403 },
+    );
+  }
+
   if (!base44Configured) {
     return Response.json(
       { error: "venue capture backend unavailable" },
       { status: 503, headers: NO_STORE },
+    );
+  }
+
+  // Launch-jurisdiction gate — the venue's city is resolved from the record
+  // server-side; a `city` hint in the body may corroborate, never override.
+  const cityHint =
+    typeof body.city === "string" && body.city.trim() ? body.city : null;
+  let city: string | undefined;
+  try {
+    const venue = await b44GetCafeById(venueId);
+    if (!venue) {
+      return Response.json({ error: "venue not found" }, { status: 404 });
+    }
+    city = venue.city;
+  } catch (err) {
+    log.error("venue-scan city lookup failed", {
+      reqId,
+      scope: "venueScans.jurisdiction",
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return Response.json(
+      { error: "couldn't verify the venue — please try again" },
+      { status: 503, headers: NO_STORE },
+    );
+  }
+  if (cityHint && cityHint.trim().toLowerCase() !== city.trim().toLowerCase()) {
+    return badRequest("city hint doesn't match the venue record");
+  }
+  if (!venueCaptureAllowedForCity(city)) {
+    return Response.json(
+      { error: VENUE_CAPTURE_JURISDICTION_DENIED },
+      { status: 403 },
     );
   }
 

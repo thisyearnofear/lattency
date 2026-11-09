@@ -4,7 +4,7 @@ import { venueCaptureEnabled } from "@/lib/venue-capture-policy";
 import { getCafeBySlug } from "@/lib/cafes";
 import { CITIES, cityDisplayName } from "@/lib/cities";
 import { TopNav } from "@/components/top-nav";
-import { CaptureConsentForm } from "@/components/capture-consent-form";
+import { CaptureRun } from "@/components/capture-consent-form";
 
 export const metadata: Metadata = {
   title: "Capture this venue · Lattency",
@@ -14,11 +14,12 @@ export const metadata: Metadata = {
 // decision into a static render.
 export const dynamic = "force-dynamic";
 
-// /capture/[slug] — the consent-first entry point for venue 3D capture.
-// A stub by design: it explains the guided walkthrough and collects the
-// consent attestations, but the upload itself doesn't exist yet — the
-// pipeline (storage → blur verification → gsplat/COLMAP → SPZ) is Phase 1
-// infra, and the page says so plainly rather than pretending otherwise.
+// /capture/[slug] — the consent-first capture run for venue 3D capture.
+// A stub by design: it briefs the contributor, collects the consent
+// attestations, and arms the run with the patron notice — but the upload
+// itself doesn't exist yet. The pipeline (storage → blur verification →
+// gsplat/COLMAP → SPZ) is Phase 1 infra, and the flow says so plainly
+// rather than pretending otherwise.
 export default async function CapturePage({
   params,
 }: {
@@ -51,7 +52,7 @@ export default async function CapturePage({
         }
       />
       <main className="mx-auto max-w-[680px] px-6 pt-10 pb-24">
-        <p className="stamp mb-3">Venue capture</p>
+        <p className="stamp mb-3">Capture run · target station</p>
         <h1 className="font-display font-black uppercase leading-[0.92] tracking-[-0.02em] text-4xl md:text-5xl text-ink">
           {venueName}
         </h1>
@@ -68,16 +69,7 @@ export default async function CapturePage({
             already lives here. Consent comes first, always.
           </p>
 
-          <div className="border border-ink/15 bg-cream-edge/40 p-5">
-            <p className="stamp mb-3">The walkthrough</p>
-            <ul className="space-y-2 font-serif text-[14px] leading-snug text-ink">
-              <li>· Film a slow, single lap of the space — about 60 seconds.</li>
-              <li>· Keep faces out of frame; every scan is blurred before publication regardless.</li>
-              <li>· The venue reviews the result and can veto it at any time.</li>
-            </ul>
-          </div>
-
-          <CaptureConsentForm />
+          <CaptureRun venueName={venueName} />
 
           <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint">
             Pipeline status: consent checkpoint live · upload opens once the

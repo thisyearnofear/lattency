@@ -22,6 +22,7 @@ import { DataSourceNote } from "./data-source-note";
 import { peakBucket } from "@/lib/time-of-day";
 import { resolveCafePhoto } from "@/lib/cafe-photos";
 import { slugify } from "@/lib/slug";
+import { venueCaptureUiCityAllowed } from "@/lib/venue-capture-policy";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -232,7 +233,7 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
                 Tier wrong? log a reading ↓
               </a>
             </div>
-            {CAPTURE_UI_ENABLED && (
+            {CAPTURE_UI_ENABLED && venueCaptureUiCityAllowed(cafe.city) && (
               <VTLink
                 href={`/capture/${slugify(cafe.name)}`}
                 className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint hover:text-ink transition-colors"

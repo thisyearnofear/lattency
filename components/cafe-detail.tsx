@@ -11,6 +11,7 @@ import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
 import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
 import { VenueTourStamp } from "./venue-tour-stamp";
+import { venueCaptureUiCityAllowed } from "@/lib/venue-capture-policy";
 import { AiVenueSummary } from "./ai-venue-summary";
 import { DataSourceNote } from "./data-source-note";
 import { TickNumber } from "./tick-number";
@@ -417,7 +418,9 @@ export function CafeDetail({
                 Tier wrong? log a reading ↓
               </a>
             </div>
-            <VenueTourStamp venueId={d.id} />
+            {venueCaptureUiCityAllowed(d.city) && (
+              <VenueTourStamp venueId={d.id} />
+            )}
 
             <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-ink/15">
               <Stat label="Down" value={Math.round(d.medianDownMbps)} unit="Mbps" />
