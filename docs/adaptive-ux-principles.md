@@ -74,14 +74,15 @@ Mechanics of the ask layer, kept deliberately boring:
 1. ✅ `lib/venue-needs.ts` — pure need derivation + tests (no UI yet). **Shipped.**
 2. ✅ Ask cards on the venue drawer/detail — needs-driven, one rung each. **Shipped** (`components/venue-ask-card.tsx`); receipts on completion still pending.
 3. ✅ Standalone fact + photo contribution endpoints (reuse photo pipeline from café creation; consent line for "no identifiable people"). **Shipped** — `POST /api/venues/[id]/facts` + `POST /api/venues/[id]/photos` → `venue-fact` / `venue-photo` gateway actions; ask-card CTAs open `components/venue-fact-sheet.tsx` / `components/venue-photo-sheet.tsx`.
-4. Session-context ask ranking (proximity when located; dismissal decay in localStorage). *Partially shipped* — dismissals decay (7-day TTL); proximity ranking still pending.
-5. Depth-gated ask escalation (unlock rungs by prior contributions).
+4. ✅ Session-context ask ranking (proximity when located; dismissal decay in localStorage). **Shipped** — `rankNeedsByProximity` + `components/nearby-ask-strip.tsx` (chips open the map drawer); dismissals decay (7-day TTL) and gate which need each chip surfaces.
+5. Depth-gated ask escalation (unlock rungs by prior contributions). *Pending.*
 
 ## Ask surfaces (shipped)
 
 - `components/venue-ask-card.tsx` renders **one** card — the next most-scarce un-answered need from `nextAsk()` — on `CafeDetail` (map + directory drawer) and `CafePage` (`/cafes/[slug]`), placed below the DataSourceNote/provenance line, never above the tier headline.
 - Dismissal: `lattency:ask-dismissed:{cafeId}:{need}` in localStorage, 7-day TTL (`lib/ask-dismissals.ts`). Expired dismissals resurface the ask; nothing is permanently hidden.
 - CTAs route to the existing contribution affordance — the drawer's `contribute` tab when mounted, else the `#contribute` section. The scan ask links to `/capture/{slug}` and only renders when `NEXT_PUBLIC_VENUE_CAPTURE_ENABLED=1`, `venueCaptureUiCityAllowed(city)`, and `/api/venue-scans` confirms no published scan (fetched lazily, only when scan is the surfaced need).
+- `components/nearby-ask-strip.tsx` is the session-level surface — a slim "THE LINE NEEDS" strip below the map chrome on the city page, visible only after the user grants location via "Find me" (it never prompts itself). Up to 3 chips — `{venue} · {distance} · {time cost} · {need verb}` from `rankNeedsByProximity` (≤1.5km, nearest first, scarcity ties, capped at 5 lib-side) — each opening the venue's map drawer where the matching ask card waits. Scan asks never surface here: the strip can't confirm scan state, so rung 7 stays on the venue surfaces that verify first. Dismissed needs fall through to the venue's next gap rather than hiding it.
 - Needs order (scarcity): photo → freshness (>14d) → upload (readings but no up-leg) → facts (<2 confirmed) → scan.
 
 ## Success signals

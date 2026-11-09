@@ -34,6 +34,7 @@ import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
 import { haversineKm } from "@/lib/geo";
 import { CafeDetail } from "./cafe-detail";
 import { NameLabel } from "./name-label";
+import { NearbyAskStrip } from "./nearby-ask-strip";
 import { CafeContributionForm } from "./cafe-contribution-form";
 import { useMapToast } from "./map-toast";
 import { LiveNetworkBadge } from "./live-network-badge";
@@ -512,6 +513,13 @@ export function MapShell({
   const [focus, setFocus] = useState<{ lat: number; lng: number; label: string } | null>(hoodFocus);
   const [locStatus, setLocStatus] = useState<LocateStatus>("idle");
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  // The granted position, kept separately from `focus` — demo quick-picks
+  // move the map focus too, but only a real geolocation grant feeds the
+  // nearby-needs strip (asks filter by capability actually granted).
+  const [userCoords, setUserCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   // URL-as-state: a `?tier=` deep link pre-filters the map to a single line.
   const [activeTiers, setActiveTiers] = useState<Set<Tier>>(() => {
     const t = searchParams.get("tier");
@@ -746,6 +754,7 @@ export function MapShell({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserCoords(here);
         const d = haversineKm(here, cityConfig.centre);
         setDistanceKm(d);
         if (d > NEAR_CITY_KM) {
@@ -1149,6 +1158,20 @@ export function MapShell({
         {view === "schematic" ? "tap any station →" : "tap any pin →"}
       </p>
       </div>
+
+      {/* Session ask surface — sits in flow below the map chrome so it
+          never overlaps the controls. Only renders once the user has
+          granted their position via "Find me"; chips open the same
+          drawer the station markers do. */}
+      <NearbyAskStrip
+        cafes={allCafes}
+        user={userCoords}
+        onSelect={(cafe) => {
+          setSelected(cafe);
+          dismissHero(true);
+          open("map-cafe");
+        }}
+      />
 
       <CafeDetail
         station={active === "map-cafe" ? selected : null}

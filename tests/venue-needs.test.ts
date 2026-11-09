@@ -5,7 +5,10 @@ import {
   askFor,
   nextAsk,
   staleDays,
+  rankNeedsByProximity,
   VENUE_STALE_AFTER_MS,
+  NEARBY_NEED_RADIUS_KM,
+  NEARBY_NEED_CAP,
   type VenueNeed,
 } from "@/lib/venue-needs";
 import {
@@ -220,6 +223,151 @@ describe("askFor", () => {
   it("staleDays sharpens the freshness gap", () => {
     expect(askFor("freshness", { staleDays: 30 }).gap).toContain("30");
     expect(askFor("freshness").gap).not.toMatch(/\d+ days/);
+  });
+});
+
+describe("rankNeedsByProximity", () => {
+  // User planted on the fixture's home coordinates (51.53, -0.08).
+  const USER = { lat: 51.53, lng: -0.08 };
+  // ~0.005° of latitude ≈ 0.6km — well inside the 1.5km reach.
+  const NEAR = { lat: 51.535, lng: -0.08 };
+  // ~0.03° of latitude ≈ 3.3km — outside it.
+  const FAR = { lat: 51.56, lng: -0.08 };
+
+  it("ranks nearer asks first, whatever their scarcity", () => {
+    const near = station({
+      id: "near",
+      ...NEAR,
+      // Only a facts gap — low scarcity, but closest.
+      metadata: { priceTier: "mid" },
+    });
+    const far = station({
+      id: "far",
+      lat: USER.lat,
+      lng: USER.lng - 0.018, // ~1.2km west, still inside the radius
+      latestPhotoUrl: null,
+      photoUrl: null, // photo — high scarcity, but farther
+    });
+    const rows = rankNeedsByProximity([far, near], USER.lat, USER.lng, NOW);
+    expect(rows.map((r) => r.cafe.id)).toEqual(["near", "far"]);
+    expect(rows[0].need).toBe("facts");
+    expect(rows[1].need).toBe("photo");
+    expect(rows[0].distanceKm).toBeLessThan(rows[1].distanceKm);
+  });
+
+  it("breaks distance ties toward the scarcer need", () => {
+    const faceless = station({
+      id: "faceless",
+      latestPhotoUrl: null,
+      photoUrl: null,
+    });
+    const detailless = station({
+      id: "detailless",
+      metadata: { priceTier: "mid" }, // facts only
+    });
+    const rows = rankNeedsByProximity(
+      [detailless, faceless],
+      USER.lat,
+      USER.lng,
+      NOW,
+    );
+    // Same coordinates → same distance → scarcity decides.
+    expect(rows.map((r) => r.cafe.id)).toEqual(["faceless", "detailless"]);
+    expect(rows[0].need).toBe("photo");
+    expect(rows[1].need).toBe("facts");
+  });
+
+  it("drops stations beyond the nearby radius", () => {
+    const inside = station({ id: "in", ...NEAR, metadata: { priceTier: "mid" } });
+    const outside = station({ id: "out", ...FAR, latestPhotoUrl: null });
+    const rows = rankNeedsByProximity(
+      [inside, outside],
+      USER.lat,
+      USER.lng,
+      NOW,
+    );
+    expect(rows.map((r) => r.cafe.id)).toEqual(["in"]);
+    expect(
+      rows.every((r) => r.distanceKm <= NEARBY_NEED_RADIUS_KM),
+    ).toBe(true);
+  });
+
+  it("caps the ranking", () => {
+    const stations = Array.from({ length: NEARBY_NEED_CAP + 2 }, (_, i) =>
+      station({ id: `s-${i}`, metadata: { priceTier: "mid" } }),
+    );
+    expect(
+      rankNeedsByProximity(stations, USER.lat, USER.lng, NOW),
+    ).toHaveLength(NEARBY_NEED_CAP);
+  });
+
+  it("returns empty for an unusable location — never a prompt", () => {
+    const needy = station({ latestPhotoUrl: null, photoUrl: null });
+    expect(
+      rankNeedsByProximity([needy], Number.NaN, USER.lng, NOW),
+    ).toEqual([]);
+    expect(rankNeedsByProximity([needy], 95, USER.lng, NOW)).toEqual([]);
+    expect(rankNeedsByProximity([needy], USER.lat, 200, NOW)).toEqual([]);
+  });
+
+  it("skips needs already settled, falling through to the venue's next gap", () => {
+    const staleAndFaceless = station({
+      id: "both",
+      latestPhotoUrl: null,
+      photoUrl: null,
+      lastReadingAt: new Date(NOW - 30 * DAY).toISOString(),
+    });
+    const dismissed = new Map<string, Set<VenueNeed>>([
+      ["both", new Set<VenueNeed>(["photo"])],
+    ]);
+    const rows = rankNeedsByProximity(
+      [staleAndFaceless],
+      USER.lat,
+      USER.lng,
+      NOW,
+      dismissed,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].need).toBe("freshness");
+  });
+
+  it("excludes a venue whose every need is settled", () => {
+    const needy = station({ latestPhotoUrl: null, photoUrl: null });
+    const dismissed = new Map<string, Set<VenueNeed>>([
+      [
+        needy.id,
+        new Set<VenueNeed>(["photo", "freshness", "upload", "facts", "scan"]),
+      ],
+    ]);
+    expect(
+      rankNeedsByProximity([needy], USER.lat, USER.lng, NOW, dismissed),
+    ).toEqual([]);
+  });
+
+  it("a malformed lastReadingAt still yields a freshness ask nearby", () => {
+    const corrupt = station({ lastReadingAt: "not-a-date" });
+    const rows = rankNeedsByProximity([corrupt], USER.lat, USER.lng, NOW);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].need).toBe("freshness");
+    // Unparseable → no day count to sharpen the gap with.
+    expect(rows[0].ask.gap).not.toMatch(/\d+ days/);
+  });
+
+  it("a missing lastReadingAt also yields a freshness ask nearby", () => {
+    const rows = rankNeedsByProximity(
+      [station({ lastReadingAt: undefined })],
+      USER.lat,
+      USER.lng,
+      NOW,
+    );
+    expect(rows[0]?.need).toBe("freshness");
+  });
+
+  it("never surfaces a scan ask — the strip can't confirm scan state", () => {
+    // A rich station whose only gap would be the spatial record.
+    expect(rankNeedsByProximity([station()], USER.lat, USER.lng, NOW)).toEqual(
+      [],
+    );
   });
 });
 

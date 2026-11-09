@@ -4,6 +4,7 @@
 // this; dismissal persistence lives in lib/ask-dismissals.ts.
 
 import type { CafeStation } from "./types";
+import { haversineKm, isValidCoordinates } from "./geo";
 
 // Ordered by scarcity weight — the gap the map feels most goes first: a
 // faceless station outranks a stale one, staleness outranks a missing
@@ -174,4 +175,59 @@ export function nextAsk(
         : undefined,
     ),
   };
+}
+
+// ── Session-context ranking ─────────────────────────────────────────────
+// The "what the map needs from you right now" primitive (step 4 of the
+// implementation order). Given a granted location, rank nearby stations'
+// open asks by distance first — the closest gap is the most doable — then
+// scarcity weight, so an equidistant faceless station outranks a stale one.
+
+/** How far the session ask surface reaches. ~1.5km is a short walk —
+ *  the asks it surfaces are things you could literally do next. */
+export const NEARBY_NEED_RADIUS_KM = 1.5;
+
+/** Max asks the session surface carries. The venue drawer asks one thing;
+ *  the strip asks a few — never a stack. */
+export const NEARBY_NEED_CAP = 5;
+
+export interface NearbyNeed {
+  cafe: CafeStation;
+  need: VenueNeed;
+  ask: VenueAsk;
+  distanceKm: number;
+}
+
+/** Stations within NEARBY_NEED_RADIUS_KM that carry an open ask, nearest
+ *  first (ties break toward the scarcer need). `answeredNeeds` maps
+ *  cafeId → needs already settled this session (dismissed or contributed)
+ *  so a dismissed top-need falls through to the venue's next gap rather
+ *  than hiding the venue outright. Scan asks never surface here — the
+ *  session strip can't confirm scan state cheaply, so it treats scan as
+ *  satisfied and leaves rung 7 to the venue surfaces that verify first.
+ *  An unusable location yields an empty ranking, never a prompt. */
+export function rankNeedsByProximity(
+  stations: CafeStation[],
+  userLat: number,
+  userLng: number,
+  now: number = Date.now(),
+  answeredNeeds?: Map<string, Set<VenueNeed>>,
+): NearbyNeed[] {
+  if (!isValidCoordinates(userLat, userLng)) return [];
+  const user = { lat: userLat, lng: userLng };
+  const rows: NearbyNeed[] = [];
+  for (const cafe of stations) {
+    const distanceKm = haversineKm(user, cafe);
+    if (distanceKm > NEARBY_NEED_RADIUS_KM) continue;
+    const next = nextAsk(cafe, answeredNeeds?.get(cafe.id), true, now);
+    if (!next) continue;
+    rows.push({ cafe, need: next.need, ask: next.ask, distanceKm });
+  }
+  return rows
+    .sort(
+      (a, b) =>
+        a.distanceKm - b.distanceKm ||
+        VENUE_NEED_ORDER.indexOf(a.need) - VENUE_NEED_ORDER.indexOf(b.need),
+    )
+    .slice(0, NEARBY_NEED_CAP);
 }
