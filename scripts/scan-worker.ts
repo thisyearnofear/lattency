@@ -38,6 +38,14 @@
 // Then point the app at it: SCAN_WORKER_URL=http://<host>:8787/run
 
 import { execFile } from "node:child_process";
+
+// Same convention as scripts/verify-testnet-funding.ts — `pnpm scan-worker`
+// picks up .env.local without the operator exporting vars by hand.
+try {
+  process.loadEnvFile(".env.local");
+} catch {
+  // Optional — a hosted worker gets env from its platform instead.
+}
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
