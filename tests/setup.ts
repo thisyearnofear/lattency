@@ -18,3 +18,10 @@
 // `tests/bounty-state-wiring.test.ts` remains the model for env-driven tests:
 // it stubs exactly the variables it needs via `vi.stubEnv`.
 delete process.env.NEXT_PUBLIC_BASE44_APP_ID;
+// Same hermeticity rule for the sponsor escrow address: .env.local sets it on
+// a configured dev machine, which would silently flip the sponsor dashboard
+// between its funded and "not configured" render depending on the checkout.
+delete process.env.NEXT_PUBLIC_NIMIQ_ESCROW_ADDRESS;
+
+import { vi } from "vitest";
+vi.mock("server-only", () => ({}));

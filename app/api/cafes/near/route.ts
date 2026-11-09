@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCafes } from "@/lib/cafes";
+import { CAFE_DATA_UNAVAILABLE } from "@/lib/cafe-data-status";
 
 // GET /api/cafes/near?lat=<>&lng=<>&radius=<metres>
 // Without lat/lng — returns the whole network (treated as "near everything").
@@ -40,10 +41,24 @@ export async function GET(req: NextRequest) {
         { status: 400 },
       );
     }
-    const cafes = await getCafes({ lat, lng, radiusM: radius, city });
-    return Response.json({ cafes });
+    try {
+      const cafes = await getCafes({ lat, lng, radiusM: radius, city });
+      return Response.json({ cafes });
+    } catch {
+      return Response.json(
+        { error: CAFE_DATA_UNAVAILABLE },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
   }
 
-  const cafes = await getCafes({ city });
-  return Response.json({ cafes });
+  try {
+    const cafes = await getCafes({ city });
+    return Response.json({ cafes });
+  } catch {
+    return Response.json(
+      { error: CAFE_DATA_UNAVAILABLE },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 }

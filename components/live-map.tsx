@@ -28,6 +28,7 @@ interface LastReading {
 
 export function LiveMap({ initialCafes, city, cityConfig, hero }: LiveMapProps) {
   const [cafes, setCafes] = useState<CafeStation[]>(initialCafes);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const [flash, setFlash] = useState(false);
   const [lastReading, setLastReading] = useState<LastReading | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,16 +40,26 @@ export function LiveMap({ initialCafes, city, cityConfig, hero }: LiveMapProps) 
       const res = await fetch(`/api/cafes/near?${params.toString()}`, {
         cache: "no-store",
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setRefreshFailed(true);
+        return;
+      }
       const data = (await res.json()) as { cafes: CafeStation[] };
-      if (data.cafes?.length) setCafes(data.cafes);
+      if (Array.isArray(data.cafes)) {
+        setCafes(data.cafes);
+        setRefreshFailed(false);
+      } else {
+        setRefreshFailed(true);
+      }
     } catch {
       // Keep the last good snapshot on transient errors.
+      setRefreshFailed(true);
     }
   }, [city]);
 
   const live = useRealtimeMeasurements((reading) => {
     void refetch();
+    if (!reading) return;
     // Resolve the venue name from the current snapshot for the flash.
     const cafe = cafes.find((c) => c.id === reading.cafe_id);
     setLastReading({
@@ -65,6 +76,15 @@ export function LiveMap({ initialCafes, city, cityConfig, hero }: LiveMapProps) 
       {/* The realtime flash ticket now lives inside MapShell's bottom control
           rail (it replaces the resting live badge while a reading lands), so
           this wrapper no longer paints its own fixed ticket over the corner. */}
+      {refreshFailed && (
+        <p
+          role="status"
+          className="border-b border-local/40 bg-local/5 px-4 py-1.5 text-center font-mono text-xs text-ink"
+        >
+          Could not refresh. Showing the last loaded observations; timestamps
+          have not been updated.
+        </p>
+      )}
       <MapShell
         cafes={cafes}
         city={city}

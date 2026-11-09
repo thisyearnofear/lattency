@@ -11,7 +11,7 @@ export const LOOP_STEPS = [
     n: "02",
     verb: "Read",
     caption:
-      "Its verified readings open — median, jitter, sample size. Nothing claimed, everything measured.",
+      "Its reported readings open — median, variation, sample size. Nothing claimed, everything measured.",
   },
   {
     n: "03",
@@ -27,9 +27,9 @@ export const LOOP_STEPS = [
   },
   {
     n: "05",
-    verb: "Earn",
+    verb: "Close",
     caption:
-      "Verified readings close bounties. NIM lands in your Nimiq Pay wallet.",
+      "Reported readings close bounty targets (payouts paused).",
   },
 ] as const;
 

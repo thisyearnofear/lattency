@@ -3,7 +3,8 @@
 // created in this process via the mock-mode write overlay. The map never
 // white-screens: every function returns a value on every path.
 
-import { MOCK_CAFES } from "./mock-cafes";
+import { MOCK_CAFES, DEMO_REFERENCE_TIME } from "./mock-cafes";
+import { CafeDataUnavailableError } from "./cafe-data-status";
 import { haversineKm } from "./geo";
 import { DEFAULT_CITY_ID } from "./cities";
 import {
@@ -22,7 +23,7 @@ import type { CafeDetail, CafeStation, TimeBucket } from "./types";
 
 function warnFallback(scope: string, err: unknown): void {
   const reason = err instanceof Error ? err.message : String(err);
-  log.warn("serving bundled snapshot (Base44 unavailable)", {
+  log.warn("Base44 unavailable; refusing demo fallback", {
     scope: `cafes.${scope}`,
     reason,
   });
@@ -64,9 +65,10 @@ export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[
         lng,
         radiusM,
       });
-      if (cafes.length > 0) return cafes;
+      return cafes.map((c) => ({ ...c, dataSource: "community" as const }));
     } catch (err) {
       warnFallback("getCafes.base44", err);
+      throw new CafeDataUnavailableError();
     }
   }
 
@@ -82,16 +84,23 @@ export async function getCafes(opts: GetCafesOptions = {}): Promise<CafeStation[
         c.id.startsWith("local-") ? c : { ...c, vibeTags: VIBE_TAGS_BY_NAME.get(c.name) ?? [] },
       );
 
+  const tagged = merged.map((c) => ({
+    ...c,
+    dataSource: (c.id.startsWith("local-") ? "local" : "demo") as
+      | "local"
+      | "demo",
+  }));
+
   if (lat !== undefined && lng !== undefined && radiusM !== undefined) {
     const origin = { lat, lng };
     const radiusKm = radiusM / 1000;
-    return merged
+    return tagged
       .map((c) => ({ c, d: haversineKm(origin, c) }))
       .filter(({ d }) => d <= radiusKm)
       .sort((a, b) => a.d - b.d)
       .map(({ c }) => c);
   }
-  return merged.sort((a, b) => a.name.localeCompare(b.name));
+  return tagged.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Deterministic 32-bit hash of a string — seeds the mock "recent readings"
@@ -121,7 +130,7 @@ function synthesizeRecent(
   medianDownMbps: number,
 ): CafeDetail["recent"] {
   const rand = makeRand(fnv1a(id));
-  const now = Date.now();
+  const now = DEMO_REFERENCE_TIME;
   // Five readings, spaced across the last ~22 hours but biased toward the
   // recent end so the ticker always has a "minutes ago" entry up top.
   const offsetsMinutes = [
@@ -178,21 +187,23 @@ function snapshotDetail(id: string): CafeDetail | null {
  * Single café detail with per–time-bucket distribution and recent readings.
  */
 export async function getCafeById(id: string): Promise<CafeDetail | null> {
-  // A café created in this process always wins — the overlay is the source
-  // of truth for its own reads in mock mode.
-  const local = getLocalCafeDetail(id);
-  if (local) return local;
-
   if (base44Configured) {
     try {
       const detail = await b44GetCafeById(id);
-      if (detail) return detail;
+      return detail ? { ...detail, dataSource: "community" as const } : null;
     } catch (err) {
       warnFallback("getCafeById.base44", err);
+      throw new CafeDataUnavailableError();
     }
   }
 
-  return snapshotDetail(id);
+  // A café created in this process always wins — the overlay is the source
+  // of truth for its own reads in mock mode.
+  const local = getLocalCafeDetail(id);
+  if (local) return { ...local, dataSource: "local" as const };
+
+  const snap = snapshotDetail(id);
+  return snap ? { ...snap, dataSource: "demo" as const } : null;
 }
 
 /**
@@ -205,6 +216,8 @@ export async function getCafeBySlug(slug: string): Promise<CafeDetail | null> {
   const allCafes = await getCafes({ all: true });
   const station = allCafes.find((c) => slugify(c.name) === slug);
   if (station) return getCafeById(station.id);
+
+  if (base44Configured) return null;
 
   const mockStation = MOCK_CAFES.find((c) => slugify(c.name) === slug);
   if (mockStation) return getCafeById(mockStation.id);

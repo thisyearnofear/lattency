@@ -1,4 +1,5 @@
 import { getCafeById } from "@/lib/cafes";
+import { CAFE_DATA_UNAVAILABLE } from "@/lib/cafe-data-status";
 
 // GET /api/cafes/:id — café detail with per–time-bucket distribution.
 export async function GET(
@@ -15,6 +16,9 @@ export async function GET(
     if (!cafe) return Response.json({ error: "not found" }, { status: 404 });
     return Response.json({ cafe });
   } catch {
-    return Response.json({ error: "couldn't load café" }, { status: 500 });
+    return Response.json(
+      { error: CAFE_DATA_UNAVAILABLE },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }

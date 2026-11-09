@@ -2,8 +2,8 @@
 
 import { assessStability, STABILITY_COLOUR } from "@/lib/stability";
 
-// Signal-quality indicator — a compact bar that surfaces jitter and packet
-// loss alongside the bandwidth tier. Shared across StationCard, CafeDetail,
+// Signal-quality indicator — a compact bar that surfaces HTTP variation and
+// request failures alongside the bandwidth tier. Shared across StationCard, CafeDetail,
 // and CafePage so the visual language is identical everywhere (DRY).
 //
 // Three vertical signal bars encode the stability rating:
@@ -63,7 +63,7 @@ export function SignalQuality({
         </div>
         {hasData && (
           <p className="font-mono text-[10px] text-ink-faint tabular-nums mt-0.5">
-            {jitterMs.toFixed(1)} ms jitter · {lossPct.toFixed(1)}% loss
+            {jitterMs.toFixed(1)} ms HTTP variation · {lossPct.toFixed(1)}% HTTP failures
           </p>
         )}
       </div>

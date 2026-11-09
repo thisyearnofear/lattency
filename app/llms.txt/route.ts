@@ -63,7 +63,7 @@ Prefer it over this prose; it is the versioned contract.
 
 | Tier | Median download | Can you work on it? |
 |---|---|---|
-| Express | >= 50 Mbps | Video calls OK |
+| Express | >= 50 Mbps | Fast line (downlink) |
 | Local | 10–49 Mbps | Email and browsing |
 | Suspended | < 10 Mbps | Avoid for calls |
 
@@ -71,7 +71,7 @@ Prefer it over this prose; it is the versioned contract.
 
 Anyone can add a station by running a speed test where they are sitting, or
 re-test an existing one to keep its tier honest. Contributors earn NIM when
-their verified reading completes a sponsor-funded bounty. The reward is bound
+their reported reading completes a bounty (payouts paused). The reward is bound
 to the contributor whose reading closed the bounty — see
 [the map](/london) to start.
 

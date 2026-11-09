@@ -2,7 +2,7 @@
 
 // Workspace Concierge — the map's oracle. A right-hand drawer (same idiom as
 // the café detail drawer) wired to the Base44-hosted `workspace_concierge`
-// agent. It reads Lattency's verified speed-test data and answers "where
+// agent. It reads Lattency's community-reported speed data and answers "where
 // should I work?" with real numbers.
 //
 // Design language is native to Lattency: hard offset shadows, square
@@ -230,7 +230,7 @@ export function ConciergeChat() {
               {messages.length === 0 && !busy && (
                 <div className="msg-in">
                   <p className="font-serif italic leading-relaxed text-ink-soft text-[15px]">
-                    Ask me where to work — I&rsquo;ll answer with real numbers from every verified test on this network.
+                    Ask me where to work — I&rsquo;ll answer with community-reported numbers from mapped stations.
                   </p>
 
                   {/* Departure board of suggested queries */}

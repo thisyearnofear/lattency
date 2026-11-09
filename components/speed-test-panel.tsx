@@ -107,16 +107,16 @@ export function SpeedTestPanel({ onResult, onContribute, compact }: SpeedTestPan
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
           <Stat label="DOWN" value={Math.round(result.downMbps)} unit="Mbps" rollUp />
           <Stat label="UP" value={result.upMbps} unit="Mbps" decimals={1} rollUp />
-          <Stat label="PING" value={Math.round(result.latencyMs)} unit="ms" rollUp />
+          <Stat label="HTTP RTT" value={Math.round(result.latencyMs)} unit="ms" rollUp />
           {result.jitterMs !== undefined ? (
-            <Stat label="JITTER" value={result.jitterMs} unit="ms" decimals={1} rollUp />
+            <Stat label="HTTP VARIATION" value={result.jitterMs} unit="ms" decimals={1} rollUp />
           ) : (
             <div className="border border-ink/15 py-2 text-center">
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-faint">
-                JITTER
+                HTTP VARIATION
               </div>
               <div className="font-display font-black text-lg text-ink leading-none mt-1">
                 —
@@ -125,6 +125,8 @@ export function SpeedTestPanel({ onResult, onContribute, compact }: SpeedTestPan
             </div>
           )}
         </div>
+
+        <p className="font-mono text-[10px] text-ink-faint">HTTP-based estimate, not a packet-loss or media-jitter test. Results are reported by this browser, not independently verified.</p>
 
         <div className="flex flex-wrap gap-2">
           <button

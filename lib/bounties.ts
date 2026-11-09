@@ -1,4 +1,4 @@
-// Coffee bounties — pre-funded incentives for verified contributions.
+// Coffee bounties — pre-funded incentives for community-reported contributions.
 //
 // Store layering: the Base44 Bounty entity is the live source of truth.
 // When Base44 is unconfigured (offline demo) or cold we fall back to a
@@ -62,7 +62,7 @@ function daysFromNow(days: number): string {
 //   2. Each goal names its criterion exactly. "3 express-tier cafés in Hoxton"
 //      IS the count of express-tier stations in Hoxton, so the prose and the
 //      number cannot drift apart. Two seeds were retargeted when this was
-//      introduced: "First verified café on Brick Lane" was already satisfied
+//      introduced: "First mapped café on Brick Lane" was already satisfied
 //      (Shoreditch holds five), and the old prose named a street that no
 //      criterion could measure.
 //
@@ -117,7 +117,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
   },
   {
     id: "b-bethnal-10th",
-    goal: "Be the 10th verified speed test in Bethnal Green",
+    goal: "Be the 10th reported speed test in Bethnal Green",
     area: "Bethnal Green · London",
     city: "london",
     amountUsd: 5,
@@ -133,7 +133,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
   // — Nairobi —
   {
     id: "b-eastleigh-first",
-    goal: "First verified café in Eastleigh",
+    goal: "First mapped café in Eastleigh",
     area: "Eastleigh · Nairobi",
     city: "nairobi",
     amountUsd: 5,
@@ -178,7 +178,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
   },
   {
     id: "b-lavington-first",
-    goal: "First verified café in Lavington",
+    goal: "First mapped café in Lavington",
     area: "Lavington · Nairobi",
     city: "nairobi",
     amountUsd: 5,
@@ -193,7 +193,7 @@ const FALLBACK_BOUNTIES: Bounty[] = [
   },
   {
     id: "b-savanna-10th-contrib",
-    goal: "Be the 10th verified speed test at Savanna Coffee Lounge",
+    goal: "Be the 10th reported speed test at Savanna Coffee Lounge",
     area: "CBD · Nairobi",
     city: "nairobi",
     amountUsd: 5,
@@ -317,6 +317,9 @@ interface BountyEntity {
   status?: Bounty["status"];
   claimed_by_address?: string | null;
   tx_hash?: string | null;
+  funding_tx_hash?: string | null;
+  funding_status?: "verified" | "unverified" | null;
+  client_intent_id?: string | null;
 }
 
 function rowToBounty(r: BountyEntity): Bounty {
@@ -337,6 +340,9 @@ function rowToBounty(r: BountyEntity): Bounty {
     status: r.status ?? "open",
     claimedByAddress: r.claimed_by_address,
     txHash: r.tx_hash,
+    fundingTxHash: r.funding_tx_hash ?? undefined,
+    fundingStatus: r.funding_status ?? undefined,
+    clientIntentId: r.client_intent_id ?? undefined,
   };
 }
 
@@ -498,8 +504,14 @@ export async function getBounties(city?: string, cafeCount?: number): Promise<Bo
 
   // Inline expiry applies to every source; paid bounties are filtered via the
   // durable bountyState set so a claimed bounty stays hidden across instances.
+  // Rows explicitly marked unverified (funding proof failed or never ran) are
+  // excluded: an unverified bounty has no confirmed money behind it and must
+  // never read as fundable. Absent funding_status means the row predates
+  // verification (founder rewards, admin rows) and stays.
   const paidIds = new Set(await bountyState.getPaidBounties());
-  const live = source.filter((b) => !isExpired(b, now) && !paidIds.has(b.id));
+  const live = source.filter(
+    (b) => !isExpired(b, now) && !paidIds.has(b.id) && b.fundingStatus !== "unverified",
+  );
 
   if (city) {
     const cityLive = live.filter((b) => !b.city || b.city === city);
@@ -579,6 +591,11 @@ export async function createBounty(input: BountyCreationInput): Promise<Bounty> 
     kind: input.kind,
     expiresAt: input.expiresAt,
     status: "open",
+    fundingTxHash: input.fundingTxHash,
+    clientIntentId: input.clientIntentId,
+    // A supplied funding hash means the create route already verified the
+    // escrow deposit; an explicit fundingStatus always wins.
+    fundingStatus: input.fundingStatus ?? (input.fundingTxHash ? "verified" : undefined),
   };
 
   if (base44Configured) {
@@ -600,6 +617,9 @@ export async function createBounty(input: BountyCreationInput): Promise<Bounty> 
         expires_at: base.expiresAt,
         active: true,
         status: "open",
+        funding_tx_hash: base.fundingTxHash ?? null,
+        client_intent_id: base.clientIntentId ?? null,
+        funding_status: base.fundingStatus ?? null,
       })) as { id: string };
       const bounty: Bounty = { ...base, id: created.id };
       log.info("bounty created (Base44)", {
@@ -611,10 +631,11 @@ export async function createBounty(input: BountyCreationInput): Promise<Bounty> 
     } catch (err) {
       // Persist failed — fall back to in-memory so the sponsor still sees a
       // confirmation. Degrades to the offline-demo behaviour.
-      log.warn("createBounty: Base44 create failed, storing in-memory", {
+      log.error("createBounty: Base44 create failed", {
         scope: "bounties.create",
         reason: err instanceof Error ? err.message : String(err),
       });
+      throw new Error("Could not confirm bounty persistence. Do not retry payment; contact support with your transaction reference.");
     }
   }
 

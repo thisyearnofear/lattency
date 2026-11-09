@@ -18,6 +18,7 @@ import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
 import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
 import { AiVenueSummary } from "./ai-venue-summary";
+import { DataSourceNote } from "./data-source-note";
 import { peakBucket } from "@/lib/time-of-day";
 import { resolveCafePhoto } from "@/lib/cafe-photos";
 
@@ -199,6 +200,7 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
             >
               {cafe.name}
             </h1>
+            <DataSourceNote source={cafe.dataSource} />
             {cafe.vibe && (
               <p className="font-serif italic text-ink-faint text-lg mt-3">
                 {cafe.vibe}

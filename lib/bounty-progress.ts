@@ -37,7 +37,7 @@ export type SeedCriterion =
   | { kind: "attribute-match"; neighbourhood: string; milk: string }
   /**
    * Total readings, either across a neighbourhood or at one named venue.
-   * Counts measurements rather than stations — "the 10th verified test" is
+   * Counts measurements rather than stations — "the 10th reported test" is
    * about readings, not venues.
    */
   | { kind: "nth-contributor"; neighbourhood?: string; cafeName?: string };

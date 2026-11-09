@@ -19,7 +19,7 @@ const TIER_LABEL: Record<Tier, string> = {
   suspended: "SUSPENDED LINE",
 };
 const TIER_USE: Record<Tier, string> = {
-  express: "video calls OK",
+  express: "fast line",
   local: "email & browsing",
   suspended: "avoid for calls",
 };
@@ -62,7 +62,7 @@ function drawShareCard(ctx: CanvasRenderingContext2D, data: ShareCardData) {
 
   ctx.font = "500 11px 'IBM Plex Mono', monospace";
   ctx.fillStyle = "#8A7F6B";
-  ctx.fillText("VERIFIED WIFI · TRANSIT MAP", 64, 100);
+  ctx.fillText("COMMUNITY-REPORTED WIFI", 64, 100);
 
   // Right — contributor stamp
   ctx.textAlign = "right";

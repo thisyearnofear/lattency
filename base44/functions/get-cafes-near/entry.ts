@@ -1,3 +1,4 @@
+import { publicCafe } from "../../shared/public-cafe.ts";
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
 
 interface Cafe {
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
     const filtered = allCafes
       .filter((c) => !city || (c.city ?? "nairobi") === city)
       .map((c) => ({
-        ...c,
+        ...publicCafe(c),
         distance: haversine(lat, lng, c.latitude, c.longitude),
       }))
       .filter((c) => c.distance <= radiusM)

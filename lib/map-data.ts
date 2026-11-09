@@ -34,7 +34,7 @@ export const TIER_TINT: Record<Tier, string> = {
 // What each line actually means for a person trying to work. Surfaced inline
 // on station cards and schematic badges so the metro metaphor needs no legend.
 export const TIER_USE: Record<Tier, string> = {
-  express: "video calls OK",
+  express: "fast line, calls depend on upload",
   local: "email & browsing",
   suspended: "avoid for calls",
 };

@@ -22,7 +22,7 @@ The engine works everywhere. The first three boards are **London**, **Nairobi**,
 | Backend      | **Base44** (entities, auth, Deno functions)                         | Free backend with built-in auth, DB, and hosting — no infra to manage    |
 | Frontend     | **Next.js 16.3** on **Vercel** (App Router, RSC, ISR)               | Multi-city SSG, schematic/geographic map, realtime Base44 subscriptions |
 | Network      | Base44 SDK via `@base44/sdk`                                        | Serverless-safe — the SDK client is shared across invocations            |
-| Payments     | **Nimiq Pay** via `@nimiq/mini-app-sdk`                             | Contributors earn NIM for verified speed tests; sponsors fund bounties    |
+| Payments     | **Nimiq Pay** via `@nimiq/mini-app-sdk`                             | Contributors earn NIM for community-reported speed tests; sponsors fund bounties |
 
 ---
 
@@ -33,7 +33,7 @@ A finished Mini App inside Nimiq Pay where anyone in a live city can:
 1. Open the map of nearby coffee spots.
 2. Tap a venue to see live wifi speed + stability.
 3. Run an in-browser speed test.
-4. Earn NIM when their verified reading completes a sponsor-funded bounty.
+4. Earn NIM when their reported reading completes a sponsor-funded bounty.
 
 The speed test is the trust mechanism. The NIM reward is the growth mechanism. The map is the product.
 
@@ -43,7 +43,7 @@ The speed test is the trust mechanism. The NIM reward is the growth mechanism. T
 
 We believe the best data about a workspace comes from someone who is physically there. Lattency turns that private experience into a public good:
 
-- **Verified speed tests** (download, upload, ping, jitter, loss) replace hearsay.
+- **Community-reported speed tests** (download, upload, latency, HTTP variation, request failures) replace hearsay.
 - **Objective workspace metadata** — power outlets, seating, noise level, table space — replace subjective reviews.
 - **NIM bounties** align incentives between contributors, venues, and sponsors.
 
@@ -51,7 +51,7 @@ We started with cafés. The engine supports cafés, coworking spaces, hotel lobb
 
 ### The agentic opportunity
 
-AI agents cannot walk into a café and run a speed test. They need a trusted, verified, real-time source of physical-world infrastructure data to make decisions for their human users.
+AI agents cannot walk into a café and run a speed test. They need a community-reported, real-time source of physical-world infrastructure data to make decisions for their human users.
 
 Lattency is a **physical-world oracle** for the agentic era. We don't build the agent — we build the ground-truth layer that agents consume.
 
@@ -178,12 +178,12 @@ hooks/
 
 ## Nimiq integration
 
-Contributors earn NIM for verified speed tests that complete sponsor-funded bounties. The flow:
+Contributors earn NIM for community-reported speed tests that complete sponsor-funded bounties. The flow:
 
-1. Sponsor funds a bounty in NIM (e.g., "3 verified tests at oat-milk cafés in Shoreditch").
+1. Sponsor funds a bounty in NIM (e.g., "3 reported tests at oat-milk cafés in Shoreditch").
 2. Contributor opens the Mini App, finds a venue matching the bounty.
 3. Contributor runs the in-browser speed test.
-4. On a verified, non-outlier reading, the bounty pays NIM directly to the contributor’s Nimiq Pay wallet.
+4. On a reported, non-outlier reading, the bounty pays NIM to the contributor’s Nimiq Pay wallet (currently paused pending payment verification).
 
 NIM is the default reward token. USDT on supported EVM chains can be added later.
 
@@ -193,11 +193,13 @@ NIM is the default reward token. USDT on supported EVM chains can be added later
 
 ```bash
 pnpm install
-npx base44 create           # scaffold or link the Base44 backend
-npx base44 entities push    # deploy entity schemas
-npx base44 functions deploy # deploy geo-filter + stats functions
-pnpm dev                    # random high port (see AGENTS.md)
+pnpm base44:login   # one-time browser auth
+pnpm base44:create  # or `base44 link` for an existing app
+pnpm base44:deploy  # entities + functions + agents + automations
+pnpm dev            # random high port (see AGENTS.md)
 ```
+
+For live deployment, set `LATTENCY_SERVER_KEY` (server-only, ≥32 chars) on both the Next.js and Base44 environments before `pnpm base44:deploy` — the contribution gateway rejects writes without it. Bounty funding and payouts stay paused until the verified-funding flow is configured (`NIMIQ_ESCROW_ADDRESS`) and `bountyPaymentsEnabled()` is flipped.
 
 ---
 

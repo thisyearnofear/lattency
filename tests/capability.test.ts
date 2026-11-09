@@ -35,7 +35,7 @@ describe("videoCallReadiness", () => {
 
   it("blames upload when a fast download hides a weak uplink", () => {
     // The case this module exists for: 200 Mbps down reads as "Express" and
-    // carries the "video calls OK" badge, but 1 Mbps up cannot hold a call.
+    // carries the "fast line" badge, but 1 Mbps up cannot hold a call.
     const result = videoCallReadiness(metrics({ downMbps: 200, upMbps: 1 }));
 
     expect(result.verdict).toBe("no");
@@ -58,11 +58,11 @@ describe("videoCallReadiness", () => {
     expect(result.note).toMatch(/400 ms/);
   });
 
-  it("blames packet loss when it would break audio", () => {
+  it("blames HTTP failures when it would break audio", () => {
     const result = videoCallReadiness(metrics({ lossPct: 8 }));
 
     expect(result.verdict).toBe("no");
-    expect(result.bottleneck).toBe("packet loss");
+    expect(result.bottleneck).toBe("HTTP failures");
   });
 
   it("reports the true limiting metric, not the first one that fails", () => {
@@ -86,7 +86,7 @@ describe("videoCallReadiness", () => {
     expect(withFast.verdict).toBe("yes");
   });
 
-  it("treats zero packet loss as no evidence of a problem", () => {
+  it("treats zero HTTP failures as no evidence of a problem", () => {
     // 0 means either "measured fine" or "never measured" — it can only fail to
     // downgrade, never itself cause a downgrade.
     expect(videoCallReadiness(metrics({ lossPct: 0 })).verdict).toBe("yes");
@@ -161,9 +161,9 @@ describe("tierOverstatesCall", () => {
 
 describe("callCaveat", () => {
   it("names the bottleneck when a callable-looking station is limited", () => {
-    // Local tier (36 down) with packet loss — the tier is honest, but calls
+    // Local tier (36 down) with HTTP failures — the tier is honest, but calls
     // are not comfortable, and that is worth a line on the card.
-    expect(callCaveat(metrics({ downMbps: 36, upMbps: 8, lossPct: 6 }))).toBe("packet loss");
+    expect(callCaveat(metrics({ downMbps: 36, upMbps: 8, lossPct: 6 }))).toBe("HTTP failures");
   });
 
   it("stays silent on a station that holds calls comfortably", () => {

@@ -391,7 +391,7 @@ export function StationDirectory({
           </p>
           <p className="font-serif italic text-ink-soft text-lg mt-3 max-w-xl mx-auto">
             {filter === "express"
-              ? "No verified express-tier cafés in this view. Map one — your reading defines the line."
+              ? "No express-tier cafés in this view. Map one — your reading defines the line."
               : filter === "suspended"
                 ? "Nothing flagged suspended here yet — a good sign."
                 : "Loosen the tier filter, or map a new café below."}

@@ -25,9 +25,9 @@
   },
   "required": ["name", "latitude", "longitude"],
   "rls": {
-    "create": true,
-    "read": true,
-    "update": { "created_by": "{{user.email}}" },
-    "delete": { "created_by": "{{user.email}}" }
+    "create": false,
+    "read": false,
+    "update": false,
+    "delete": false
   }
 }

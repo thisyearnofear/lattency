@@ -8,10 +8,10 @@ import { LOOP_STEPS } from "@/lib/tour-loop";
 
 const OUTCOMES = [
   { verb: "Tap", result: "A real place, not a review." },
-  { verb: "Read", result: "Verified speeds, not vibes." },
+  { verb: "Read", result: "Reported speeds, not vibes." },
   { verb: "Test", result: "Edge round-trip you can’t fake." },
   { verb: "Land", result: "Your pin extends the line." },
-  { verb: "Earn", result: "NIM when a bounty closes." },
+  { verb: "Close", result: "Bounty targets — payouts paused." },
 ] as const;
 
 export function TourMechanics() {

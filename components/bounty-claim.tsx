@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNimiq } from "@/hooks/use-nimiq";
 import { useContributor } from "@/hooks/use-contributor";
 import type { Bounty } from "@/lib/bounties";
+import { bountyPaymentsEnabled, BOUNTY_PAYMENTS_PAUSED } from "@/lib/bounty-policy";
 import { haptic } from "@/lib/haptics";
 
 type ClaimState = "idle" | "loading" | "success" | "error";
@@ -27,15 +28,19 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
   const [error, setError] = useState<string | null>(null);
   const autoClaimed = useRef(false);
 
+  const paymentsEnabled = bountyPaymentsEnabled();
   const filled = bounty.progress >= bounty.target;
   // `claiming` means the bounty is filled and awaiting payout — the server
   // pays a filled bounty in either the `open` or `claiming` state.
   // Unfunded examples are never claimable; see lib/bounty-claim.ts step 1.
   const claimable =
-    !bounty.synthetic && filled && (bounty.status === "open" || bounty.status === "claiming");
+    paymentsEnabled &&
+    !bounty.synthetic &&
+    filled &&
+    (bounty.status === "open" || bounty.status === "claiming");
 
   async function handleClaim() {
-    if (!address) return;
+    if (!paymentsEnabled || !address) return;
     setState("loading");
     setError(null);
 
@@ -72,17 +77,28 @@ export function BountyClaim({ bounty }: { bounty: Bounty }) {
   // user's wallet is connected, skip the manual click and pay out immediately.
   // The ref guard prevents double-fires on re-render.
   useEffect(() => {
-    if (!inMiniApp || !claimable || !address || providerLoading) return;
+    if (!paymentsEnabled || !inMiniApp || !claimable || !address || providerLoading) return;
     if (autoClaimed.current) return;
     autoClaimed.current = true;
     void handleClaim();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inMiniApp, claimable, address, providerLoading]);
+  }, [paymentsEnabled, inMiniApp, claimable, address, providerLoading]);
 
   if (bounty.status === "paid" || bounty.claimedByAddress) {
     return (
       <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-express">
         Claimed{bounty.txHash ? ` · tx ${bounty.txHash.slice(0, 12)}…` : ""}
+      </p>
+    );
+  }
+
+  if (!paymentsEnabled) {
+    return (
+      <p
+        role="status"
+        className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint"
+      >
+        {BOUNTY_PAYMENTS_PAUSED}
       </p>
     );
   }

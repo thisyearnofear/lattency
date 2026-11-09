@@ -3,6 +3,7 @@
 // build-time page-data collection, which otherwise fails resolving the
 // WASM asset. Mock mode never touches it.
 import { log } from "./log";
+import { bountyPaymentsEnabled, BOUNTY_PAYMENTS_PAUSED } from "./bounty-policy";
 
 const LUNAS_PER_NIM = 100_000;
 
@@ -19,6 +20,8 @@ const NETWORK_IDS: Record<string, number> = {
   devnet: 2,
 };
 
+// Exported for lib/nimiq-verify.ts, which resolves the same endpoint to read
+// funding transactions back off the chain.
 function getNetworkId(): number {
   if (process.env.NIMIQ_NETWORK_ID) {
     return Number(process.env.NIMIQ_NETWORK_ID);
@@ -31,7 +34,7 @@ function getNetworkId(): number {
   return id;
 }
 
-function getRpcUrl(): string {
+export function getNimiqRpcUrl(): string {
   return (
     process.env.NIMIQ_RPC_URL ??
     (getNetworkId() === 0
@@ -40,8 +43,11 @@ function getRpcUrl(): string {
   );
 }
 
-async function rpcCall(method: string, params: unknown[] = []): Promise<unknown> {
-  const url = getRpcUrl();
+export async function nimiqRpcCall(
+  method: string,
+  params: unknown[] = [],
+): Promise<unknown> {
+  const url = getNimiqRpcUrl();
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -63,7 +69,7 @@ async function rpcCall(method: string, params: unknown[] = []): Promise<unknown>
 async function getCurrentHeight(): Promise<number> {
   for (const method of ["getBlockNumber", "blockNumber"]) {
     try {
-      const result = await rpcCall(method);
+      const result = await nimiqRpcCall(method);
       // Nimiq Watch RPC wraps results in `{ data: ... }`.
       const value =
         result && typeof result === "object" && "data" in result
@@ -120,6 +126,9 @@ export async function executeNimiqPayout(
   recipient: string,
   amountNim: number,
 ): Promise<PayoutResult> {
+  if (!bountyPaymentsEnabled()) {
+    throw new Error(BOUNTY_PAYMENTS_PAUSED);
+  }
   if (!recipient || !recipient.startsWith("NQ")) {
     throw new Error("Invalid Nimiq recipient address");
   }
@@ -170,7 +179,7 @@ export async function executeNimiqPayout(
     keyPair.signTransaction(tx);
     const txHex = tx.toHex();
 
-    const sendResult = await rpcCall("sendRawTransaction", [txHex]);
+    const sendResult = await nimiqRpcCall("sendRawTransaction", [txHex]);
     const txHash =
       sendResult && typeof sendResult === "object" && "data" in sendResult
         ? String((sendResult as { data: string }).data)

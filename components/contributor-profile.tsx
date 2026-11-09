@@ -69,17 +69,37 @@ export function ContributorProfile() {
   const contributor = useContributor();
   const { address } = useNimiq();
 
-  const [trail] = useState<Trail>(readTrail);
-  const [readings] = useState<number>(readReadingsCount);
+  const [activity, setActivity] = useState<{
+    trail: Trail;
+    readings: number;
+    lastCity: string | null;
+    origin: string | null;
+  }>({ trail: {}, readings: 0, lastCity: null, origin: null });
+  const { trail, readings, lastCity, origin } = activity;
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    const timer = setTimeout(
+      () =>
+        setActivity({
+          trail: readTrail(),
+          readings: readReadingsCount(),
+          lastCity: getLastVisitedCity(),
+          origin: window.location.origin,
+        }),
+      0,
+    );
+    return () => clearTimeout(timer);
+  }, []);
+
   // Bind the anonymous id to a connected Nimiq address so the identity is
   // portable across devices. Runs whenever an address becomes available.
+  const { bindToAddress } = contributor;
   useEffect(() => {
-    if (address) contributor.bindToAddress(address);
-  }, [address, contributor]);
+    if (address) bindToAddress(address);
+  }, [address, bindToAddress]);
 
   const stations = useMemo(() => trailToStations(trail), [trail]);
   const cities = useMemo(() => Object.keys(trail), [trail]);
@@ -89,10 +109,9 @@ export function ContributorProfile() {
 
   // Stand in the most-recently visited city (falls back to first in trail).
   const primaryCity = useMemo(() => {
-    const last = getLastVisitedCity();
-    if (last && cities.includes(last)) return last;
+    if (lastCity && cities.includes(lastCity)) return lastCity;
     return cities[0] ?? "london";
-  }, [cities]);
+  }, [cities, lastCity]);
 
   const { me } = useLeaderboard(primaryCity, contributor.id);
 
@@ -115,11 +134,13 @@ export function ContributorProfile() {
   }
 
   function inviteHref() {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://lattency.app";
-    return `${origin}/${primaryCity}?via=${contributor.id}`;
+    return origin && contributor.id
+      ? `${origin}/${primaryCity}?via=${contributor.id}`
+      : "";
   }
 
   async function copyInvite() {
+    if (!inviteHref()) return;
     try {
       await navigator.clipboard.writeText(inviteHref());
       setCopied(true);
@@ -313,11 +334,12 @@ export function ContributorProfile() {
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <code className="font-mono text-[11px] text-ink bg-cream border border-ink/20 px-3 py-2 truncate max-w-full">
-            {inviteHref()}
+            {inviteHref() || "Loading your invite link…"}
           </code>
           <button
             type="button"
             onClick={copyInvite}
+            disabled={!origin || !contributor.id}
             className="font-mono text-[10px] tracking-[0.22em] uppercase bg-ink text-cream px-4 py-2 hover:bg-ink/90 transition-colors inline-flex items-center gap-1.5"
           >
             <span aria-hidden>{copied ? "✓" : "⎘"}</span> {copied ? "Copied" : "Copy link"}

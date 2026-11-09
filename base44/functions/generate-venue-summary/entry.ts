@@ -1,7 +1,7 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
 
 // Generate a one-line editorial summary ("vibe") for a café from its
-// objective metadata + verified speed stats. Uses Base44's built-in
+// objective metadata + community-reported speed stats. Uses Base44's built-in
 // InvokeLLM integration — no API key management, the backend proxies it.
 //
 // Input: { cafe_id }
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       `Name: ${cafe.name}`,
       cafe.neighbourhood ? `Area: ${cafe.neighbourhood}, ${cafe.city ?? "nairobi"}` : "",
       cafe.venue_type ? `Type: ${cafe.venue_type}` : "",
-      stats ? `Median download: ${stats.medianDownMbps} Mbps (${stats.measurementCount} verified tests)` : "",
+      stats ? `Median download: ${stats.medianDownMbps} Mbps (${stats.measurementCount} community reports)` : "",
       cafe.price_tier ? `Price: ${cafe.price_tier}` : "",
       cafe.seating ? `Seating: ${cafe.seating}` : "",
       cafe.noise_level ? `Noise: ${cafe.noise_level}` : "",
@@ -71,7 +71,9 @@ Deno.serve(async (req) => {
     ].filter(Boolean).join(". ");
 
     const summary = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt: `You are a concise copywriter for a remote-work café map. Given these verified facts about a workspace, write a single punchy sentence (max 18 words) describing who it's best for. No marketing fluff, no emojis, no quotes around the sentence.\n\nFacts: ${facts}`,
+      prompt: `You are a concise copywriter for a remote-work café map. Given these community-reported facts about a workspace, write a single sentence (max 18 words) suggesting who it may suit. Do not call data verified or guarantee connectivity. No emojis or quotes around the sentence.
+
+Facts: ${facts}`,
       model: "gemini_3_flash",
     });
 

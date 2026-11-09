@@ -98,8 +98,8 @@ export function SpeedTestRunning({ progress }: SpeedTestRunningProps) {
         />
       </div>
 
-      <div aria-hidden className="grid grid-cols-4 gap-2 pt-2 opacity-50">
-        {["DOWN", "UP", "PING", "JITTER"].map((label) => (
+      <div aria-hidden className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 opacity-50">
+        {["DOWN", "UP", "HTTP RTT", "HTTP VARIATION"].map((label) => (
           <div key={label} className="border border-dashed border-ink/20 py-2">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-faint">
               {label}

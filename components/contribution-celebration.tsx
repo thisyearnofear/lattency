@@ -274,7 +274,7 @@ export function ContributionCelebration({
               {bounty.progress}/{bounty.target} · {bountyPct}%
             </p>
             <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint">
-              {bounty.synthetic ? "Unfunded target" : `${bounty.rewardNim} NIM reward`}
+              {bounty.synthetic ? "Unfunded target" : `${bounty.rewardNim} NIM staked`}
             </p>
           </div>
           <GrowBar
@@ -287,7 +287,7 @@ export function ContributionCelebration({
             {bounty.progress + 1 >= bounty.target
               ? bounty.synthetic
                 ? " Target reached — no sponsor behind it yet."
-                : " One more to unlock the reward!"
+                : " Bounty filled — payout paused."
               : ` ${bounty.target - bounty.progress - 1} more to unlock.`}
           </p>
         </div>

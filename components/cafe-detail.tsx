@@ -11,6 +11,7 @@ import { CafeMetadataRows } from "./cafe-metadata-display";
 import { RecentReadings } from "./recent-readings";
 import { SponsorBadge, SponsorTagline } from "./sponsor-badge";
 import { AiVenueSummary } from "./ai-venue-summary";
+import { DataSourceNote } from "./data-source-note";
 import { TickNumber } from "./tick-number";
 import { VTLink } from "./vt-link";
 import { CrossfadePanel } from "@/components/crossfade-panel";
@@ -272,7 +273,7 @@ export function CafeDetail({
   const alreadyCheckedIn = existingCheckIn?.verified ?? false;
   const alreadyCheckedInBadge = alreadyCheckedIn ? (
     <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-express inline-flex items-center gap-1">
-      <span aria-hidden>✓</span> Verified visitor
+      <span aria-hidden>✓</span> Browser location checked
     </span>
   ) : null;
 
@@ -387,6 +388,7 @@ export function CafeDetail({
             <p className="font-serif italic text-ink-faint text-lg mt-2">
               {d.neighbourhood} · {d.vibe}
             </p>
+            <DataSourceNote source={d.dataSource} />
             <AiVenueSummary cafeId={d.id} measurementCount={d.measurementCount} />
             {d.vibeTags && d.vibeTags.length > 0 && (
               <div className="mt-2.5">
@@ -778,7 +780,7 @@ function CheckInBody({
           </span>
           <div>
             <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-express">
-              Verified — you&rsquo;re here
+              Here — location checked
             </p>
             <p className="font-serif italic text-[13px] text-ink-soft mt-0.5">
               {distance !== null && `${distance}m from the pin · `}

@@ -519,6 +519,24 @@ export function MapShell({
     return new Set(["express", "local", "suspended"]);
   });
 
+  // Hero viewport sizing — the CSS class assumes the only top chrome is the
+  // 3.5rem nav, but the demo-mode banner (and any future strip) also pushes
+  // the map down, parking the bottom control rail below the fold. Measure
+  // the frame's document-space top and size it to the space that's actually
+  // left, so the rail is on-screen on first paint at any viewport height.
+  const viewportRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!hero || !el) return;
+    const sync = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      el.style.height = `${Math.max(320, window.innerHeight - top)}px`;
+    };
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, [hero]);
+
   // Mirror the active tier filter back into the URL so the view is shareable.
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -809,7 +827,7 @@ export function MapShell({
           problem on mobile. Schematic sits on top (z-10) but becomes
           pointer-transparent when geographic is active so the Leaflet map
           underneath stays interactive. */}
-      <div className={`${hero ? "map-viewport-hero" : "map-viewport"} relative w-full overflow-hidden bg-cream`}>
+      <div ref={viewportRef} className={`${hero ? "map-viewport-hero" : "map-viewport"} relative w-full overflow-hidden bg-cream`}>
         {leafletEverMounted && (
           <div
             className={`absolute inset-0 transition-opacity duration-300 ${
@@ -874,13 +892,28 @@ export function MapShell({
         </div>
       )}
       {hero && heroCollapsed && (
-        <button
-          type="button"
-          onClick={() => dismissHero(false)}
-          className="absolute top-3 left-3 sm:top-6 sm:left-6 z-[400] pointer-events-auto bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] px-3 py-2 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors"
-        >
-          ¶ {cityConfig.name} · Intro
-        </button>
+        /* Once the hero plate is dismissed, two slim stamps stay reachable:
+           the primary action (map a café — opens the contribution modal
+           directly, no extra round-trip through ?contribute=1) and a quiet
+           re-open for the intro. On a 390px phone this pair is what keeps
+           the contribution path alive without the full card covering
+           the western stations again. */
+        <div className="absolute top-3 left-3 sm:top-6 sm:left-6 z-[400] pointer-events-auto flex items-center gap-1.5 max-w-[calc(100vw-1.5rem)]">
+          <button
+            type="button"
+            onClick={() => open("contribute")}
+            className="bg-ink text-cream border border-ink shadow-[3px_4px_0_0_var(--color-ink)] px-3 py-2 font-mono text-[10px] tracking-[0.22em] uppercase hover:bg-ink/90 transition-colors"
+          >
+            <span aria-hidden>+</span> Map a café
+          </button>
+          <button
+            type="button"
+            onClick={() => dismissHero(false)}
+            className="bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] px-3 py-2 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors"
+          >
+            ¶ {cityConfig.name} · Intro
+          </button>
+        </div>
       )}
 
       {noneActive && (
@@ -962,8 +995,13 @@ export function MapShell({
           In hero mode the rail becomes a column: the expandable Lines panel
           and the locate panel (with demo picks) stack above the button row,
           which gains "Lines" and "Find me" toggles so all map chrome lives
-          in one place and the top of the map stays clean for the hero. */}
-      <div className={`absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-[500] flex ${hero ? "flex-col items-start gap-2" : "items-end gap-2"} pointer-events-none`}>
+          in one place and the top of the map stays clean for the hero.
+
+          Below 480px the rail wraps instead of colliding with the
+          bottom-right tap hint — max-width keeps it inside the viewport,
+          flex-wrap lets the button row fold onto a second line, and the
+          safe-area pad lifts it clear of the iOS home indicator. */}
+      <div className={`absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-[500] flex ${hero ? "flex-col items-start gap-2" : "items-end gap-2 flex-wrap"} pointer-events-none max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] pb-[env(safe-area-inset-bottom)]`}>
         {/* Expandable panels (hero mode only) — stacked above the button row. */}
         {hero && showLines && (
           <div className="pointer-events-auto bg-cream/95 border border-ink/80 shadow-[3px_4px_0_0_var(--color-ink)] p-2 flex flex-wrap gap-1.5 max-w-[min(280px,calc(100vw-1.5rem))]">
@@ -1013,7 +1051,7 @@ export function MapShell({
             )}
           </div>
         )}
-        <div className="flex items-end gap-2 pointer-events-none">
+        <div className="flex flex-wrap items-end gap-2 pointer-events-none max-w-full">
         <div
           role="tablist"
           aria-label="Map view"
@@ -1101,10 +1139,12 @@ export function MapShell({
         </div>
       </div>
 
-      {/* Tap-target hint, bottom-right */}
+      {/* Tap-target hint, bottom-right — hidden under sm where the wrapped
+          control rail would collide with it (the onboarding coach carries
+          the same instruction on phones). */}
       <p
         aria-hidden
-        className="absolute bottom-4 right-4 z-[500] font-mono text-[10px] tracking-[0.24em] uppercase text-ink-faint pointer-events-none"
+        className="hidden sm:block absolute bottom-4 right-4 z-[500] font-mono text-[10px] tracking-[0.24em] uppercase text-ink-faint pointer-events-none"
       >
         {view === "schematic" ? "tap any station →" : "tap any pin →"}
       </p>
@@ -1128,7 +1168,7 @@ export function MapShell({
             // Linger on the map so the contributor sees their pin land
             // (already dropped optimistically), then take them to the
             // new venue page.
-            toast({ title: "Reading verified", body: "Opening your new station…" });
+            toast({ title: "Reading logged", body: "Opening your new station…" });
             setTimeout(() => router.push(`/cafes/${slug}`), 1200);
           }}
         />

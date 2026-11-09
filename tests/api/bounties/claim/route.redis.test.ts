@@ -33,6 +33,11 @@ vi.mock("@/lib/base44", () => ({
   },
 }));
 
+vi.mock("@/lib/bounty-policy", () => ({
+  bountyPaymentsEnabled: () => true,
+  BOUNTY_PAYMENTS_PAUSED: "paused",
+}));
+
 describe("POST /api/bounties/claim with Redis-backed BountyState", () => {
   let client: MockRedisClient;
 

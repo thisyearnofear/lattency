@@ -7,9 +7,9 @@ import { TIER_COLOUR, TIER_PATH, TIER_USE } from "@/lib/map-data";
 import type { Tier } from "@/lib/types";
 
 export const metadata: Metadata = {
-  title: "Partners · Lattency",
+  title: "Partners",
   description:
-    "Sponsor verified wifi badges, claim your café, or earn coffee by running speed tests.",
+    "Sponsor community-reported wifi badges, claim your café, or earn coffee by running speed tests.",
 };
 
 function PitchBlock({
@@ -92,7 +92,7 @@ export default function PartnersPage() {
             meets your customers.
           </h1>
           <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-5 max-w-2xl">
-            ISPs sponsor verified speed badges. Cafés earn them. Contributors get paid to run the tests.
+            ISPs sponsor community-reported speed badges. Cafés earn them. Contributors get paid to run the tests.
           </p>
           {/* The same three lines the live map draws — a quiet promise that
               the network is real, not a mockup. */}
@@ -148,15 +148,15 @@ export default function PartnersPage() {
         <PitchBlock
           number="L"
           audience="For café owners"
-          headline="Get the verified wifi badge."
+          headline="Get the reported wifi badge."
           accent="local"
           body={
             <>
               <p>
-                Customers already search for a café where they can work. Stake $5 against a verified test — the contributor gets the coffee, you get the visit, your wifi gets the badge.
+                Customers already search for a café where they can work. Stake $5 against a reported test — the contributor gets the coffee, you get the visit, your wifi gets the badge.
               </p>
               <p className="font-mono text-[13px] text-ink-faint">
-                Free badge on the verified tier · $5 min per staked bounty.
+                Free badge on the reported tier · $5 min per staked bounty.
               </p>
             </>
           }
@@ -171,10 +171,10 @@ export default function PartnersPage() {
           body={
             <>
               <p>
-                Run a speed test, snap a photo, fill the metadata. When your reading is verified, the bounty pays out — today as NIM in your Nimiq Pay wallet.
+                Run a speed test, snap a photo, fill the metadata. Bounties are paused while payment verification is completed.
               </p>
               <p className="font-mono text-[13px] text-ink-faint">
-                NIM payouts live in preview · M-Pesa / Stripe with the first ISP partner.
+                NIM payouts paused pending verification · M-Pesa / Stripe with the first ISP partner.
               </p>
             </>
           }

@@ -6,6 +6,7 @@ import {
   sanitizeContributorId,
   validateMeasurement,
 } from "@/lib/measurements";
+import { ContributionGatewayUnavailable } from "@/lib/base44-gateway";
 import type { MeasurementInput } from "@/lib/types";
 import { log, reqIdFrom } from "@/lib/log";
 import { base44Configured, b44InsertMeasurement } from "@/lib/base44-data";
@@ -32,17 +33,14 @@ export async function POST(req: NextRequest) {
     return badRequest("body must be JSON");
   }
 
-  if (!body.cafeId || typeof body.cafeId !== "string")
-    return badRequest("cafeId required (string)");
+  if (body === null || typeof body !== "object" || Array.isArray(body))
+    return badRequest("body must be an object");
+
+  if (typeof body.cafeId !== "string" || !body.cafeId || body.cafeId !== body.cafeId.trim() || body.cafeId.length > 128)
+    return badRequest("cafeId required (non-empty string, max 128 characters)");
 
   const validationError = validateMeasurement(body);
   if (validationError) return badRequest(validationError);
-
-  if (body.measuredAt) {
-    const d = new Date(body.measuredAt);
-    if (Number.isNaN(d.getTime()))
-      return badRequest("measuredAt must be a valid ISO timestamp");
-  }
 
   const ipHash = hashIp(
     req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip"),
@@ -58,6 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
+  const resolvedMethod = resolveTestMethod(body);
   const measuredAt = body.measuredAt ? new Date(body.measuredAt) : new Date();
   const contributorUserId = sanitizeContributorId(body.contributorId);
   const referredBy = sanitizeContributorId(body.referredBy);
@@ -76,7 +75,7 @@ export async function POST(req: NextRequest) {
         lossPct: body.lossPct ?? null,
         measuredAt: measuredAt.toISOString(),
         photoUrl: body.photoUrl ?? null,
-        testMethod: body.testMethod,
+        testMethod: resolvedMethod,
         targetServer: body.targetServer ?? null,
         deviceType,
         downloadBytes: body.downloadBytes ?? null,
@@ -86,14 +85,20 @@ export async function POST(req: NextRequest) {
         referredBy,
       });
     } catch (err) {
-      log.error("Base44 measurement insert failed", {
+      const gatewayDown = err instanceof ContributionGatewayUnavailable;
+      log.error(gatewayDown ? "contribution gateway unconfigured" : "Base44 measurement insert failed", {
         reqId,
         scope: "contribute.measurement",
-        reason: err instanceof Error ? err.message : String(err),
       });
+      if (!gatewayDown && (err as { status?: number })?.status === 404) {
+        return Response.json(
+          { error: "cafe not found" },
+          { status: 404, headers: { "Cache-Control": "no-store" } },
+        );
+      }
       return Response.json(
         { error: "couldn't record reading — please try again" },
-        { status: 500 },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
 
@@ -121,7 +126,12 @@ export async function POST(req: NextRequest) {
     });
 
     return Response.json(
-      { measurementId, measuredAt: measuredAt.toISOString() },
+      {
+        measurementId,
+        measuredAt: measuredAt.toISOString(),
+        testMethod: resolvedMethod,
+        verification: "community-reported",
+      },
       { status: 201 },
     );
   }
@@ -131,14 +141,20 @@ export async function POST(req: NextRequest) {
   const measurementId = addLocalMeasurement(
     body.cafeId,
     body,
-    resolveTestMethod(body),
+    resolvedMethod,
   );
   if (!measurementId) {
     return Response.json({ error: "cafe not found" }, { status: 404 });
   }
 
   return Response.json(
-    { measurementId, measuredAt: measuredAt.toISOString(), mock: true },
+    {
+      measurementId,
+      measuredAt: measuredAt.toISOString(),
+      testMethod: resolvedMethod,
+      verification: "community-reported",
+      mock: true,
+    },
     { status: 201 },
   );
 }

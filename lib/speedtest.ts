@@ -188,10 +188,11 @@ async function measureDownload(
     }
   }
 
-  const durationMs = performance.now() - start;
+  if (received !== 10_485_760) throw new Error("download incomplete");
+  const durationMs = Math.max(1, performance.now() - start);
   const mbps = round((received * 8) / (durationMs / 1000) / 1_000_000, 1);
 
-  return { mbps, bytes: received, durationMs: round(durationMs, 0) };
+  return { mbps, bytes: received, durationMs };
 }
 
 // ─── Upload ──────────────────────────────────────────────────────────────
@@ -208,14 +209,15 @@ async function measureUpload(
 
   const start = performance.now();
   for (let i = 0; i < UPLOAD_ROUNDS; i++) {
-    await fetch(UPLOAD_ENDPOINT, {
+    const res = await fetch(UPLOAD_ENDPOINT, {
       method: "POST",
       body: payload,
       headers: { "Content-Type": "application/octet-stream" },
       cache: "no-store",
     });
+    if (!res.ok) throw new Error(`upload failed: HTTP ${res.status}`);
   }
-  const durationMs = performance.now() - start;
+  const durationMs = Math.max(1, performance.now() - start);
   const totalBits = UPLOAD_ROUNDS * UPLOAD_PAYLOAD_BYTES * 8;
   const mbps = round(totalBits / (durationMs / 1000) / 1_000_000, 1);
 

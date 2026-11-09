@@ -37,7 +37,7 @@ export async function generateMetadata({
   const { city } = await params;
   const allCafes = await getCafes({ all: true });
   const config = resolveCityConfig(city, allCafes);
-  const description = `Where can you work in ${config.name} today? Verified wifi speeds for cafés, coworking spaces, and hotel lobbies — mapped like a metro network.`;
+  const description = `Where can you work in ${config.name} today? Community-reported wifi speeds for cafés, coworking spaces, and hotel lobbies — mapped like a metro network.`;
 
   return {
     title: `${config.name} wifi`,
@@ -129,7 +129,7 @@ export default async function CityHome({
                       <>
                         No stations yet.
                         <span className="text-ink-faint mx-1.5">·</span>
-                        One verified speed test opens this city.
+                        One speed test opens this city.
                         <span className="text-ink-faint mx-1.5">·</span>
                         Founder bounty waiting.
                       </>

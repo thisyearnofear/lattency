@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { getCafes } from "@/lib/cafes";
+import { base44Configured } from "@/lib/base44";
+import { CAFE_DATA_UNAVAILABLE } from "@/lib/cafe-data-status";
 import { VENUE_TYPE_LABELS } from "@/lib/cafe-metadata";
 import { DEFAULT_CITY_ID, cityDisplayName } from "@/lib/cities";
 import {
@@ -10,7 +12,7 @@ import {
 } from "@/lib/capability";
 
 // GET /api/llm?city=london
-// Returns a dense, LLM-friendly plain-text summary of verified workspace
+// Returns a dense, LLM-friendly plain-text summary of community-reported workspace
 // data for a city. Intended for AI agents that need ground-truth workspace
 // quality data without the UI chrome. City defaults to the curated default.
 //
@@ -45,20 +47,25 @@ export async function GET(req: NextRequest) {
   let cafes: Awaited<ReturnType<typeof getCafes>>;
   try {
     cafes = await getCafes({ city });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return new Response(`Lattency workspace data temporarily unavailable.\nError: ${message}\n`, {
-      status: 500,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+  } catch {
+    return new Response(`${CAFE_DATA_UNAVAILABLE}\n`, {
+      status: 503,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
     });
   }
 
   const lines: string[] = [
-    `Lattency — ${cityName} workspace ground truth`,
+    `Lattency — ${cityName} workspace reports`,
     `Generated: ${new Date().toISOString()}`,
     `Venues: ${cafes.length}`,
+    base44Configured
+      ? "Source: Community reports; not independently verified."
+      : "Source: Demo mode: sample metrics, not current observations; local contributions are temporary.",
     "",
-    "Each venue includes verified wifi speed + stability, objective workspace",
+    "Each venue includes community-reported connection metrics, objective workspace",
     "metadata, and a tier (Express >=50 Mbps, Local 10-49 Mbps, Suspended <10 Mbps).",
     "",
     "IMPORTANT: the tier is derived from DOWNLOAD SPEED ALONE. A venue can be",
@@ -86,9 +93,10 @@ export async function GET(req: NextRequest) {
     lines.push(`Tier: ${tier.toUpperCase()}`);
     lines.push(`Speed: ${n(cafe.medianDownMbps)} down / ${n(cafe.medianUpMbps)} up Mbps, ${Math.round(cafe.medianLatencyMs)}ms latency`);
     if (cafe.medianJitterMs > 0 || cafe.medianLossPct > 0) {
-      lines.push(`Stability: ${n(cafe.medianJitterMs)}ms jitter, ${n(cafe.medianLossPct)}% loss`);
+      lines.push(`HTTP probes: ${n(cafe.medianJitterMs)}ms round-trip variation, ${n(cafe.medianLossPct)}% request failures`);
     }
     lines.push(`Measurements: ${cafe.measurementCount}`);
+    lines.push(`Source: ${cafe.dataSource ?? "unknown"}`);
 
     // The correction that keeps this surface from overstating the tier.
     const metrics = metricsOf(cafe);
@@ -119,16 +127,17 @@ export async function GET(req: NextRequest) {
   }
 
   lines.push("---");
-  lines.push("Data is crowdsourced and verified by in-browser speed tests.");
+  lines.push("Data is community-reported; browser tests are not independently verified.");
   lines.push(
     "Caveats: speeds are medians of browser-based tests, not line-rate measurements;",
   );
   lines.push(
     "workspace metadata (power, noise, seating) is contributed by a visitor and is",
   );
-  lines.push("subjective in a way the speed readings are not.");
+  lines.push("community-reported and not independently verified, like the connection metrics.");
+  lines.push("HTTP probe variation and failures are not packet jitter or packet loss; browser reports do not prove physical presence.");
   lines.push("Contribute: https://lattency.vercel.app/?contribute=1");
-  lines.push("Nimiq Mini App: earn NIM for verified workspace readings.");
+  lines.push("Bounty funding and payouts are currently paused.");
 
   return new Response(lines.join("\n"), {
     headers: {

@@ -1,7 +1,7 @@
 "use client";
 
 // "The Oracle's Take" — an editorial pull-quote summarising a venue, drawn
-// from its verified speed data by Base44's built-in InvokeLLM integration
+// from its community-reported speed data by Base44's built-in InvokeLLM integration
 // (via the generate-venue-summary function). It loads automatically when a
 // venue opens, is cached on the venue, and reads like a line of copy from
 // the concierge rather than an AI feature. No sparkle, no "Generate" chrome.
@@ -76,7 +76,7 @@ export function AiVenueSummary({
       <div className="flex items-center justify-between gap-2">
         <p className="stamp text-ink-faint">
           The oracle&rsquo;s take
-          <span className="text-ink-faint/60"> · from verified data</span>
+          <span className="text-ink-faint/60"> · from community reports</span>
         </p>
         {state === "ready" && (
           <button
@@ -120,7 +120,7 @@ export function AiVenueSummary({
 
       {state === "ready" && measurementCount > 0 && (
         <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-faint">
-          drawn from {measurementCount} verified reading{measurementCount === 1 ? "" : "s"}
+          drawn from {measurementCount} community reading{measurementCount === 1 ? "" : "s"}
         </p>
       )}
     </div>

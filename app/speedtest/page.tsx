@@ -3,7 +3,7 @@ import { TopNav } from "@/components/top-nav";
 import { SpeedTestPage } from "@/components/speed-test-page";
 
 export const metadata: Metadata = {
-  title: "Test my wifi · Lattency",
+  title: "Test my wifi",
   description:
     "Run a free in-browser speed test against the nearest Vercel edge. See your tier — Express, Local, or Suspended — from anywhere in the world.",
 };

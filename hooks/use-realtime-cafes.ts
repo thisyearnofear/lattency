@@ -5,13 +5,13 @@
 // Gated on base44Configured; no-ops (returns false) when unconfigured.
 
 import { useEffect, useRef } from "react";
-import { base44Configured, getBase44 } from "@/lib/base44";
+import { base44Configured } from "@/lib/base44";
 
 /** Subscribes to realtime Measurement creates. Calls `onNewReading` when
  *  a new speed test lands anywhere in the network. Returns whether the
  *  live subscription is active (false when Base44 is unconfigured). */
 export function useRealtimeMeasurements(
-  onNewReading: (data: { cafe_id: string; down_mbps: number }) => void,
+  onNewReading: (data: { cafe_id: string; down_mbps: number } | null) => void,
 ): boolean {
   const cbRef = useRef(onNewReading);
 
@@ -24,23 +24,21 @@ export function useRealtimeMeasurements(
   useEffect(() => {
     if (!base44Configured) return;
 
-    let unsubscribe: (() => void) | null = null;
-
-    try {
-      unsubscribe = getBase44().entities.Measurement.subscribe((event) => {
-        if (event.type === "create") {
-          const data = event.data as { cafe_id: string; down_mbps: number };
-          cbRef.current(data);
-        }
-      });
-    } catch {
-      // Subscription failed — the map still works, just without live updates.
-    }
+    const refresh = () => {
+      if (document.visibilityState === "visible") cbRef.current(null);
+    };
+    const interval = setInterval(refresh, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") cbRef.current(null);
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      unsubscribe?.();
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
-  return base44Configured;
+  // Subscription failed — the map still works, just without live updates.
+  return false;
 }

@@ -34,6 +34,7 @@ export function TopNav({
   const contributeHref = `${cityHome}?contribute=1`;
 
   return (
+    <>
     <nav
       className="sticky top-0 z-40 border-b border-ink/15 bg-cream/90 backdrop-blur-md"
       aria-label="Primary"
@@ -135,5 +136,15 @@ export function TopNav({
         </div>
       </div>
     </nav>
+    {!Boolean(process.env.NEXT_PUBLIC_BASE44_APP_ID) && (
+      <aside
+        role="note"
+        className="border-b border-local/40 bg-local/5 px-4 py-2 text-center font-mono text-xs text-ink"
+      >
+        Demo mode — sample venues and speeds, not current observations.
+        Contributions are temporary.
+      </aside>
+    )}
+    </>
   );
 }

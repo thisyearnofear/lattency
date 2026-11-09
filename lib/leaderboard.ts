@@ -11,7 +11,8 @@
 // requesting contributor (if provided) is always returned with their own
 // totals even when they don't crack the top N, so /me can show "you're #12".
 
-import { getBase44, base44Configured } from "./base44";
+import { base44Configured } from "./base44";
+import { getBase44Gateway } from "./base44-gateway";
 import { contributorHandle } from "./contributor";
 import { log } from "./log";
 import { LEADERBOARD_WINDOW_DAYS, type LeaderboardEntry } from "./leaderboard-types";
@@ -58,19 +59,19 @@ export async function getLeaderboard(
   if (!base44Configured) return { entries: [], me: null };
 
   try {
-    const base44 = getBase44();
+    const base44 = getBase44Gateway();
 
     // 1. Pull recent measurements tagged with a contributor id.
-    const rows = (await base44.entities.Measurement.filter(
-      {},
-      "-measured_at",
-      SCAN_LIMIT,
-      0,
-    )) as unknown as Array<{
-      contributor_user_id?: string;
-      cafe_id?: string;
-      measured_at?: string;
-    }>;
+    const lbRes = await base44.functions.invoke("measurement-gateway", {
+      action: "leaderboard",
+    });
+    const rows = (
+      ((lbRes as Record<string, unknown>)?.data ?? lbRes) as { rows?: Array<{
+        contributor_user_id?: string;
+        cafe_id?: string;
+        measured_at?: string;
+      }> }
+    ).rows?.slice(0, SCAN_LIMIT) ?? [];
 
     const cutoffMs = Date.now() - LEADERBOARD_WINDOW_DAYS * 24 * 60 * 60 * 1000;
     const withContributor = rows.filter(
@@ -86,7 +87,15 @@ export async function getLeaderboard(
     const cityByCafe = new Map<string, string>();
     for (const id of cafeIds) {
       try {
-        const cafe = (await base44.entities.Cafe.get(id)) as { city?: string } | null;
+        const cafeRes = await base44.functions.invoke("measurement-gateway", {
+          action: "cafe",
+          cafe_id: id,
+        });
+        const cafe = (
+          ((cafeRes as Record<string, unknown>)?.data ?? cafeRes) as {
+            cafe?: { city?: string } | null;
+          }
+        ).cafe;
         if (cafe?.city) cityByCafe.set(id, cafe.city);
       } catch {
         // A single failed lookup just drops that reading from the board.

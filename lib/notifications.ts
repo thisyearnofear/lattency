@@ -98,8 +98,8 @@ export async function getNotifications(
       out.push({
         id: `claimable-${b.id}`,
         kind: "bounty-claimable",
-        title: "Bounty ready to claim",
-        body: `${b.goal} — ${b.rewardNim} NIM is waiting in ${b.area}.`,
+        title: "Bounty filled",
+        body: `${b.goal} — ${b.rewardNim} NIM staked in ${b.area} · payout paused.`,
         href: `${city ? `/${city}` : "/london"}#bounties`,
       });
       continue;

@@ -6,6 +6,7 @@ import { evaluateClaimEligibility } from "@/lib/bounty-claim";
 import { sanitizeContributorId } from "@/lib/measurements";
 import type { Bounty } from "@/lib/bounties";
 import { markBountyPaid } from "@/lib/bounties";
+import { bountyPaymentsEnabled, BOUNTY_PAYMENTS_PAUSED } from "@/lib/bounty-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,12 @@ async function findBounty(bountyId: string): Promise<Bounty | null> {
 // rejected claim never takes the lock. Taking it first would let anyone lock a
 // bounty out from under its rightful claimant just by spamming rejections.
 export async function POST(req: NextRequest) {
+  if (!bountyPaymentsEnabled()) {
+    return Response.json(
+      { error: BOUNTY_PAYMENTS_PAUSED, code: "BOUNTY_PAYMENTS_PAUSED" },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const reqId = reqIdFrom(req);
   let body: ClaimRequest;
   try {

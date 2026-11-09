@@ -3,7 +3,7 @@
 //
 // Why this exists: the map's tier is derived from download alone
 // (`tierForDown`). A café measuring 60 Mbps down and 2 Mbps up is therefore
-// "Express" and carries the badge "video calls OK" — but upload is the
+// "Express" and carries the badge "fast line" — but upload is the
 // constraint that breaks a video call, and 2 Mbps up will not hold one. The
 // tier isn't wrong about the line; it's answering a different question than
 // the one the user is asking.
@@ -22,7 +22,7 @@ export interface StationMetrics {
   upMbps: number;
   latencyMs: number;
   /**
-   * Packet loss %. Optional because the read path reports 0 both when loss was
+   * HTTP request failure %. Optional because the read path reports 0 both when loss was
    * measured at zero and when it was never measured (manual readings carry no
    * loss figure). 0 is therefore treated as "no evidence of a problem" rather
    * than as evidence of a good line — it can only fail to downgrade.
@@ -35,7 +35,7 @@ export interface StationMetrics {
 export type Verdict = "yes" | "marginal" | "no" | "unknown";
 
 /** The measurement limiting quality, when one is. */
-export type Bottleneck = "download" | "upload" | "latency" | "packet loss";
+export type Bottleneck = "download" | "upload" | "latency" | "HTTP failures";
 
 export interface CallReadiness {
   verdict: Verdict;
@@ -90,8 +90,8 @@ function annotate(bottleneck: Bottleneck, metrics: StationMetrics): string {
       return `Upload ${mbps(metrics.upMbps)} Mbps is below the ${CALL_REQUIREMENTS.upMbps} Mbps a video call wants.`;
     case "latency":
       return `Latency ${Math.round(metrics.latencyMs)} ms is above the ${CALL_REQUIREMENTS.latencyMs} ms calls tolerate.`;
-    case "packet loss":
-      return `Packet loss ${mbps(metrics.lossPct ?? 0)}% will break call audio.`;
+    case "HTTP failures":
+      return `HTTP probes failed ${mbps(metrics.lossPct ?? 0)}% of the time; this does not measure packet loss.`;
   }
 }
 
@@ -123,7 +123,7 @@ export function videoCallReadiness(metrics: StationMetrics): CallReadiness {
 
   // Loss is only informative when it is non-zero (see StationMetrics.lossPct).
   if ((metrics.lossPct ?? 0) > 0) {
-    ratios.push({ metric: "packet loss", ratio: CALL_REQUIREMENTS.lossPct / (metrics.lossPct ?? 1) });
+    ratios.push({ metric: "HTTP failures", ratio: CALL_REQUIREMENTS.lossPct / (metrics.lossPct ?? 1) });
   }
 
   const worst = ratios.reduce((a, b) => (b.ratio < a.ratio ? b : a));
@@ -159,7 +159,7 @@ export function sampleConfidence(samples: number): ConfidenceLevel {
 
 /** Plain-language reading of a confidence level, for text surfaces. */
 export const CONFIDENCE_NOTE: Record<ConfidenceLevel, string> = {
-  none: "no verified readings",
+  none: "no reported readings",
   indicative: "a single reading — treat as provisional",
   supported: "a few readings",
   "well-supported": "multiple readings",

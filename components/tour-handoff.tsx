@@ -24,7 +24,7 @@ export function TourHandoff() {
             Three tiers. Scroll.
           </h2>
           <p className="font-serif italic text-ink-soft text-base sm:text-lg md:text-xl mt-3">
-            Express rides video calls. Local keeps the tabs open. Suspended
+            Express reads fast on the line. Local keeps the tabs open. Suspended
             means find another stop. Scroll to ride each line end to end.
           </p>
         </div>

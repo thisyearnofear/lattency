@@ -1,6 +1,6 @@
 // Coffee Bounties — the buymeacoffee-style mechanic for crowdsourcing
 // café data. Sponsors pre-fund a small bounty against a specific target;
-// contributors run the speed test, the readings are verified by others,
+// contributors run the speed test, the readings are reported by others,
 // the bounty pays out.
 //
 // Real data lives in lib/bounties.ts: bounties are Base44 Bounty entities
@@ -193,9 +193,9 @@ export async function BountiesBoard({
       {!compact && (
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
         {[
-          { n: "01", verb: "Stake", body: "Pre-pay a small bounty for a target — first café in an area, or the 10th verified test at a spot." },
+          { n: "01", verb: "Stake", body: "Pre-pay a small bounty for a target — first café in an area, or the 10th reported test at a spot." },
           { n: "02", verb: "Run", body: "Walk in, run a real speed test, snap a photo, fill the metadata. The reading lands on the map." },
-          { n: "03", verb: "Attribute + pay", body: "The reward is bound to the contributor whose reading closed the bounty. Claim it from the same wallet you contributed with." },
+          { n: "03", verb: "Attribute + pay", body: "The reward is bound to the contributor whose reading closed the bounty. Payouts are paused while payment verification is completed." },
         ].map((step) => (
           <li
             key={step.n}
@@ -223,7 +223,7 @@ export async function BountiesBoard({
             No open bounties yet.
           </p>
           <p className="font-serif italic text-ink-soft text-lg mt-3 max-w-xl mx-auto">
-            Be the first to back the map — stake a coffee for the next verified café near you.
+            Be the first to back the map — stake a coffee for the next mapped café near you.
           </p>
           <Link
             href="/partners"
@@ -241,7 +241,7 @@ export async function BountiesBoard({
       )}
 
       <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint mt-5">
-        NIM payouts via @nimiq/mini-app-sdk ·{" "}
+        Bounty payouts paused ·{" "}
         <Link href="/partners" className="text-ink underline underline-offset-4 hover:text-express">
           /partners
         </Link>

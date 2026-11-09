@@ -16,6 +16,11 @@ vi.mock("@/lib/bounties", () => ({
   getBounties: vi.fn().mockImplementation(() => Promise.resolve([...mockBounties])),
 }));
 
+vi.mock("@/lib/bounty-policy", () => ({
+  bountyPaymentsEnabled: () => true,
+  BOUNTY_PAYMENTS_PAUSED: "paused",
+}));
+
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost/api/bounties/claim", {
     method: "POST",

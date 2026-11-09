@@ -10,7 +10,7 @@
 // (app/[city], /cafes/[slug]), and useSearchParams without a Suspense boundary
 // would bail those pages out of prerendering.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   bindContributorToAddress,
   captureReferral,
@@ -45,19 +45,29 @@ function readState(): ContributorState {
   };
 }
 
+const EMPTY_STATE: ContributorState = {
+  id: "",
+  handle: "…",
+  displayName: null,
+  referredBy: null,
+  referralCount: 0,
+  isBound: false,
+};
+
 export function useContributor() {
   // Capture a one-time ?via= referral during the lazy initializer (client
   // only), mirroring how contribution-celebration runs side effects in its
   // initializer. Doing it here — rather than in an effect calling setState —
   // avoids a cascading second render and keeps statically generated pages
   // free of a useSearchParams bailout.
-  const [state, setState] = useState<ContributorState>(() => {
-    if (typeof window !== "undefined") {
-      const via = new URLSearchParams(window.location.search).get("via");
-      if (via) captureReferral(via);
-    }
-    return readState();
-  });
+  const [state, setState] = useState<ContributorState>(EMPTY_STATE);
+
+  useEffect(() => {
+    const via = new URLSearchParams(window.location.search).get("via");
+    if (via) captureReferral(via);
+    const timer = setTimeout(() => setState(readState()), 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const setDisplayName = useCallback((name: string) => {
     writeContributorName(name);

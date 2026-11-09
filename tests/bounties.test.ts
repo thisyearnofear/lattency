@@ -380,16 +380,17 @@ describe("bounties", () => {
       expect(bounty.city).toBe("london");
     });
 
-    it("falls back to in-memory when Base44 creation fails", async () => {
+    it("rejects when Base44 creation fails and inserts nothing in-memory", async () => {
       mockConfig.base44Configured = true;
       bountyCreate.mockRejectedValueOnce(new Error("boom"));
       const { createBounty, getBounties } = await import("@/lib/bounties");
 
-      const bounty = await createBounty(input);
-      expect(bounty.id).toMatch(/^b-/);
+      await expect(createBounty(input)).rejects.toThrow(
+        /Could not confirm bounty persistence/,
+      );
 
       const bounties = await getBounties();
-      expect(bounties.find((b) => b.id === bounty.id)).toBeDefined();
+      expect(bounties.every((b) => b.goal !== input.goal)).toBe(true);
     });
   });
 });

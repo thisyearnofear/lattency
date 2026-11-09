@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCafes } from "@/lib/cafes";
+import { CAFE_DATA_UNAVAILABLE } from "@/lib/cafe-data-status";
 import { base44Configured } from "@/lib/base44";
 import { DEFAULT_CITY_ID, getLiveCities } from "@/lib/cities";
 import { TIER_USE, tierForDown } from "@/lib/map-data";
@@ -35,6 +36,12 @@ const TIER_THRESHOLDS = {
   express: { minDownMbps: 50, use: TIER_USE.express },
   local: { minDownMbps: 10, maxDownMbps: 49.99, use: TIER_USE.local },
   suspended: { maxDownMbps: 9.99, use: TIER_USE.suspended },
+} as const;
+
+const METRIC_DEFINITIONS = {
+  latencyMs: "HTTP round-trip time",
+  jitterMs: "HTTP round-trip variation (legacy field name)",
+  lossPct: "HTTP request failure percentage (legacy field name)",
 } as const;
 
 function serializeStation(cafe: CafeStation) {
@@ -86,6 +93,8 @@ function serializeStation(cafe: CafeStation) {
     /** Days since the last reading; null when the timestamp is unknown. */
     ageDays,
     freshness: stalenessLevel(cafe.lastReadingAt),
+    dataSource: cafe.dataSource ?? "unknown",
+    metricDefinitions: METRIC_DEFINITIONS,
     workspace: {
       priceTier: cafe.metadata?.priceTier ?? null,
       milkOptions: cafe.metadata?.milkOptions ?? null,
@@ -105,6 +114,7 @@ const CAVEATS = [
   "Stations with confidence 'indicative' rest on a single reading: treat the tier as a hypothesis, not a fact.",
   "Workspace metadata (power outlets, noise, seating) is contributed by the person who visited. It is subjective in a way the speed readings are not.",
   "Staleness is derived from the newest reading; check `freshness` and `ageDays` before relying on a tier.",
+  "HTTP probe variation and failures are not packet jitter or packet loss; browser reports do not prove physical presence.",
 ] as const;
 
 export async function GET(req: NextRequest) {
@@ -132,7 +142,15 @@ export async function GET(req: NextRequest) {
 
   // One read of the whole network, then filter in-process. Cheaper than a
   // second call for the city list, and the dataset is small by design.
-  const allCafes = await getCafes({ all: true });
+  let allCafes: CafeStation[];
+  try {
+    allCafes = await getCafes({ all: true });
+  } catch {
+    return Response.json(
+      { error: CAFE_DATA_UNAVAILABLE },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const cafes = city ? allCafes.filter((c) => c.city === city) : allCafes;
 
   const filtered = cafes.filter((c) => {
@@ -171,6 +189,7 @@ export async function GET(req: NextRequest) {
         distance: "km",
       },
       tierThresholds: TIER_THRESHOLDS,
+      metricDefinitions: METRIC_DEFINITIONS,
       /** Requirements behind capabilities.videoCalls, so a consumer can
        *  re-derive the verdict or reason about a different profile. */
       callRequirements: CALL_REQUIREMENTS,

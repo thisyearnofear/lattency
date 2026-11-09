@@ -36,8 +36,8 @@ export default function RouteError({
           Suspended line.
         </h1>
         <p className="font-serif italic text-ink-soft text-lg md:text-xl mt-4">
-          Something on this page didn&rsquo;t draw cleanly. The rest of the
-          map is fine — try again or head back to the homepage.
+          This page is temporarily unavailable. Please try again shortly.
+          Demo observations are never substituted for unavailable live data.
         </p>
         {error.digest && (
           <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint mt-6">

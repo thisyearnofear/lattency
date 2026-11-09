@@ -175,7 +175,7 @@ function BountyToast() {
         </span>
       </div>
       <p className="font-serif italic text-[12px] text-ink-faint mt-1.5">
-        2 more verified readings · NIM pays out at 10/10
+        2 more reported readings · bounties paused
       </p>
     </div>
   );

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useNimiq } from "@/hooks/use-nimiq";
-import { BOUNTY_KINDS, BOUNTY_KIND_LABELS } from "@/lib/bounties";
-import type { Bounty, BountyKind } from "@/lib/bounties";
+import { BOUNTY_KINDS, BOUNTY_KIND_LABELS } from "@/lib/bounty-types";
+import type { Bounty, BountyKind } from "@/lib/bounty-types";
+import { bountyPaymentsEnabled, BOUNTY_PAYMENTS_PAUSED } from "@/lib/bounty-policy";
 
 const SPONSOR_KINDS: Array<{ value: "isp" | "café" | "community" | "anon"; label: string }> = [
   { value: "isp", label: "ISP" },
@@ -12,11 +13,11 @@ const SPONSOR_KINDS: Array<{ value: "isp" | "café" | "community" | "anon"; labe
   { value: "anon", label: "Anonymous" },
 ];
 
-// Escrow address for NIM funding. In production this is an environment
-// variable pointing to a secure, audited escrow wallet.
-const ESCROW_ADDRESS =
-  process.env.NEXT_PUBLIC_NIMIQ_ESCROW_ADDRESS ??
-  "NQ39 NYM2 JHVX 0UQ8 9FPX 73L7 LXR2 1XYU";
+// Escrow address for NIM funding, configured per deployment. There is no
+// fallback address — a hard-coded default could silently route sponsor funds
+// to a wallet nobody audited. When unset, the funding form stays disabled.
+const ESCROW_ADDRESS = process.env.NEXT_PUBLIC_NIMIQ_ESCROW_ADDRESS;
+const escrowConfigured = Boolean(ESCROW_ADDRESS);
 
 export function SponsorDashboard() {
   const { provider, address, inMiniApp } = useNimiq();
@@ -34,10 +35,20 @@ export function SponsorDashboard() {
   const [status, setStatus] = useState<"idle" | "paying" | "creating" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [fundingTx, setFundingTx] = useState<string | null>(null);
+  // Idempotency key for the funding intent — minted once per bounty so a
+  // retried POST (e.g. lost response) dedupes server-side instead of
+  // double-creating. Regenerated after each successful create.
+  const [clientIntentId, setClientIntentId] = useState(() => crypto.randomUUID());
+
+  const paymentsEnabled = bountyPaymentsEnabled();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!provider || !address) return;
+    if (!paymentsEnabled) {
+      setError(BOUNTY_PAYMENTS_PAUSED);
+      return;
+    }
+    if (!escrowConfigured || !provider || !address) return;
 
     setStatus("paying");
     setError(null);
@@ -46,13 +57,15 @@ export function SponsorDashboard() {
       // Step 1: sponsor funds the escrow with NIM via Nimiq SDK.
       const amountLunas = Math.floor(Number(rewardNim) * 100_000);
       const payment = await provider.requestPayment({
-        recipient: ESCROW_ADDRESS,
+        recipient: ESCROW_ADDRESS as string,
         value: amountLunas,
         message: `Fund bounty: ${goal.trim()}`,
       });
       setFundingTx(payment.txHash);
 
-      // Step 2: create the bounty on the server.
+      // Step 2: create the bounty on the server, carrying the funding proof
+      // (txHash is verified on-chain server-side) and the intent id so a
+      // retry dedupes instead of double-creating.
       setStatus("creating");
       const res = await fetch("/api/bounties", {
         method: "POST",
@@ -66,15 +79,22 @@ export function SponsorDashboard() {
           sponsorKind,
           kind,
           expiresAt,
+          fundingTxHash: payment.txHash,
+          clientIntentId,
         }),
       });
 
       const data = (await res.json()) as { success?: boolean; bounty?: Bounty; error?: string };
       if (!res.ok || !data.success || !data.bounty) {
-        throw new Error(data.error ?? "Failed to create bounty");
+        // The escrow payment already went through — always surface the tx
+        // hash so the sponsor can reference it for support/refund.
+        throw new Error(
+          `${data.error ?? "Failed to create bounty"} — your funding transaction hash is ${payment.txHash}; keep it for support.`,
+        );
       }
 
       setCreated((prev) => [data.bounty as Bounty, ...prev]);
+      setClientIntentId(crypto.randomUUID());
       setStatus("done");
       setGoal("");
       setTarget("1");
@@ -111,6 +131,24 @@ export function SponsorDashboard() {
         </div>
       )}
 
+      {!escrowConfigured && (
+        <p
+          role="status"
+          className="mt-4 border border-suspended/40 bg-suspended/5 p-3 font-mono text-xs text-ink"
+        >
+          Sponsor funding is not configured on this deployment.
+        </p>
+      )}
+
+      {!paymentsEnabled && (
+        <p
+          role="status"
+          className="mt-4 border border-local/40 bg-local/5 p-3 font-mono text-xs text-ink"
+        >
+          {BOUNTY_PAYMENTS_PAUSED}
+        </p>
+      )}
+
       <form onSubmit={handleSubmit} className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <label className="block">
@@ -121,7 +159,7 @@ export function SponsorDashboard() {
               type="text"
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
-              placeholder="First verified café in Shoreditch"
+              placeholder="First café in Shoreditch"
               className="mt-1 w-full bg-cream border border-ink/25 focus:border-ink px-2 py-1.5 font-mono text-sm text-ink outline-none transition-colors"
             />
           </label>
@@ -228,15 +266,25 @@ export function SponsorDashboard() {
           <button
             type="submit"
             disabled={
-              !valid || !provider || !inMiniApp || status === "paying" || status === "creating"
+              !paymentsEnabled ||
+              !escrowConfigured ||
+              !valid ||
+              !provider ||
+              !inMiniApp ||
+              status === "paying" ||
+              status === "creating"
             }
             className="w-full bg-express text-cream font-mono text-[11px] tracking-[0.22em] uppercase py-3 transition-opacity hover:bg-express/90 disabled:opacity-40"
           >
-            {status === "paying"
-              ? "Confirm NIM payment…"
-              : status === "creating"
-                ? "Creating bounty…"
-                : `Fund ${rewardNim || "0"} NIM bounty`}
+            {!paymentsEnabled
+              ? "Funding paused"
+              : !escrowConfigured
+                ? "Funding unavailable"
+                : status === "paying"
+                  ? "Confirm NIM payment…"
+                  : status === "creating"
+                    ? "Creating bounty…"
+                    : `Fund ${rewardNim || "0"} NIM bounty`}
           </button>
         </div>
       </form>

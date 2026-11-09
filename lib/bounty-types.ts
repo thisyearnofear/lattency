@@ -54,6 +54,27 @@ export interface Bounty {
    * Absent for every real bounty, including sponsor-created ones.
    */
   synthetic?: boolean;
+  /**
+   * On-chain hash of the sponsor's escrow funding transaction, verified
+   * server-side at creation (lib/nimiq-verify.ts). Present on every
+   * sponsor-created bounty; absent on seeds, founder rewards, and anything
+   * authored before funding verification existed.
+   */
+  fundingTxHash?: string;
+  /**
+   * Whether the escrow deposit behind this bounty was verified on-chain.
+   * Only `"unverified"` is meaningful for gating: absent means the row
+   * predates verification (founder rewards, admin-created rows) and is
+   * treated as funded; `"verified"` is written for sponsor-created bounties
+   * after verifyFundingTx confirms the deposit.
+   */
+  fundingStatus?: "verified" | "unverified";
+  /**
+   * Idempotency key minted by the sponsoring client (crypto.randomUUID) and
+   * echoed on every retry of the same funding intent. The create route
+   * dedupes on it so a lost response can't double-create a bounty.
+   */
+  clientIntentId?: string;
 }
 
 export interface BountyCreationInput {
@@ -65,6 +86,12 @@ export interface BountyCreationInput {
   sponsorKind: Bounty["sponsorKind"];
   kind: BountyKind;
   expiresAt: string;
+  /** Escrow funding tx hash supplied by the client; verified before create. */
+  fundingTxHash?: string;
+  /** Client-minted idempotency key for the funding intent. */
+  clientIntentId?: string;
+  /** Set to "verified" by the create route once the funding tx checks out. */
+  fundingStatus?: "verified" | "unverified";
 }
 
 export function sponsorBadgeStyle(

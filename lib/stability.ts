@@ -37,7 +37,7 @@ export function assessStability(
       stability: "stable",
       hasData: false,
       label: "No signal data",
-      description: "Run the speed test to measure jitter and packet loss.",
+      description: "Run a test to measure HTTP round-trip variation and request failures.",
     };
   }
 
@@ -49,7 +49,7 @@ export function assessStability(
       stability: "stable",
       hasData: true,
       label: "Stable",
-      description: "Fine for video calls, gaming, and SSH.",
+      description: "Low variation in these HTTP probes; not a guarantee for calls.",
     };
   }
 
@@ -58,7 +58,7 @@ export function assessStability(
       stability: "variable",
       hasData: true,
       label: "Variable",
-      description: "Okay for browsing; calls may stutter.",
+      description: "HTTP probe timing varies; real-time performance is uncertain.",
     };
   }
 
@@ -66,7 +66,7 @@ export function assessStability(
     stability: "unstable",
     hasData: true,
     label: "Unstable",
-    description: "Expect buffering and dropped calls.",
+    description: "HTTP probes were unreliable; check connectivity before working.",
   };
 }
 

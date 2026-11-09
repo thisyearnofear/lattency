@@ -1,7 +1,8 @@
 import { NextRequest, after } from "next/server";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import { validateCafeMetadata } from "@/lib/cafe-metadata";
-import { deviceTypeFromUA, sanitizeContributorId, validateMeasurement } from "@/lib/measurements";
+import { deviceTypeFromUA, resolveTestMethod, sanitizeContributorId, validateMeasurement } from "@/lib/measurements";
+import { ContributionGatewayUnavailable } from "@/lib/base44-gateway";
 import { DEFAULT_CITY_ID } from "@/lib/cities";
 import { slugify } from "@/lib/slug";
 import type { CafeCreationInput } from "@/lib/types";
@@ -63,10 +64,13 @@ export async function POST(req: NextRequest) {
     return badRequest("body must be JSON");
   }
 
+  if (body === null || typeof body !== "object" || Array.isArray(body))
+    return badRequest("body must be an object");
+
   // Validate café fields
   if (!body.name || typeof body.name !== "string" || body.name.trim().length < 2)
     return badRequest("name required (min 2 characters)");
-  if (!body.neighbourhood || typeof body.neighbourhood !== "string")
+  if (typeof body.neighbourhood !== "string" || !body.neighbourhood.trim())
     return badRequest("neighbourhood required");
   if (!Number.isFinite(body.lat) || body.lat < -90 || body.lat > 90)
     return badRequest("lat must be between -90 and 90");
@@ -85,6 +89,23 @@ export async function POST(req: NextRequest) {
   // Validate + clean metadata
   const metadata = validateCafeMetadata(body.metadata ?? {});
 
+  if (body.name.trim().length > 160)
+    return badRequest("name must be at most 160 characters");
+  if (body.neighbourhood.trim().length > 160)
+    return badRequest("neighbourhood must be at most 160 characters");
+  if (body.city !== undefined && typeof body.city !== "string")
+    return badRequest("city must be a string");
+  if (typeof body.city === "string" && body.city.length > 80)
+    return badRequest("city must be at most 80 characters");
+  if (body.vibe !== undefined && typeof body.vibe !== "string")
+    return badRequest("vibe must be a string");
+  if (typeof body.vibe === "string" && body.vibe.length > 280)
+    return badRequest("vibe must be at most 280 characters");
+  if (body.contributorId !== undefined && typeof body.contributorId !== "string")
+    return badRequest("contributorId must be a string when provided");
+  if (body.referredBy !== undefined && typeof body.referredBy !== "string")
+    return badRequest("referredBy must be a string when provided");
+
   // Rate-limit café creation: one per IP per hour. Active on every backend.
   const ipHash = hashIp(
     req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip"),
@@ -100,11 +121,18 @@ export async function POST(req: NextRequest) {
   // Derive city: use the provided city (lowercased so "Nairobi" / "nairobi"
   // collapse to the same bucket), or the curated default. A production
   // system would reverse-geocode from lat/lng.
-  const city = body.city?.trim().toLowerCase() || DEFAULT_CITY_ID;
+  const city = typeof body.city === "string" && body.city.trim()
+    ? body.city.trim().toLowerCase()
+    : DEFAULT_CITY_ID;
   const slug = slugify(body.name);
   const deviceType = deviceTypeFromUA(req.headers.get("user-agent"));
-  const contributorUserId = sanitizeContributorId(body.contributorId);
-  const referredBy = sanitizeContributorId(body.referredBy);
+  const contributorUserId = sanitizeContributorId(
+    typeof body.contributorId === "string" ? body.contributorId : undefined,
+  );
+  const referredBy = sanitizeContributorId(
+    typeof body.referredBy === "string" ? body.referredBy : undefined,
+  );
+  const resolvedMethod = resolveTestMethod(body.measurement);
 
   // Base44 write path — the create-cafe function creates the venue + first
   // measurement atomically (two-phase with rollback) under service role.
@@ -143,7 +171,7 @@ export async function POST(req: NextRequest) {
           lossPct: body.measurement.lossPct ?? null,
           measuredAt: measuredAt.toISOString(),
           photoUrl: body.measurement.photoUrl ?? null,
-          testMethod: body.measurement.testMethod,
+          testMethod: resolvedMethod,
           targetServer: body.measurement.targetServer ?? null,
           deviceType,
           downloadBytes: body.measurement.downloadBytes ?? null,
@@ -187,18 +215,31 @@ export async function POST(req: NextRequest) {
       });
 
       return Response.json(
-        { cafeId, slug, measurementId, city },
+        {
+          cafeId,
+          slug,
+          measurementId,
+          city,
+          testMethod: resolvedMethod,
+          verification: "community-reported",
+        },
         { status: 201 },
       );
     } catch (err) {
-      log.error("Base44 café creation failed", {
+      const gatewayDown = err instanceof ContributionGatewayUnavailable;
+      log.error(gatewayDown ? "contribution gateway unconfigured" : "Base44 café creation failed", {
         reqId,
         scope: "contribute.cafe",
-        reason: err instanceof Error ? err.message : String(err),
       });
+      if (!gatewayDown && (err as { status?: number })?.status === 404) {
+        return Response.json(
+          { error: "venue not found" },
+          { status: 404, headers: { "Cache-Control": "no-store" } },
+        );
+      }
       return Response.json(
         { error: "couldn't create café — please try again" },
-        { status: 500 },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
   }
@@ -219,11 +260,19 @@ export async function POST(req: NextRequest) {
       photoUrl: body.photo,
     },
     { ...body.measurement, cafeId: "" },
-    body.measurement.testMethod ?? "manual",
+    resolvedMethod,
   );
 
   return Response.json(
-    { cafeId, slug, measurementId, city, mock: true },
+    {
+      cafeId,
+      slug,
+      measurementId,
+      city,
+      testMethod: resolvedMethod,
+      verification: "community-reported",
+      mock: true,
+    },
     { status: 201 },
   );
 }

@@ -24,7 +24,9 @@
   },
   "required": ["cafe_id", "down_mbps", "up_mbps", "latency_ms", "measured_at"],
   "rls": {
-    "create": true,
-    "read": true
+    "create": false,
+    "read": false,
+    "update": false,
+    "delete": false
   }
 }

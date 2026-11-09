@@ -13,6 +13,10 @@
 //   3. It must actually be filled (progress >= target).
 //   4. The claimant must present a contributor identity.
 //   5. That identity must be one the bounty recorded as having contributed.
+//      (For count-kinds — "be the Nth reported test" — update-bounty-progress
+//      counts DISTINCT contributor ids toward progress, so progress reflects
+//      different people, not repeat readings; the `contributors` set checked
+//      here is the write-time attribution of who pushed it forward.)
 //   6. When the identity is a bound Nimiq address, the payout must go to that
 //      same address — so funds can only ever reach the wallet that authored
 //      the qualifying reading.

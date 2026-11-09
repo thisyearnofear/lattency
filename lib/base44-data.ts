@@ -5,6 +5,7 @@
 // none of these are called.
 
 import { getBase44, base44Configured } from "./base44";
+import { getBase44Gateway } from "./base44-gateway";
 import type { CafeDetail, CafeStation } from "./types";
 import type { Community, CommunityEvent } from "./events";
 import { log } from "./log";
@@ -33,15 +34,23 @@ export async function b44ListCafes(opts: {
     lng: opts.lng,
     radiusM: opts.radiusM,
   });
-  return unwrap<CafeStation[]>(res, "cafes") ?? [];
+  const cafes = unwrap<CafeStation[]>(res, "cafes");
+  if (!Array.isArray(cafes)) throw new Error("Invalid café response");
+  return cafes;
 }
 
 /** Café detail — base station (from list-cafes filtered by id is wasteful,
  *  so we fetch the cafe entity + stats function directly). */
 export async function b44GetCafeById(id: string): Promise<CafeDetail | null> {
   const base44 = getBase44();
-  const cafe = (await base44.entities.Cafe.get(id)) as Record<string, unknown> | null;
-  if (!cafe) return null;
+  const cafeRes = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "cafe",
+    cafe_id: id,
+  });
+  const cafe = unwrap<Record<string, unknown> | null>(cafeRes, "cafe");
+  if (cafe === null) return null;
+  if (!cafe || typeof cafe !== "object" || Array.isArray(cafe))
+    throw new Error("Invalid cafe gateway response");
 
   const statsRes = await base44.functions.invoke("get-cafe-stats", { cafe_id: id });
   const stats = unwrap<Record<string, unknown> | null>(statsRes, "stats");
@@ -108,25 +117,31 @@ export interface B44MeasurementInsert {
 
 /** Insert a single measurement under service role (bypasses RLS). */
 export async function b44InsertMeasurement(m: B44MeasurementInsert): Promise<string> {
-  const measured = (await getBase44().entities.Measurement.create({
-    cafe_id: m.cafeId,
-    down_mbps: m.downMbps,
-    up_mbps: m.upMbps,
-    latency_ms: m.latencyMs,
-    jitter_ms: m.jitterMs ?? null,
-    loss_pct: m.lossPct ?? null,
-    measured_at: m.measuredAt ?? new Date().toISOString(),
-    photo_url: m.photoUrl ?? null,
-    test_method: m.testMethod ?? "manual",
-    target_server: m.targetServer ?? null,
-    device_type: m.deviceType ?? null,
-    download_bytes: m.downloadBytes ?? null,
-    download_duration_ms: m.downloadDurationMs ?? null,
-    contributor_ip_hash: m.contributorIpHash ?? null,
-    contributor_user_id: m.contributorUserId ?? null,
-    referred_by: m.referredBy ?? null,
-  })) as { id: string };
-  return measured.id;
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "insert",
+    measurement: {
+      cafe_id: m.cafeId,
+      down_mbps: m.downMbps,
+      up_mbps: m.upMbps,
+      latency_ms: m.latencyMs,
+      jitter_ms: m.jitterMs ?? null,
+      loss_pct: m.lossPct ?? null,
+      measured_at: m.measuredAt ?? new Date().toISOString(),
+      photo_url: m.photoUrl ?? null,
+      test_method: m.testMethod ?? "manual",
+      target_server: m.targetServer ?? null,
+      device_type: m.deviceType ?? null,
+      download_bytes: m.downloadBytes ?? null,
+      download_duration_ms: m.downloadDurationMs ?? null,
+      contributor_ip_hash: m.contributorIpHash ?? null,
+      contributor_user_id: m.contributorUserId ?? null,
+      referred_by: m.referredBy ?? null,
+    },
+  });
+  const measurementId = unwrap<string>(res, "measurementId");
+  if (typeof measurementId !== "string" || measurementId.length === 0)
+    throw new Error("Invalid measurement-gateway response");
+  return measurementId;
 }
 
 export interface B44CafeCreate {
@@ -139,7 +154,7 @@ export async function b44CreateCafe(input: B44CafeCreate): Promise<{
   cafeId: string;
   measurementId: string;
 }> {
-  const res = await getBase44().functions.invoke("create-cafe", {
+  const res = await getBase44Gateway().functions.invoke("create-cafe", {
     cafe: input.cafe,
     measurement: {
       down_mbps: input.measurement.downMbps,
@@ -161,6 +176,10 @@ export async function b44CreateCafe(input: B44CafeCreate): Promise<{
   });
   const cafeId = unwrap<string>(res, "cafeId");
   const measurementId = unwrap<string>(res, "measurementId");
+  if (typeof cafeId !== "string" || cafeId.length === 0)
+    throw new Error("Invalid create-cafe response");
+  if (typeof measurementId !== "string" || measurementId.length === 0)
+    throw new Error("Invalid create-cafe response");
   return { cafeId, measurementId };
 }
 

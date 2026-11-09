@@ -264,10 +264,10 @@ export function MeasurementForm({
               {bounty.progress + 1 >= bounty.target
                 ? bounty.synthetic
                   ? "Target reached — no sponsor behind it yet."
-                  : "Filled — claim it on the bounties board."
+                  : "Filled — payouts paused."
                 : bounty.synthetic
                   ? `${bounty.target - bounty.progress - 1} more to close the gap.`
-                  : `${bounty.target - bounty.progress - 1} more to unlock ${bounty.rewardNim} NIM.`}
+                  : `${bounty.target - bounty.progress - 1} more to close the bounty.`}
             </p>
           </div>
         )}
@@ -416,6 +416,7 @@ export function MeasurementForm({
         ))}
       </div>
 
+      <p className="font-mono text-[10px] text-ink-faint">{autoResult ? "HTTP-based estimate, not a packet-loss or media-jitter test. Results are reported by this browser, not independently verified." : "Community-reported values from your chosen tool; not independently verified."}</p>
       <button
         type="submit"
         disabled={!valid || status === "sending"}

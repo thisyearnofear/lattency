@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useOverlay } from "@/components/overlay-context";
+import { useMatchMedia } from "@/hooks/use-match-media";
 
 const STORAGE_KEY = "lattency:onboarded:v1";
 
@@ -26,6 +27,11 @@ export function OnboardingOverlay({
   const [phase, setPhase] = useState<Phase>("hidden");
   const { active } = useOverlay();
   const isAnyOverlayOpen = active !== null;
+  // Under md the full 290px ticket crowds the map — it renders as a slim
+  // "? · Info" chip in the same corner; tapping expands the real ticket,
+  // tapping ✕ dismisses it for good (same STORAGE_KEY as the full dismiss).
+  const narrow = useMatchMedia("(max-width: 767px)");
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   // Refs so the suppression effect can read current values without depending
   // on them in its dep array. The previous version depended on `phase`, which
@@ -104,6 +110,41 @@ export function OnboardingOverlay({
 
   if (phase === "hidden") return null;
 
+  // Mobile collapsed state — the chip keeps the same corner anchor as the
+  // ticket so expanding it doesn't jump across the screen. It must be
+  // dismissible in-place: the ✕ runs the same dismiss() path as the full
+  // ticket, persisting to STORAGE_KEY so it stays gone on reload.
+  if (narrow && !mobileExpanded) {
+    return (
+      <div
+        className={`fixed bottom-28 right-4 z-[600] ${
+          phase === "leaving" ? "pointer-events-none toast-out" : "pointer-events-auto toast-in"
+        }`}
+        role="region"
+        aria-label="Getting started with Lattency"
+      >
+        <div className="flex items-center bg-cream border border-ink shadow-[3px_4px_0_0_var(--color-ink)]">
+          <button
+            type="button"
+            onClick={() => setMobileExpanded(true)}
+            className="px-3 py-2.5 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-soft hover:text-ink transition-colors"
+            aria-label="Show getting started tips"
+          >
+            <span aria-hidden>? · </span>Info
+          </button>
+          <button
+            type="button"
+            onClick={dismiss}
+            className="px-2.5 py-2.5 border-l border-ink/20 font-mono text-[12px] leading-none text-ink-faint hover:text-ink transition-colors"
+            aria-label="Dismiss getting started tip"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`fixed bottom-28 right-4 sm:right-6 z-[600] w-[290px] max-w-[86vw] ${
@@ -148,7 +189,7 @@ export function OnboardingOverlay({
             ) : (
               <>
                 Every dot is a real place to work. The lines are speed tiers —
-                green rides video calls, red won&rsquo;t. Run a test where
+                green reads fast, red reads slow. Run a test where
                 you&rsquo;re sitting to add your own.
               </>
             )}

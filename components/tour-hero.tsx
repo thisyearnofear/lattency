@@ -67,11 +67,11 @@ export function TourHero() {
             className="font-serif italic text-ink-soft text-lg sm:text-xl md:text-2xl mt-2.5 sm:mt-3 max-w-2xl"
           >
             <span className="sm:hidden">
-              Sixty seconds — tap, test, land, earn NIM.
+              Sixty seconds — tap, test, land, close a bounty.
             </span>
             <span className="hidden sm:inline">
               Sixty seconds start to finish — tap a station, run a real speed
-              test, watch your pin extend the line, earn NIM when a bounty closes.
+              test, watch your pin extend the line, close a bounty target.
             </span>
           </p>
         </div>
@@ -107,9 +107,9 @@ export function TourHero() {
         aria-label="Proof points"
       >
         {[
-          "Verified speed tests",
+          "Community speed reports",
           "Objective facts — no stars",
-          "Bounties paid in NIM",
+          "Bounties · payouts paused",
         ].map((line) => (
           <li
             key={line}

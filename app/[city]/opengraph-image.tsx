@@ -105,7 +105,7 @@ export default async function CityOGImage({
               lineHeight: 1.4,
             }}
           >
-            {`${total} ${total === 1 ? "station" : "stations"} mapped · verified wifi speeds for cafés and coworking spots, charted like a transit network.`}
+            {`${total} ${total === 1 ? "station" : "stations"} mapped · community-reported wifi speeds for cafés and coworking spots, charted like a transit network.`}
           </div>
         </div>
 

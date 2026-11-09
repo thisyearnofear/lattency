@@ -730,10 +730,12 @@ export const MOCK_CAFES: CafeStation[] = [
   },
 ];
 
+export const DEMO_REFERENCE_TIME = Date.parse("2026-10-22T12:00:00Z");
+
 // Assign varied lastReadingAt timestamps so the staleness feature is visible
 // on the demo map. Stations with more measurements get fresher dates; those
 // with 0 measurements get no timestamp (unknown staleness).
-const _now = Date.now();
+const _now = DEMO_REFERENCE_TIME;
 const _day = 24 * 60 * 60 * 1000;
 MOCK_CAFES.forEach((c, i) => {
   if (c.measurementCount === 0) return;

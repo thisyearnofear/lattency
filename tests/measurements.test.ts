@@ -33,6 +33,7 @@ describe("resolveTestMethod", () => {
     expect(
       resolveTestMethod({
         ...base,
+        downMbps: 69.9,
         downloadBytes: 10_485_760,
         downloadDurationMs: 1200,
       }),

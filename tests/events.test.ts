@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
   __resetLocalCommunitiesForTests,
   __resetLocalEventsForTests,
@@ -128,7 +128,13 @@ describe("event submission (offline overlay)", () => {
   };
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
     __resetLocalEventsForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("lands a submission as pending, never public", async () => {

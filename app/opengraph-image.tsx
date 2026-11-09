@@ -88,7 +88,7 @@ export default function OpenGraphImage() {
               flexDirection: "column",
             }}
           >
-            {"Cafés and coworking spots in London, Nairobi & San Francisco, mapped like a metro network — the lines are speed tiers, verified by anyone who runs a real speed test from where they\u2019re sitting."}
+            {"Cafés and coworking spots in London, Nairobi & San Francisco, mapped like a metro network — the lines are speed tiers, reported by anyone who runs a speed test from where they\u2019re sitting."}
           </div>
         </div>
 

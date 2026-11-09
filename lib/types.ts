@@ -116,7 +116,7 @@ export interface CafeStation {
   medianLatencyMs: number;
   /** Median jitter across all auto-test readings. 0 when no auto readings. */
   medianJitterMs: number;
-  /** Median packet loss % across all auto-test readings. 0 when no auto readings. */
+  /** Median HTTP request failure % across all auto-test readings. 0 when no auto readings. */
   medianLossPct: number;
   measurementCount: number;
   latestPhotoUrl: string | null;
@@ -149,6 +149,7 @@ export interface CafeStation {
    *  — stations visually fade after 14 days without a fresh reading. Optional
    *  because mock data backfills it but the DB path may not return it yet. */
   lastReadingAt?: string;
+  dataSource?: "community" | "demo" | "local";
 }
 
 // One active sponsor per café (the partial unique index in migration 0007

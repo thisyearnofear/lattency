@@ -25,6 +25,7 @@ import { CrossfadePanel } from "@/components/crossfade-panel";
 import { ContributionCelebration } from "./contribution-celebration";
 import { SpeedTestRunning } from "./speed-test-running";
 import { useContributor } from "@/hooks/use-contributor";
+import { isValidLatitude, isValidLongitude } from "@/lib/geo";
 
 type Step = "location" | "details" | "metadata" | "speedtest" | "photo" | "submitting" | "done" | "error";
 
@@ -241,6 +242,14 @@ export function CafeContributionForm({
   );
   const contributor = useContributor();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Step 1 location state — a failed/denied geolocation attempt must not be
+  // a dead end: the contributor can retry, or drop to manual coordinates.
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [geoLocating, setGeoLocating] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualLat, setManualLat] = useState("");
+  const [manualLng, setManualLng] = useState("");
+  const [manualError, setManualError] = useState<string | null>(null);
   const [debug] = useState(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
   );
@@ -280,25 +289,57 @@ export function CafeContributionForm({
     setStep("speedtest");
   }
 
-  // Step 1: Geolocation
+  // Step 1: Geolocation — preferred path, requested only from this click
+  // handler. Failures stay on the step and reveal the manual fallback
+  // instead of dumping the contributor on the generic error screen.
   function getLocation() {
+    setGeoError(null);
     if (!navigator.geolocation) {
-      setErrorMsg("Geolocation not available on this device");
-      setStep("error");
+      setGeoError("Geolocation isn't available in this browser.");
+      setManualMode(true);
       return;
     }
+    setGeoLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        setGeoLocating(false);
         update("lat", pos.coords.latitude);
         update("lng", pos.coords.longitude);
         setStep("details");
       },
       (err) => {
-        setErrorMsg(`Could not get location: ${err.message}`);
-        setStep("error");
+        setGeoLocating(false);
+        setGeoError(
+          err.code === err.PERMISSION_DENIED
+            ? "Location access was declined."
+            : "Could not get location.",
+        );
+        // Denial used to be a dead end — the manual path opens
+        // automatically so there's always a way through.
+        setManualMode(true);
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
+  }
+
+  // Step 1 fallback: typed coordinates. Validated against the same WGS84
+  // bounds the API enforces, so a manual pin behaves exactly like a
+  // geolocated one for the rest of the flow.
+  function useManualCoordinates() {
+    const lat = parseFloat(manualLat);
+    const lng = parseFloat(manualLng);
+    if (!isValidLatitude(lat)) {
+      setManualError("Latitude must be a number between -90 and 90.");
+      return;
+    }
+    if (!isValidLongitude(lng)) {
+      setManualError("Longitude must be a number between -180 and 180.");
+      return;
+    }
+    setManualError(null);
+    update("lat", lat);
+    update("lng", lng);
+    setStep("details");
   }
 
   // Step 4: Speed test — reuses lib/speedtest.ts directly
@@ -526,13 +567,95 @@ export function CafeContributionForm({
               <button
                 type="button"
                 onClick={getLocation}
-                className="pressable w-full py-3 bg-ink text-cream font-mono text-xs tracking-[0.22em] uppercase hover:bg-ink/90"
+                disabled={geoLocating}
+                className="pressable w-full py-3 bg-ink text-cream font-mono text-xs tracking-[0.22em] uppercase hover:bg-ink/90 disabled:opacity-60"
               >
-                Share my location
+                {geoLocating ? "Locating…" : "Share my location"}
               </button>
               <p className="font-mono text-[10px] text-ink-faint">
                 Your exact coordinates are never stored — only the café&rsquo;s position, which you&rsquo;ll confirm next.
               </p>
+
+              {/* Failed/denied attempt — inline, non-shaming, with a retry.
+                  The manual path below opens automatically so the step is
+                  never a dead end. */}
+              {geoError && (
+                <div className="border border-ink/20 bg-cream-edge/40 px-3 py-2.5 space-y-1.5">
+                  <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-suspended">
+                    {geoError}
+                  </p>
+                  <p className="font-serif italic text-[13px] text-ink-soft leading-snug">
+                    Location access lets us pin you on the map. You can also enter coordinates manually.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={getLocation}
+                    className="font-mono text-[10px] tracking-[0.2em] uppercase text-express hover:text-ink"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {/* Manual fallback — revealed after a failed attempt or an
+                  explicit toggle, never as a competing parallel path. */}
+              {!manualMode && (
+                <button
+                  type="button"
+                  onClick={() => setManualMode(true)}
+                  className="font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint underline underline-offset-4 hover:text-ink transition-colors"
+                >
+                  Enter coordinates manually
+                </button>
+              )}
+
+              {manualMode && (
+                <div className="border border-ink/20 px-3 py-3 space-y-3">
+                  <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint">
+                    Café coordinates
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="Latitude (-90 to 90)">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="any"
+                        min={-90}
+                        max={90}
+                        value={manualLat}
+                        onChange={(e) => setManualLat(e.target.value)}
+                        placeholder="e.g. 51.5250"
+                        className="w-full px-3 py-2 border border-ink/30 bg-cream text-ink focus:outline-none focus:border-ink"
+                      />
+                    </Field>
+                    <Field label="Longitude (-180 to 180)">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="any"
+                        min={-180}
+                        max={180}
+                        value={manualLng}
+                        onChange={(e) => setManualLng(e.target.value)}
+                        placeholder="e.g. -0.0770"
+                        className="w-full px-3 py-2 border border-ink/30 bg-cream text-ink focus:outline-none focus:border-ink"
+                      />
+                    </Field>
+                  </div>
+                  {manualError && (
+                    <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-suspended">
+                      {manualError}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={useManualCoordinates}
+                    className="pressable w-full py-3 border border-ink font-mono text-xs tracking-[0.22em] uppercase text-ink hover:bg-ink hover:text-cream transition-colors"
+                  >
+                    Use these coordinates
+                  </button>
+                </div>
+              )}
 
               {debug && (
                 <div className="relative pt-4 mt-2 border-t border-cream-deep">
@@ -752,14 +875,14 @@ export function CafeContributionForm({
                       </div>
                     );
                   })()}
-                  <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <Stat label="DOWN" value={`${Math.round(form.measurement.downMbps)}`} unit="Mbps" />
                     <Stat label="UP" value={`${form.measurement.upMbps.toFixed(1)}`} unit="Mbps" />
-                    <Stat label="PING" value={`${Math.round(form.measurement.latencyMs)}`} unit="ms" />
-                    <Stat label="JITTER" value={`${form.measurement.jitterMs?.toFixed(1) ?? "—"}`} unit="ms" />
+                    <Stat label="HTTP RTT" value={`${Math.round(form.measurement.latencyMs)}`} unit="ms" />
+                    <Stat label="HTTP VARIATION" value={`${form.measurement.jitterMs?.toFixed(1) ?? "—"}`} unit="ms" />
                   </div>
                   <p className="font-serif italic text-ink-soft text-[13px] leading-snug">
-                    DOWN sets the line colour on the map. PING matters most for calls, so a low number there is the one to watch.
+                    DOWN sets the map line colour. HTTP RTT includes network and server response time. HTTP-based estimate, not a packet-loss or media-jitter test. Results are reported by this browser, not independently verified.
                   </p>
                   <button
                     type="button"

@@ -50,7 +50,7 @@ describe("getNotifications", () => {
     const notifications = await getNotifications({ city: "london" });
 
     expect(notifications.map((n) => n.kind)).toEqual(["bounty-claimable"]);
-    expect(notifications[0].body).toContain("20 NIM is waiting");
+    expect(notifications[0].body).toContain("20 NIM staked");
   });
 
   it("stays silent about a filled unfunded seed", async () => {
