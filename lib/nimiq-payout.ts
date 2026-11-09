@@ -14,10 +14,14 @@ export interface PayoutResult {
   recipient: string;
 }
 
+// Nimiq PoS (Albatross) network ids, from nimiq-primitives networks.rs.
+// These are NOT sequential: the signature commits to the id, so a wrong id
+// produces a transaction the mempool accepts at broadcast then silently
+// drops. Testnet funding txs on-chain show networkId 5.
 const NETWORK_IDS: Record<string, number> = {
-  mainnet: 0,
-  testnet: 1,
-  devnet: 2,
+  mainnet: 24, // MainAlbatross
+  testnet: 5, // TestAlbatross
+  devnet: 6, // DevAlbatross
 };
 
 // Exported for lib/nimiq-verify.ts, which resolves the same endpoint to read
@@ -37,7 +41,7 @@ function getNetworkId(): number {
 export function getNimiqRpcUrl(): string {
   return (
     process.env.NIMIQ_RPC_URL ??
-    (getNetworkId() === 0
+    (getNetworkId() === NETWORK_IDS.mainnet
       ? "https://rpc.nimiqwatch.com/"
       : "https://rpc.testnet.nimiqwatch.com/")
   );
@@ -57,11 +61,16 @@ export async function nimiqRpcCall(
     throw new Error(`RPC ${method} failed: ${res.status} ${res.statusText}`);
   }
   const data = (await res.json()) as {
-    error?: { message: string };
+    error?: { message: string; data?: unknown };
     result?: unknown;
   };
   if (data.error) {
-    throw new Error(`RPC ${method} error: ${data.error.message}`);
+    // Nimiq Watch puts the real reason in `error.data` (e.g.
+    // "Transaction not found: <hash>" under a generic "Internal error").
+    const detail = data.error.data;
+    throw new Error(
+      `RPC ${method} error: ${data.error.message}${detail != null ? ` — ${String(detail)}` : ""}`,
+    );
   }
   return data.result;
 }
@@ -177,6 +186,11 @@ export async function executeNimiqPayout(
     );
 
     keyPair.signTransaction(tx);
+    // Offline sanity before broadcast: the mempool silently drops invalid
+    // transactions (bad signature, wrong network id, sender == recipient),
+    // and sendRawTransaction still returns a hash for them. verify() throws
+    // synchronously here instead of letting the payout vanish on-chain.
+    tx.verify(networkId);
     const txHex = tx.toHex();
 
     const sendResult = await nimiqRpcCall("sendRawTransaction", [txHex]);

@@ -22,6 +22,14 @@ delete process.env.NEXT_PUBLIC_BASE44_APP_ID;
 // a configured dev machine, which would silently flip the sponsor dashboard
 // between its funded and "not configured" render depending on the checkout.
 delete process.env.NEXT_PUBLIC_NIMIQ_ESCROW_ADDRESS;
+// And for the payment-policy envs: bountyPaymentsEnabled() is env-gated, so
+// a configured .env.local (key + escrow set) would silently flip every
+// "payments paused" assertion between checkouts. Tests that exercise the
+// gate stub the exact variables they need via `vi.stubEnv`.
+delete process.env.NIMIQ_PRIVATE_KEY;
+delete process.env.NIMIQ_ESCROW_ADDRESS;
+delete process.env.NIMIQ_PAYOUT_MOCK;
+delete process.env.BOUNTY_DISABLE;
 
 import { vi } from "vitest";
 vi.mock("server-only", () => ({}));

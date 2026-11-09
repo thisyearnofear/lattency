@@ -34,7 +34,9 @@ describe("verifyFundingTx", () => {
 
     const res = await verifyFundingTx(HASH, 500_000, ESCROW);
 
-    expect(res).toEqual({ ok: true, txHash: HASH });
+    // The returned hash is the canonical bare-hex form — "0x" is stripped so
+    // the stored fundingTxHash matches regardless of how the sponsor sent it.
+    expect(res).toEqual({ ok: true, txHash: "a".repeat(64) });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -77,7 +79,7 @@ describe("verifyFundingTx", () => {
 
     expect(res).toEqual({
       ok: true,
-      txHash: HASH,
+      txHash: "a".repeat(64),
       sender: "NQ07 SENDER000000000000000000000000000",
     });
     expect(fetchMock).toHaveBeenCalledWith(

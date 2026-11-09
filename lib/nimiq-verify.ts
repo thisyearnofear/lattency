@@ -92,9 +92,13 @@ export async function verifyFundingTx(
   escrowAddress: string | undefined | null,
 ): Promise<FundingVerification> {
   const hash = (txHash ?? "").trim();
+  // Canonical form: bare lowercase hex. The RPC rejects a 0x prefix, and the
+  // bounty board stores/compares this verbatim — normalizing here means
+  // "0xABC" and "abc" are the same deposit for the replay guard.
+  const normalized = hash.replace(/^0x/i, "").toLowerCase();
 
   if (process.env.NIMIQ_PAYOUT_MOCK === "1") {
-    return { ok: true, txHash: hash };
+    return { ok: true, txHash: normalized };
   }
 
   if (!process.env.NIMIQ_PRIVATE_KEY || !escrowAddress?.trim()) {
@@ -107,11 +111,19 @@ export async function verifyFundingTx(
 
   let result: unknown;
   try {
-    result = await nimiqRpcCall("getTransactionByHash", [hash]);
+    result = await nimiqRpcCall("getTransactionByHash", [normalized]);
   } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    // Nimiq Watch answers an unknown hash with an RPC *error*
+    // ("Transaction not found: …"), not a null result. That's a client-side
+    // verdict — the sponsor's tx isn't on-chain — not an infra failure, so
+    // surface it as tx-not-found (→ 400) instead of rpc-error (→ 502).
+    if (/not found/i.test(reason)) {
+      return { ok: false, reason: "tx-not-found" };
+    }
     log.warn("nimiq funding verification RPC failed", {
       scope: "nimiq.verify",
-      reason: err instanceof Error ? err.message : String(err),
+      reason,
     });
     return { ok: false, reason: "rpc-error" };
   }
@@ -139,5 +151,5 @@ export async function verifyFundingTx(
 
   const senderRaw = txField(t, "sender", "from", "senderAddress", "fromAddress");
   const sender = typeof senderRaw === "string" ? senderRaw : undefined;
-  return { ok: true, txHash: hash, sender };
+  return { ok: true, txHash: normalized, sender };
 }
