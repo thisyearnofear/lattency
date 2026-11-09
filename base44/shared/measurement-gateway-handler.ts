@@ -69,6 +69,35 @@ const SCAN_PUBLIC_STATUSES = new Set([
 const SCAN_MAX_SEQ = 4999;
 const SCAN_MAX_FRAME_BYTES = 512 * 1024;
 const SCAN_MAX_MANIFEST = 2000;
+const SCAN_MAX_URL = 2048;
+// Pipeline status state machine (docs/venue-3d-ux-research.md §7). Strictly
+// forward along captured → processing → preview → refining → published;
+// rejected is a QC exit reachable before publish, superseded retires a
+// published scan. taken_down is never a target here — the owner-veto path
+// owns it — and no state may regress.
+const SCAN_TRANSITIONS: Record<string, ReadonlySet<string>> = {
+  captured: new Set(["processing", "rejected"]),
+  processing: new Set(["preview", "rejected"]),
+  preview: new Set(["refining", "rejected"]),
+  refining: new Set(["published", "rejected"]),
+  published: new Set(["superseded"]),
+  rejected: new Set(),
+  taken_down: new Set(),
+  superseded: new Set(),
+};
+const SCAN_STATUSES = new Set(Object.keys(SCAN_TRANSITIONS));
+
+/** Optional blob URL field — must be an https URL. */
+function scanUrlError(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (
+    typeof value !== "string" ||
+    value.length > SCAN_MAX_URL ||
+    !value.startsWith("https://")
+  )
+    return `${field} must be an https URL (max ${SCAN_MAX_URL} characters)`;
+  return null;
+}
 
 export async function measurementGatewayHandler(
   req: Request,
@@ -317,9 +346,11 @@ export async function measurementGatewayHandler(
     }
 
     if (action === "venue-scan-frame") {
-      // Appends one keyframe-chunk manifest entry to a live scan. Image bytes
-      // are NOT stored — blob storage is Phase 1 infra; the Next.js route
-      // validates the JPEG and we record only {seq, ts, bytes}.
+      // Appends one keyframe-chunk manifest entry to a live scan. The Next.js
+      // route validates the JPEG and stores the bytes in object storage
+      // before calling — we record {seq, ts, bytes, url} pointing at the
+      // stored frame. `url` stays optional so in-flight clients that predate
+      // blob storage don't break mid-run.
       const b = body as Record<string, unknown>;
       const scanId = b.scan_id;
       if (typeof scanId !== "string" || scanId.length === 0 || scanId.length > 128)
@@ -350,6 +381,8 @@ export async function measurementGatewayHandler(
         bytes > SCAN_MAX_FRAME_BYTES
       )
         return err(400, "bytes must be an integer byte count (max 512KB)");
+      const urlError = scanUrlError(b.url, "url");
+      if (urlError) return err(400, urlError);
 
       let scan: Record<string, unknown> | null;
       try {
@@ -383,12 +416,86 @@ export async function measurementGatewayHandler(
         return err(400, "frame manifest full");
 
       await base44.asServiceRole.entities.VenueScan.update(scanId, {
-        frames_received: [...existing, { seq, ts, bytes }],
+        frames_received: [
+          ...existing,
+          {
+            seq,
+            ts,
+            bytes,
+            ...(typeof b.url === "string" ? { url: b.url } : {}),
+          },
+        ],
       });
       return Response.json(
         { received: existing.length + 1 },
         { headers: NO_STORE },
       );
+    }
+
+    if (action === "venue-scan-status") {
+      // Pipeline state machine — the only path that moves a scan past
+      // `captured`. Called by the Next.js process route (contributor enqueue)
+      // and by the scan worker (every later transition). Forward-only:
+      // captured → processing → preview → refining → published, with
+      // rejected as a pre-publish QC exit and superseded retiring a
+      // published scan. `published` additionally requires a splat_url AND
+      // blur_verified === true — blur-before-publish is enforced here, not
+      // trusted to the caller (docs/venue-3d-insights.md guardrails).
+      const b = body as Record<string, unknown>;
+      const scanId = b.scan_id;
+      if (typeof scanId !== "string" || scanId.length === 0 || scanId.length > 128)
+        return err(400, "scan_id required");
+      const status = b.status;
+      if (typeof status !== "string" || !SCAN_STATUSES.has(status))
+        return err(400, "status must be a valid scan status");
+      const urlError = scanUrlError(b.splat_url, "splat_url");
+      if (urlError) return err(400, urlError);
+      const blurVerified = b.blur_verified;
+      if (
+        blurVerified !== undefined &&
+        blurVerified !== null &&
+        typeof blurVerified !== "boolean"
+      )
+        return err(400, "blur_verified must be a boolean");
+
+      // Publish gate — checked on the request before the entity is even
+      // read, so a malformed publish can't move the scan at all.
+      if (status === "published") {
+        if (typeof b.splat_url !== "string" || b.splat_url.length === 0)
+          return err(400, "published requires splat_url");
+        if (blurVerified !== true)
+          return err(400, "published requires blur_verified === true");
+      }
+
+      let scan: Record<string, unknown> | null;
+      try {
+        scan = await base44.asServiceRole.entities.VenueScan.get(scanId);
+      } catch (e) {
+        const s = (e as { status?: number })?.status;
+        if (s === 404) return err(404, "scan not found");
+        throw e;
+      }
+      if (!scan) return err(404, "scan not found");
+
+      const from = typeof scan.status === "string" ? scan.status : "";
+      // Same-status requests are idempotent retries — acknowledge without
+      // writing so a re-fired worker step is safe.
+      if (from === status)
+        return Response.json(
+          { ok: true, status, deduped: true },
+          { headers: NO_STORE },
+        );
+      if (!SCAN_TRANSITIONS[from]?.has(status))
+        return err(409, `cannot transition scan from ${from || "unknown"} to ${status}`);
+
+      await base44.asServiceRole.entities.VenueScan.update(scanId, {
+        status,
+        ...(typeof b.splat_url === "string" ? { splat_url: b.splat_url } : {}),
+        ...(typeof blurVerified === "boolean"
+          ? { blur_verified: blurVerified }
+          : {}),
+      });
+      return Response.json({ ok: true, status }, { headers: NO_STORE });
     }
 
     if (action === "venue-scan-finalize") {

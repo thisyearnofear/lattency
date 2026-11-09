@@ -12,6 +12,9 @@ const b44AppendVenueScanFrame = vi.fn().mockResolvedValue({ received: 1 });
 const b44FinalizeVenueScan = vi.fn().mockResolvedValue(undefined);
 const b44GetCafeById = vi.fn().mockResolvedValue({ city: "london" });
 const checkRateLimit = vi.fn().mockResolvedValue(true);
+const putScanFrame = vi
+  .fn()
+  .mockResolvedValue({ url: "https://blob/scans/vs-1/0.jpg", pathname: "scans/vs-1/0.jpg" });
 const cfg = { configured: true };
 
 vi.mock("@/lib/base44-data", () => ({
@@ -23,6 +26,17 @@ vi.mock("@/lib/base44-data", () => ({
   b44AppendVenueScanFrame: (...a: unknown[]) => b44AppendVenueScanFrame(...a),
   b44FinalizeVenueScan: (...a: unknown[]) => b44FinalizeVenueScan(...a),
 }));
+vi.mock("@/lib/scan-blob", async () => {
+  // Keep the real ScanStorageError class so the route's instanceof check
+  // behaves exactly as in production.
+  const actual = await vi.importActual<typeof import("@/lib/scan-blob")>(
+    "@/lib/scan-blob",
+  );
+  return {
+    ...actual,
+    putScanFrame: (...a: unknown[]) => putScanFrame(...a),
+  };
+});
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: (...a: unknown[]) => checkRateLimit(...a),
   hashIp: () => "h",
@@ -71,7 +85,7 @@ function patch(body: unknown, id = "vs-1") {
 describe("POST /api/venue-scans/[id]/upload", () => {
   beforeEach(() => {
     cfg.configured = true;
-    [b44GetVenueScan, b44AppendVenueScanFrame, b44GetCafeById, checkRateLimit].forEach(
+    [b44GetVenueScan, b44AppendVenueScanFrame, b44GetCafeById, checkRateLimit, putScanFrame].forEach(
       (f) => f.mockClear(),
     );
     b44GetVenueScan.mockResolvedValue({
@@ -83,6 +97,10 @@ describe("POST /api/venue-scans/[id]/upload", () => {
     });
     b44GetCafeById.mockResolvedValue({ city: "london" });
     checkRateLimit.mockResolvedValue(true);
+    putScanFrame.mockResolvedValue({
+      url: "https://blob/scans/vs-1/0.jpg",
+      pathname: "scans/vs-1/0.jpg",
+    });
     vi.stubEnv("VENUE_CAPTURE_CITIES", "london");
     vi.stubEnv("VENUE_CAPTURE_CREW", "");
   });
@@ -97,18 +115,30 @@ describe("POST /api/venue-scans/[id]/upload", () => {
     expect(b44GetVenueScan).not.toHaveBeenCalled();
   });
 
-  it("appends a validated frame's manifest entry and reports the count", async () => {
+  it("stores the frame bytes, then appends the manifest entry with the blob url", async () => {
     vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
     const { POST } = await import("@/app/api/venue-scans/[id]/upload/route");
     const res = await POST(post(VALID_FRAME), PARAMS);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ received: 1 });
+    // Bytes land in object storage before the manifest is touched.
+    expect(putScanFrame).toHaveBeenCalledTimes(1);
+    const [putScanId, putSeq, putBuf] = putScanFrame.mock.calls[0];
+    expect(putScanId).toBe("vs-1");
+    expect(putSeq).toBe(0);
+    expect(Buffer.isBuffer(putBuf)).toBe(true);
+    expect(putBuf.length).toBe(10);
+    expect(putBuf[0]).toBe(0xff);
+    expect(putScanFrame.mock.invocationCallOrder[0]).toBeLessThan(
+      b44AppendVenueScanFrame.mock.invocationCallOrder[0],
+    );
     expect(b44AppendVenueScanFrame).toHaveBeenCalledWith({
       scanId: "vs-1",
       contributorId: "contrib-abc",
       seq: 0,
       ts: "2026-11-10T08:00:00Z",
       bytes: 10,
+      url: "https://blob/scans/vs-1/0.jpg",
     });
     // The frame bytes themselves are never forwarded — only the manifest.
     const call = b44AppendVenueScanFrame.mock.calls[0][0];
@@ -117,6 +147,42 @@ describe("POST /api/venue-scans/[id]/upload", () => {
       kind: "scanframe",
       scanId: "vs-1",
     });
+  });
+
+  it("503s with 'storage not configured' when the blob token is missing — no manifest", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    const { ScanStorageError } = await import("@/lib/scan-blob");
+    putScanFrame.mockRejectedValueOnce(
+      new ScanStorageError("not_configured", "BLOB_READ_WRITE_TOKEN is not set"),
+    );
+    const { POST } = await import("@/app/api/venue-scans/[id]/upload/route");
+    const res = await POST(post(VALID_FRAME), PARAMS);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe("storage not configured");
+    expect(b44AppendVenueScanFrame).not.toHaveBeenCalled();
+  });
+
+  it("503s generically on other storage failures — still no manifest", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    const { ScanStorageError } = await import("@/lib/scan-blob");
+    putScanFrame.mockRejectedValueOnce(
+      new ScanStorageError("request_failed", "blob store request failed"),
+    );
+    const { POST } = await import("@/app/api/venue-scans/[id]/upload/route");
+    const res = await POST(post(VALID_FRAME), PARAMS);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).not.toBe("storage not configured");
+    expect(b44AppendVenueScanFrame).not.toHaveBeenCalled();
+  });
+
+  it("503s on unexpected store errors without leaking internals", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    putScanFrame.mockRejectedValueOnce(new Error("PRIVATE DETAIL"));
+    const { POST } = await import("@/app/api/venue-scans/[id]/upload/route");
+    const res = await POST(post(VALID_FRAME), PARAMS);
+    expect(res.status).toBe(503);
+    expect(await res.text()).not.toContain("PRIVATE DETAIL");
+    expect(b44AppendVenueScanFrame).not.toHaveBeenCalled();
   });
 
   it("accepts a data-url frame as well as raw base64", async () => {

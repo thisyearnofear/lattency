@@ -41,13 +41,15 @@ export interface VenueScanConsentAttestation {
   timestamp: string;
 }
 
-/** One frame-manifest entry — seq/timestamp/byte-size only. Frame image
- *  bytes are NOT persisted yet: object storage is Phase 1 infra. Until it
- *  lands, the upload route validates each JPEG and records its arrival. */
+/** One frame-manifest entry — seq/timestamp/byte-size plus, since blob
+ *  storage shipped (Phase 1), the `url` of the stored JPEG. Entries written
+ *  before object storage landed carry no url. */
 export interface VenueScanFrameRef {
   seq: number;
   ts: string;
   bytes: number;
+  /** Vercel Blob URL of the stored frame (private access). */
+  url?: string;
 }
 
 /** Full entity shape — server-side only in practice; nothing publishes

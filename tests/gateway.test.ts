@@ -85,6 +85,18 @@ describe("authorizeGateway", () => {
     expect((await authorizeGateway(req({}, { "x-lattency-server-key": "wrong" }), SECRET))!.status).toBe(401);
     expect(await authorizeGateway(req({}, { "x-lattency-server-key": SECRET }), SECRET)).toBeNull();
   });
+  it("honors a custom header name (scan worker key surface)", async () => {
+    expect(
+      (await authorizeGateway(req({}, { "x-scan-worker-key": "wrong" }), SECRET, "x-scan-worker-key"))!.status,
+    ).toBe(401);
+    // The gateway key does not double as a worker key.
+    expect(
+      (await authorizeGateway(req({}, { "x-lattency-server-key": SECRET }), SECRET, "x-scan-worker-key"))!.status,
+    ).toBe(401);
+    expect(
+      await authorizeGateway(req({}, { "x-scan-worker-key": SECRET }), SECRET, "x-scan-worker-key"),
+    ).toBeNull();
+  });
 });
 
 function makeClient(over: Partial<{
@@ -614,6 +626,65 @@ describe("measurementGatewayHandler venue-scan actions", () => {
     expect(scanUpdate).not.toHaveBeenCalled();
   });
 
+  it("venue-scan-frame stores the blob url in the manifest entry when provided", async () => {
+    const { client, scanUpdate } = makeClient({
+      scan: {
+        id: "vs-1",
+        contributor_id: "contrib-x",
+        status: "captured",
+        frames_received: [],
+      },
+    });
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-frame",
+          scan_id: "vs-1",
+          contributor_id: "contrib-x",
+          seq: 0,
+          ts: "t",
+          bytes: 10,
+          url: "https://store.private.blob.vercel-storage.com/scans/vs-1/0.jpg",
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(200);
+    expect(scanUpdate).toHaveBeenCalledWith("vs-1", {
+      frames_received: [
+        {
+          seq: 0,
+          ts: "t",
+          bytes: 10,
+          url: "https://store.private.blob.vercel-storage.com/scans/vs-1/0.jpg",
+        },
+      ],
+    });
+
+    // A non-https or over-long url is rejected before any entity read.
+    for (const url of ["http://insecure/x.jpg", "x".repeat(2049), 42]) {
+      const bad = await measurementGatewayHandler(
+        req(
+          {
+            action: "venue-scan-frame",
+            scan_id: "vs-1",
+            contributor_id: "contrib-x",
+            seq: 1,
+            ts: "t",
+            bytes: 10,
+            url,
+          },
+          { [H]: SECRET },
+        ),
+        SECRET,
+        () => client,
+      );
+      expect(bad.status).toBe(400);
+    }
+  });
+
   it("venue-scan-finalize writes the manifest and leaves status captured", async () => {
     const { client, scanUpdate } = makeClient({
       scan: {
@@ -887,6 +958,164 @@ describe("measurementGatewayHandler micro-contribution actions", () => {
       () => makeClient({ cafe: null }).client,
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe("measurementGatewayHandler venue-scan-status action", () => {
+  const H = "x-lattency-server-key" as const;
+
+  function statusReq(
+    status: string,
+    scanStatus = "captured",
+    extra: Record<string, unknown> = {},
+  ) {
+    const { client, scanUpdate } = makeClient({
+      scan: { id: "vs-1", venue_id: "c1", status: scanStatus },
+    });
+    return {
+      client,
+      scanUpdate,
+      call: () =>
+        measurementGatewayHandler(
+          req(
+            {
+              action: "venue-scan-status",
+              scan_id: "vs-1",
+              status,
+              ...extra,
+            },
+            { [H]: SECRET },
+          ),
+          SECRET,
+          () => client,
+        ),
+    };
+  }
+
+  it("walks the forward chain and writes only the status", async () => {
+    const chain: [string, string][] = [
+      ["captured", "processing"],
+      ["processing", "preview"],
+      ["preview", "refining"],
+      ["refining", "published"],
+    ];
+    for (const [from, to] of chain) {
+      const extra =
+        to === "published"
+          ? { splat_url: "https://blob/x.spz", blur_verified: true }
+          : {};
+      const { scanUpdate, call } = statusReq(to, from, extra);
+      const res = await call();
+      expect(res.status).toBe(200);
+      expect(scanUpdate).toHaveBeenCalledWith(
+        "vs-1",
+        to === "published"
+          ? {
+              status: "published",
+              splat_url: "https://blob/x.spz",
+              blur_verified: true,
+            }
+          : { status: to },
+      );
+    }
+  });
+
+  it("409s illegal jumps — no regression, no skipping, no exits from terminal", async () => {
+    const illegal: [string, string][] = [
+      ["captured", "preview"],
+      ["captured", "published"],
+      ["processing", "published"],
+      ["preview", "processing"],
+      ["preview", "published"],
+      ["rejected", "processing"],
+      ["taken_down", "rejected"],
+      ["superseded", "processing"],
+      ["published", "rejected"],
+      ["published", "refining"],
+      ["captured", "taken_down"],
+    ];
+    for (const [from, to] of illegal) {
+      const { scanUpdate, call } = statusReq(to, from, {
+        splat_url: "https://blob/x.spz",
+        blur_verified: true,
+      });
+      const res = await call();
+      expect(res.status, `${from} → ${to}`).toBe(409);
+      expect(scanUpdate).not.toHaveBeenCalled();
+    }
+  });
+
+  it("allows rejected from any pre-publish stage and superseded from published", async () => {
+    for (const from of ["captured", "processing", "preview", "refining"]) {
+      const { scanUpdate, call } = statusReq("rejected", from);
+      const res = await call();
+      expect(res.status, `${from} → rejected`).toBe(200);
+      expect(scanUpdate).toHaveBeenCalledWith("vs-1", { status: "rejected" });
+    }
+    const { scanUpdate, call } = statusReq("superseded", "published");
+    expect((await call()).status).toBe(200);
+    expect(scanUpdate).toHaveBeenCalledWith("vs-1", { status: "superseded" });
+  });
+
+  it("published requires splat_url AND blur_verified === true — enforced here", async () => {
+    for (const extra of [
+      {},
+      { splat_url: "https://blob/x.spz" },
+      { blur_verified: true },
+      { splat_url: "https://blob/x.spz", blur_verified: false },
+      { splat_url: "", blur_verified: true },
+    ]) {
+      const { scanUpdate, call } = statusReq("published", "refining", extra);
+      const res = await call();
+      expect(res.status, JSON.stringify(extra)).toBe(400);
+      expect(scanUpdate).not.toHaveBeenCalled();
+    }
+  });
+
+  it("400s on invalid status, non-https splat_url, and bad blur_verified", async () => {
+    for (const [status, extra] of [
+      ["garbage", {}],
+      ["preview", { splat_url: "http://insecure/x" }],
+      ["preview", { splat_url: "x".repeat(2049) }],
+      ["preview", { blur_verified: "yes" }],
+    ] as const) {
+      const { scanUpdate, call } = statusReq(status, "captured", extra);
+      expect((await call()).status).toBe(400);
+      expect(scanUpdate).not.toHaveBeenCalled();
+    }
+  });
+
+  it("dedupes same-status requests without writing", async () => {
+    const { scanUpdate, call } = statusReq("processing", "processing");
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      status: "processing",
+      deduped: true,
+    });
+    expect(scanUpdate).not.toHaveBeenCalled();
+  });
+
+  it("404s on a missing scan and stores splat_url on intermediate steps", async () => {
+    const missing = await measurementGatewayHandler(
+      req(
+        { action: "venue-scan-status", scan_id: "nope", status: "processing" },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => makeClient({ scan: null }).client,
+    );
+    expect(missing.status).toBe(404);
+
+    const { scanUpdate, call } = statusReq("preview", "processing", {
+      splat_url: "https://blob/draft.spz",
+    });
+    expect((await call()).status).toBe(200);
+    expect(scanUpdate).toHaveBeenCalledWith("vs-1", {
+      status: "preview",
+      splat_url: "https://blob/draft.spz",
+    });
   });
 });
 

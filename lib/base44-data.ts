@@ -322,14 +322,15 @@ export async function b44GetVenueScan(
 }
 
 /** Append one frame-chunk manifest entry to a live scan. The route validates
- *  the JPEG itself; the gateway records only {seq, ts, bytes} — image bytes
- *  are never persisted until object storage lands (Phase 1 infra). */
+ *  the JPEG and stores the bytes in object storage first; the gateway
+ *  records {seq, ts, bytes, url} — `url` points at the stored frame. */
 export async function b44AppendVenueScanFrame(input: {
   scanId: string;
   contributorId: string;
   seq: number;
   ts: string;
   bytes: number;
+  url?: string;
 }): Promise<{ received: number }> {
   const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
     action: "venue-scan-frame",
@@ -338,11 +339,35 @@ export async function b44AppendVenueScanFrame(input: {
     seq: input.seq,
     ts: input.ts,
     bytes: input.bytes,
+    url: input.url ?? null,
   });
   const received = unwrap<number>(res, "received");
   if (typeof received !== "number")
     throw new Error("Invalid venue-scan gateway response");
   return { received };
+}
+
+/** Move a scan along the pipeline state machine. The gateway enforces
+ *  forward-only transitions and the published-requires-splat+blur gate, so
+ *  callers get `{status: 409}` on illegal jumps and `{status: 400}` on a
+ *  malformed publish. Same-status calls are idempotent (deduped). */
+export async function b44SetVenueScanStatus(input: {
+  scanId: string;
+  status: string;
+  splatUrl?: string | null;
+  blurVerified?: boolean;
+}): Promise<{ status: string; deduped: boolean }> {
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-scan-status",
+    scan_id: input.scanId,
+    status: input.status,
+    splat_url: input.splatUrl ?? null,
+    blur_verified: input.blurVerified ?? null,
+  });
+  const status = unwrap<string>(res, "status");
+  if (typeof status !== "string")
+    throw new Error("Invalid venue-scan gateway response");
+  return { status, deduped: unwrap<boolean>(res, "deduped") === true };
 }
 
 /** End-of-run manifest write — frame count, quality score, sectors, face
