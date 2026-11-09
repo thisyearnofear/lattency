@@ -92,6 +92,32 @@ describe("private gateway adapters", () => {
     ).rejects.toThrow(/bounty-insert/);
   });
 
+  it("marks a bounty paid through the private gateway, not the entity API", async () => {
+    gatewayInvoke.mockResolvedValue({ data: { ok: true } });
+    const { b44MarkBountyPaid } = await import("@/lib/base44-data");
+    await expect(
+      b44MarkBountyPaid("b-1", "NQ07 ABC123", "0xdef"),
+    ).resolves.toBe(true);
+    expect(gatewayInvoke).toHaveBeenCalledWith("measurement-gateway", {
+      action: "bounty-update",
+      bounty_id: "b-1",
+      patch: {
+        status: "paid",
+        claimed_by_address: "NQ07 ABC123",
+        tx_hash: "0xdef",
+      },
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("b44MarkBountyPaid returns false on gateway failure or bad shape", async () => {
+    const { b44MarkBountyPaid } = await import("@/lib/base44-data");
+    gatewayInvoke.mockRejectedValueOnce(new Error("denied"));
+    await expect(b44MarkBountyPaid("b-1", "NQ07", "0x")).resolves.toBe(false);
+    gatewayInvoke.mockResolvedValueOnce({ data: {} });
+    await expect(b44MarkBountyPaid("b-1", "NQ07", "0x")).resolves.toBe(false);
+  });
+
   it("distinguishes an absent cafe from a malformed gateway response", async () => {
     const { b44GetCafeById } = await import("@/lib/base44-data");
     gatewayInvoke.mockResolvedValueOnce({ cafe: null });

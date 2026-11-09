@@ -106,6 +106,8 @@ function makeClient(over: Partial<{
   scanRows: Record<string, unknown>[];
   scan: Record<string, unknown> | null;
   scanGetErr: Error;
+  bounty: Record<string, unknown> | null;
+  bountyGetErr: Error;
 }> = {}) {
   const create = vi.fn().mockImplementation(() =>
     over.createErr ? Promise.reject(over.createErr) : Promise.resolve({ id: "m-1" }));
@@ -113,6 +115,11 @@ function makeClient(over: Partial<{
   const scanCreate = vi.fn().mockResolvedValue({ id: "vs-1" });
   const scanUpdate = vi.fn().mockResolvedValue({});
   const bountyCreate = vi.fn().mockResolvedValue({ id: "b-1" });
+  const bountyGet = vi.fn().mockImplementation(() =>
+    over.bountyGetErr
+      ? Promise.reject(over.bountyGetErr)
+      : Promise.resolve(over.bounty !== undefined ? over.bounty : { id: "b-1", status: "claiming" }));
+  const bountyUpdate = vi.fn().mockResolvedValue({});
   const client = {
     asServiceRole: {
       entities: {
@@ -133,11 +140,11 @@ function makeClient(over: Partial<{
           create: scanCreate,
           update: scanUpdate,
         },
-        Bounty: { create: bountyCreate },
+        Bounty: { get: bountyGet, create: bountyCreate, update: bountyUpdate },
       },
     },
   };
-  return { client, create, cafeUpdate, scanCreate, scanUpdate, bountyCreate };
+  return { client, create, cafeUpdate, scanCreate, scanUpdate, bountyCreate, bountyGet, bountyUpdate };
 }
 
 describe("measurementGatewayHandler", () => {
@@ -236,6 +243,10 @@ describe("entity RLS policy files", () => {
     expect(b.rls.create).toBe(false);
     // The public board read is pre-existing behaviour, deliberately kept.
     expect(b.rls.read).toBe(true);
+    // No update/delete keys either — absent keys deny, which is why the
+    // claim path's paid marker must ride the bounty-update gateway action.
+    expect(b.rls.update).toBeUndefined();
+    expect(b.rls.delete).toBeUndefined();
   });
 });
 
@@ -1263,6 +1274,98 @@ describe("measurementGatewayHandler bounty-insert action", () => {
     expect(rec.expires_at).toBeNull();
     expect(rec.funding_tx_hash).toBeNull();
     expect(rec.client_intent_id).toBeNull();
+  });
+});
+
+describe("measurementGatewayHandler bounty-update action", () => {
+  const H = "x-lattency-server-key" as const;
+  const call = (
+    body: Record<string, unknown>,
+    client: ReturnType<typeof makeClient>["client"] = makeClient().client,
+  ) =>
+    measurementGatewayHandler(
+      req({ action: "bounty-update", ...body }, { [H]: SECRET }),
+      SECRET,
+      () => client,
+    );
+
+  it("persists the claim-path patch and returns ok", async () => {
+    const { client, bountyGet, bountyUpdate } = makeClient();
+    const res = await call(
+      {
+        bounty_id: "b-1",
+        patch: {
+          status: "paid",
+          claimed_by_address: "NQ07 ABC123",
+          tx_hash: "0xdef",
+        },
+      },
+      client,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(bountyGet).toHaveBeenCalledWith("b-1");
+    expect(bountyUpdate).toHaveBeenCalledWith("b-1", {
+      status: "paid",
+      claimed_by_address: "NQ07 ABC123",
+      tx_hash: "0xdef",
+    });
+  });
+
+  it("rejects write-once funding and backend-owned fields", async () => {
+    const { client, bountyUpdate } = makeClient();
+    for (const patch of [
+      { funding_tx_hash: "0xabc" },
+      { funding_status: "verified" },
+      { client_intent_id: "ci-1" },
+      // progress/dedupe are update-bounty-progress's surface, not the
+      // claim path's — a reset to 0 would un-fill a claimed bounty.
+      { progress: 0 },
+      { contributing_contributor_ids: [] },
+      // Anything else is an unknown key.
+      { id: "injected" },
+      { active: false },
+      { reward: 999 },
+    ]) {
+      const res = await call({ bounty_id: "b-1", patch }, client);
+      expect(res.status, JSON.stringify(patch)).toBe(400);
+    }
+    expect(bountyUpdate).not.toHaveBeenCalled();
+  });
+
+  it("400s on a malformed bounty_id, patch, or status value", async () => {
+    const { client, bountyUpdate } = makeClient();
+    for (const body of [
+      { patch: { status: "paid" } },
+      { bounty_id: "" },
+      { bounty_id: "b-1" },
+      { bounty_id: "b-1", patch: null },
+      { bounty_id: "b-1", patch: [] },
+      { bounty_id: "b-1", patch: {} },
+      { bounty_id: "b-1", patch: { status: "claimed" } },
+      { bounty_id: "b-1", patch: { status: 42 } },
+      { bounty_id: "b-1", patch: { claimed_by_address: 42 } },
+      { bounty_id: "b-1", patch: { tx_hash: "x".repeat(300) } },
+    ]) {
+      const res = await call(body, client);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
+    expect(bountyUpdate).not.toHaveBeenCalled();
+  });
+
+  it("404s on an unknown bounty — null get and thrown 404 alike", async () => {
+    const missing = await call(
+      { bounty_id: "nope", patch: { status: "paid" } },
+      makeClient({ bounty: null }).client,
+    );
+    expect(missing.status).toBe(404);
+
+    const err404 = Object.assign(new Error("not found"), { status: 404 });
+    const thrown = await call(
+      { bounty_id: "nope", patch: { status: "paid" } },
+      makeClient({ bountyGetErr: err404 }).client,
+    );
+    expect(thrown.status).toBe(404);
   });
 });
 

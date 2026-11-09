@@ -494,20 +494,27 @@ export async function b44CreateBounty(
   return bountyId;
 }
 
-/** Mark a Base44 Bounty as paid. Returns true on success. */
+/** Mark a Base44 Bounty as paid. The entity's RLS grants read only — no
+ *  update/delete keys — so the anonymous `entities.Bounty.update` was
+ *  silently denied; the paid marker rides the measurement-gateway's
+ *  `bounty-update` action under service role instead. Returns true on
+ *  success. */
 export async function b44MarkBountyPaid(
   bountyId: string,
   claimedByAddress: string,
   txHash: string,
 ): Promise<boolean> {
-  const base44 = getBase44();
   try {
-    await base44.entities.Bounty.update(bountyId, {
-      status: "paid",
-      claimed_by_address: claimedByAddress,
-      tx_hash: txHash,
+    const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+      action: "bounty-update",
+      bounty_id: bountyId,
+      patch: {
+        status: "paid",
+        claimed_by_address: claimedByAddress,
+        tx_hash: txHash,
+      },
     });
-    return true;
+    return unwrap<unknown>(res, "ok") === true;
   } catch (err) {
     log.warn("b44MarkBountyPaid failed", {
       scope: "bounties.paid",

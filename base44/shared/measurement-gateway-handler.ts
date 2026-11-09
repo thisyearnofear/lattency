@@ -45,7 +45,12 @@ export interface GatewayClient {
         ) => Promise<unknown>;
       };
       Bounty: {
+        get: (id: string) => Promise<Record<string, unknown> | null>;
         create: (record: Record<string, unknown>) => Promise<{ id: string }>;
+        update: (
+          id: string,
+          record: Record<string, unknown>,
+        ) => Promise<unknown>;
       };
     };
   };
@@ -89,6 +94,9 @@ const SCAN_TRANSITIONS: Record<string, ReadonlySet<string>> = {
   superseded: new Set(),
 };
 const SCAN_STATUSES = new Set(Object.keys(SCAN_TRANSITIONS));
+// Bounty status enum (base44/entities/Bounty.json) — the only values a
+// bounty-update patch may write.
+const BOUNTY_STATUSES = new Set(["open", "claiming", "paid"]);
 
 /** Optional blob URL field — must be an https URL. */
 function scanUrlError(value: unknown, field: string): string | null {
@@ -844,6 +852,65 @@ export async function measurementGatewayHandler(
         contributing_contributor_ids: contributorIds ?? [],
       });
       return Response.json({ bountyId: row.id }, { status: 201, headers: NO_STORE });
+    }
+
+    if (action === "bounty-update") {
+      // Paid-marker persistence — the Bounty entity's RLS grants read only,
+      // so the claim route's paid stamp rides the gateway like the create
+      // did. The allowlist is exactly the claim-path patch: status /
+      // claimed_by_address / tx_hash. progress and
+      // contributing_contributor_ids stay owned by the update-bounty-progress
+      // function (service role in-function); funding_tx_hash, funding_status
+      // and client_intent_id are write-once at bounty-insert, so a patch
+      // carrying them is rejected rather than silently dropped.
+      const b = body as Record<string, unknown>;
+      const bountyId = b.bounty_id;
+      if (typeof bountyId !== "string" || bountyId.length === 0 || bountyId.length > 128)
+        return err(400, "bounty_id required");
+      const patch = b.patch;
+      if (patch === null || typeof patch !== "object" || Array.isArray(patch))
+        return err(400, "patch object required");
+      const record = patch as Record<string, unknown>;
+      const keys = Object.keys(record);
+      if (keys.length === 0) return err(400, "patch must not be empty");
+
+      const update: Record<string, unknown> = {};
+      for (const key of keys) {
+        const value = record[key];
+        switch (key) {
+          case "status":
+            if (typeof value !== "string" || !BOUNTY_STATUSES.has(value))
+              return err(400, "patch.status must be a valid bounty status");
+            break;
+          case "claimed_by_address":
+          case "tx_hash":
+            if (
+              value !== null &&
+              (typeof value !== "string" || value.length > 256)
+            )
+              return err(
+                400,
+                `patch.${key} must be a string (max 256 characters) or null`,
+              );
+            break;
+          default:
+            return err(400, `patch.${key} is not allowed`);
+        }
+        update[key] = value;
+      }
+
+      let bounty: Record<string, unknown> | null;
+      try {
+        bounty = await base44.asServiceRole.entities.Bounty.get(bountyId);
+      } catch (e) {
+        const status = (e as { status?: number })?.status;
+        if (status === 404) return err(404, "bounty not found");
+        throw e;
+      }
+      if (!bounty) return err(404, "bounty not found");
+
+      await base44.asServiceRole.entities.Bounty.update(bountyId, update);
+      return Response.json({ ok: true }, { headers: NO_STORE });
     }
 
     return err(400, "unknown action");
