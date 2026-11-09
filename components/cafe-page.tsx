@@ -23,6 +23,7 @@ import { peakBucket } from "@/lib/time-of-day";
 import { resolveCafePhoto } from "@/lib/cafe-photos";
 import { slugify } from "@/lib/slug";
 import { venueCaptureUiCityAllowed } from "@/lib/venue-capture-policy";
+import { VenueAskCard } from "./venue-ask-card";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -241,6 +242,9 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
                 <span aria-hidden>◈</span> Capture this venue
               </VTLink>
             )}
+            {/* The adaptive ask layer — one card, the next most-scarce
+                need, below the source line. */}
+            <VenueAskCard cafe={cafe} />
           </div>
 
           <div className="grid grid-cols-3 gap-3 pt-4 border-t border-ink/15">

@@ -144,6 +144,8 @@ New UI must match the newsprint/transit identity: hard offset shadows (`shadow-[
 
 **Pay-off moments** (contribution, claim, share) carry tactile weight: `celebration-stamp` (the passport-stamp drop), `stamp-press` (confirm glyphs), `reading-landed` (new ticker row), the `PAID` stamp, and guarded haptics (`lib/haptics.ts`). The speed test rides a square `train-car` carriage on its progress bar and counts results up through `TickNumber` (`countUp`). Progress bars always use `GrowBar` so they grow on mount. Every new animation goes through the motion tokens in `globals.css` and the `prefers-reduced-motion` block — don't add ad-hoc keyframes outside that system.
 
+**Adaptive ask layer** (`lib/venue-needs.ts` + `lib/ask-dismissals.ts` + `components/venue-ask-card.tsx`) renders the venue's next most-scarce need as a single card on the drawer + café page — *adapt the asks, not the chrome* (`docs/adaptive-ux-principles.md`); ask cards sit below the provenance line and never move the frame.
+
 ## Contribution gateway (server-only secret)
 
 - Writes to Cafe/Measurement entities now route through the `measurement-gateway` and `create-cafe` Deno functions, authenticated by a shared secret header `x-lattency-server-key` (constant-time compared). The Next.js side calls it via `lib/base44-gateway.ts` (`getBase44Gateway()`), which requires `NEXT_PUBLIC_BASE44_APP_ID` plus `LATTENCY_SERVER_KEY` (>=32 chars, server env only — NEVER `NEXT_PUBLIC_`). Both sides must carry the same private value.
