@@ -117,6 +117,7 @@ Bounty expiry is handled inline at read time (`getBounties` filters past `expire
 | Variable | Purpose |
 |---|---|
 | `NEXT_PUBLIC_BASE44_APP_ID` | Gates the entire Base44 path. Without it, the app falls through to the bundled mock snapshot. |
+| `LATTENCY_SERVER_KEY` | Shared server→functions secret (≥32 chars, server env only — never `NEXT_PUBLIC_`). Sent as `x-lattency-server-key` by `lib/base44-gateway.ts`; verified constant-time by `measurement-gateway` + `create-cafe`. Set in `.env.local`/Vercel env AND on Base44 via `npx base44 secrets set` — functions read `Deno.env.get("LATTENCY_SERVER_KEY")`. |
 | `NIMIQ_PRIVATE_KEY` | Escrow wallet for real NIM payouts (mock mode when absent) |
 | `NIMIQ_NETWORK` | `mainnet`, `testnet` (default), or `devnet` |
 | `NIMIQ_RPC_URL` | JSON-RPC endpoint override |
@@ -132,7 +133,8 @@ Bounty expiry is handled inline at read time (`getBounties` filters past `expire
 ```bash
 pnpm base44:login    # browser auth (one-time)
 pnpm base44:create   # or base44 link (one-time)
-pnpm base44:deploy   # pushes entities + functions + agents + automations
+npx base44 secrets set LATTENCY_SERVER_KEY=<value>  # registers function env secrets (Deno.env); list/delete via `npx base44 secrets list|delete`
+pnpm base44:deploy   # pushes entities + functions + agents + automations; pass --yes in non-interactive shells
 pnpm seed            # NEXT_PUBLIC_BASE44_APP_ID must be set in .env.local
 ```
 
@@ -145,5 +147,5 @@ New UI must match the newsprint/transit identity: hard offset shadows (`shadow-[
 ## Contribution gateway (server-only secret)
 
 - Writes to Cafe/Measurement entities now route through the `measurement-gateway` and `create-cafe` Deno functions, authenticated by a shared secret header `x-lattency-server-key` (constant-time compared). The Next.js side calls it via `lib/base44-gateway.ts` (`getBase44Gateway()`), which requires `NEXT_PUBLIC_BASE44_APP_ID` plus `LATTENCY_SERVER_KEY` (>=32 chars, server env only — NEVER `NEXT_PUBLIC_`). Both sides must carry the same private value.
-- Deploy order: set secrets on both environments; deploy functions/shared helpers; deploy the updated frontend; then apply the restrictive entity RLS (Measurement read/create/update/delete false; Cafe read/create/update/delete false) and the updated concierge config during a coordinated maintenance release; verify public raw reads/writes are denied before resuming traffic. Nothing is deployed yet — backend deployment verification is pending. Seeded/direct entity writes are denied outside the gateway — do not run the existing seed script.
+- Deployed and verified on Base44 (ce01242): restrictive RLS is live — anonymous `entities.Measurement`/`Cafe` writes return 403 and reads return zero rows; `measurement-gateway`/`create-cafe` return 401 without/with a wrong `x-lattency-server-key` and serve projected fields only when keyed. Function-side secrets are registered with `npx base44 secrets set KEY=VALUE` (project-linked via `base44/.app.jsonc`, gitignored); the same value must also be set as `LATTENCY_SERVER_KEY` in `.env.local` locally and in the Vercel env for production. Seeded/direct entity writes are denied outside the gateway — do not run the existing seed script.
 - The realtime Measurement.subscribe feed was replaced by a sanitized 30s visible-tab refresh; raw entity tools were removed from the concierge agent. Public responses must explicitly allowlist fields; use `publicCafe` for raw cafe-row projections.
