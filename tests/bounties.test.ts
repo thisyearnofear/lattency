@@ -12,8 +12,12 @@ vi.mock("@/lib/cafes", () => ({
 const mockConfig = { base44Configured: false };
 const mockB44 = {
   b44MarkBountyPaid: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
+  // createBounty persists through the measurement-gateway's bounty-insert
+  // action — b44CreateBounty is the adapter, so this is the mock point.
+  b44CreateBounty: vi
+    .fn<(record: Record<string, unknown>) => Promise<string>>()
+    .mockResolvedValue("b44-created-1"),
 };
-const bountyCreate = vi.fn();
 const bountyFilter = vi.fn();
 
 vi.mock("@/lib/base44", () => ({
@@ -21,7 +25,7 @@ vi.mock("@/lib/base44", () => ({
     return mockConfig.base44Configured;
   },
   getBase44: () => ({
-    entities: { Bounty: { create: bountyCreate, filter: bountyFilter } },
+    entities: { Bounty: { filter: bountyFilter } },
   }),
 }));
 
@@ -29,13 +33,16 @@ vi.mock("@/lib/base44-data", () => ({
   get b44MarkBountyPaid() {
     return mockB44.b44MarkBountyPaid;
   },
+  get b44CreateBounty() {
+    return mockB44.b44CreateBounty;
+  },
 }));
 
 describe("bounties", () => {
   beforeEach(async () => {
     mockConfig.base44Configured = false;
     mockB44.b44MarkBountyPaid.mockReset().mockResolvedValue(true);
-    bountyCreate.mockReset().mockResolvedValue({ id: "b44-created-1" });
+    mockB44.b44CreateBounty.mockReset().mockResolvedValue("b44-created-1");
     // Default: an empty Bounty table, which is what a fresh backend returns.
     bountyFilter.mockReset().mockResolvedValue([]);
     // Default: an empty map, so seeds keep their authored zeros.
@@ -363,26 +370,55 @@ describe("bounties", () => {
 
       const bounty = await createBounty(input);
       expect(bounty.id).toMatch(/^b-/);
-      expect(bountyCreate).not.toHaveBeenCalled();
+      expect(mockB44.b44CreateBounty).not.toHaveBeenCalled();
 
       const bounties = await getBounties();
       expect(bounties.find((b) => b.id === bounty.id)).toBeDefined();
     });
 
-    it("persists to Base44 when configured and uses the returned id", async () => {
+    it("persists via the gateway and uses the returned id", async () => {
       mockConfig.base44Configured = true;
       const { createBounty } = await import("@/lib/bounties");
 
       const bounty = await createBounty(input);
 
-      expect(bountyCreate).toHaveBeenCalledTimes(1);
+      expect(mockB44.b44CreateBounty).toHaveBeenCalledTimes(1);
+      expect(mockB44.b44CreateBounty).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Test bounty",
+          reward: 10,
+          target_city: "london",
+          target_neighbourhood: "Test area",
+          sponsor_name: "Test sponsor",
+          kind: "first-in-neighbourhood",
+        }),
+      );
       expect(bounty.id).toBe("b44-created-1");
       expect(bounty.city).toBe("london");
     });
 
+    it("fails closed on funding_status — unverified when unproven", async () => {
+      mockConfig.base44Configured = true;
+      const { createBounty } = await import("@/lib/bounties");
+
+      await createBounty(input);
+      expect(mockB44.b44CreateBounty).toHaveBeenCalledWith(
+        expect.objectContaining({ funding_status: "unverified" }),
+      );
+
+      mockB44.b44CreateBounty.mockClear();
+      await createBounty({ ...input, fundingTxHash: "0xabc" });
+      expect(mockB44.b44CreateBounty).toHaveBeenCalledWith(
+        expect.objectContaining({
+          funding_status: "verified",
+          funding_tx_hash: "0xabc",
+        }),
+      );
+    });
+
     it("rejects when Base44 creation fails and inserts nothing in-memory", async () => {
       mockConfig.base44Configured = true;
-      bountyCreate.mockRejectedValueOnce(new Error("boom"));
+      mockB44.b44CreateBounty.mockRejectedValueOnce(new Error("boom"));
       const { createBounty, getBounties } = await import("@/lib/bounties");
 
       await expect(createBounty(input)).rejects.toThrow(
@@ -391,6 +427,53 @@ describe("bounties", () => {
 
       const bounties = await getBounties();
       expect(bounties.every((b) => b.goal !== input.goal)).toBe(true);
+    });
+  });
+
+  describe("createFounderBountyEntity", () => {
+    beforeEach(() => {
+      mockConfig.base44Configured = true;
+    });
+
+    it("creates the founder row through the gateway with Lattency funding", async () => {
+      const { createFounderBountyEntity } = await import("@/lib/bounties");
+
+      const id = await createFounderBountyEntity("london");
+
+      expect(id).toBe("b44-created-1");
+      expect(mockB44.b44CreateBounty).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_city: "london",
+          criteria: "first-cafe",
+          reward: 50,
+          funding_status: "verified",
+        }),
+      );
+      // The gateway enforces progress:0 — update-bounty-progress fills it.
+      expect(mockB44.b44CreateBounty.mock.calls[0][0]).not.toHaveProperty("progress");
+    });
+
+    it("is idempotent — returns the existing founder row without creating", async () => {
+      bountyFilter.mockResolvedValue([{ id: "b44-founder-1" }]);
+      const { createFounderBountyEntity } = await import("@/lib/bounties");
+
+      const id = await createFounderBountyEntity("london");
+
+      expect(id).toBe("b44-founder-1");
+      expect(bountyFilter).toHaveBeenCalledWith(
+        { target_city: "london", criteria: "first-cafe" },
+        "-created_date",
+        1,
+        0,
+      );
+      expect(mockB44.b44CreateBounty).not.toHaveBeenCalled();
+    });
+
+    it("returns null when the gateway create fails", async () => {
+      mockB44.b44CreateBounty.mockRejectedValue(new Error("boom"));
+      const { createFounderBountyEntity } = await import("@/lib/bounties");
+
+      await expect(createFounderBountyEntity("london")).resolves.toBeNull();
     });
   });
 });

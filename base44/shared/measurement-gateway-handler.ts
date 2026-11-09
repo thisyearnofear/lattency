@@ -44,6 +44,9 @@ export interface GatewayClient {
           record: Record<string, unknown>,
         ) => Promise<unknown>;
       };
+      Bounty: {
+        create: (record: Record<string, unknown>) => Promise<{ id: string }>;
+      };
     };
   };
 }
@@ -721,6 +724,126 @@ export async function measurementGatewayHandler(
         { cafe: cafe ? publicCafe(cafe) : null },
         { headers: NO_STORE },
       );
+    }
+
+    if (action === "bounty-insert") {
+      // Sponsor/founder bounty creation under service role — the Bounty
+      // entity's create RLS is closed, so this action is the only write
+      // path. The allowlist below is the entire write surface: id /
+      // created_by / claimed_by / tx_hash / progress / status / active are
+      // never taken from the caller. progress starts at 0 and status at
+      // "open" because the update-bounty-progress function owns both, and
+      // funding_status must be declared — a create that can't state its
+      // backing lands "unverified", which the board hides and the progress
+      // function refuses to advance (fail closed, never as-funded).
+      const bounty = (body as Record<string, unknown>).bounty;
+      if (bounty === null || typeof bounty !== "object" || Array.isArray(bounty))
+        return err(400, "bounty object required");
+      const record = bounty as Record<string, unknown>;
+
+      const title = record.title;
+      if (typeof title !== "string" || title.trim().length === 0 || title.length > 300)
+        return err(400, "bounty.title required (max 300 characters)");
+      const reward = record.reward;
+      if (typeof reward !== "number" || !Number.isFinite(reward) || reward <= 0)
+        return err(400, "bounty.reward must be a positive number");
+      const fundingStatus = record.funding_status;
+      if (fundingStatus !== "verified" && fundingStatus !== "unverified")
+        return err(400, "bounty.funding_status must be verified or unverified");
+
+      // The remaining allowlisted fields are optional — each is shape-checked
+      // and collected with errors first so a malformed call writes nothing.
+      const errors: string[] = [];
+      const pickStr = (v: unknown, field: string, max: number): string | null => {
+        if (v === undefined || v === null) return null;
+        if (typeof v !== "string" || v.length > max) {
+          errors.push(`bounty.${field} must be a string (max ${max} characters)`);
+          return null;
+        }
+        return v;
+      };
+      const pickInt = (v: unknown, field: string, min: number, max: number): number | null => {
+        if (v === undefined || v === null) return null;
+        if (typeof v !== "number" || !Number.isSafeInteger(v) || v < min || v > max) {
+          errors.push(`bounty.${field} must be an integer ${min}–${max}`);
+          return null;
+        }
+        return v;
+      };
+      const pickEnum = (v: unknown, field: string, allowed: readonly string[]): string | null => {
+        if (v === undefined || v === null) return null;
+        if (typeof v !== "string" || !allowed.includes(v)) {
+          errors.push(`bounty.${field} must be one of ${allowed.join("|")}`);
+          return null;
+        }
+        return v;
+      };
+
+      const description = pickStr(record.description, "description", 2000);
+      const currency = pickStr(record.currency, "currency", 16);
+      const rewardLunas = pickInt(record.reward_lunas, "reward_lunas", 0, Number.MAX_SAFE_INTEGER);
+      const targetCity = pickStr(record.target_city, "target_city", 128);
+      const targetNeighbourhood = pickStr(record.target_neighbourhood, "target_neighbourhood", 300);
+      const criteria = pickStr(record.criteria, "criteria", 128);
+      const target = pickInt(record.target, "target", 1, 100_000);
+      const sponsorName = pickStr(record.sponsor_name, "sponsor_name", 300);
+      const sponsorKind = pickEnum(record.sponsor_kind, "sponsor_kind", [
+        "isp",
+        "café",
+        "community",
+        "anon",
+      ]);
+      const kind = pickEnum(record.kind, "kind", [
+        "first-in-neighbourhood",
+        "attribute-match",
+        "tier-target",
+        "nth-contributor",
+        "venue-capture",
+      ]);
+      const expiresAt = pickStr(record.expires_at, "expires_at", 64);
+      const fundingTxHash = pickStr(record.funding_tx_hash, "funding_tx_hash", 256);
+      const clientIntentId = pickStr(record.client_intent_id, "client_intent_id", 128);
+      if (errors.length > 0) return err(400, errors[0]);
+
+      const contributorIds = record.contributing_contributor_ids;
+      if (
+        contributorIds !== undefined &&
+        contributorIds !== null &&
+        (!Array.isArray(contributorIds) ||
+          contributorIds.length > 1000 ||
+          contributorIds.some(
+            (x) => typeof x !== "string" || x.length === 0 || x.length > 128,
+          ))
+      )
+        return err(400, "bounty.contributing_contributor_ids must be an array of ids");
+
+      const row = await base44.asServiceRole.entities.Bounty.create({
+        title: title.trim(),
+        description,
+        reward,
+        // Every live row is NIM-denominated; the entity's KES default would
+        // mislabel the unit if a caller omitted the field.
+        currency: currency ?? "NIM",
+        reward_lunas: rewardLunas ?? Math.round(reward * 100_000),
+        target_city: targetCity,
+        target_neighbourhood: targetNeighbourhood,
+        criteria,
+        target: target ?? 1,
+        progress: 0,
+        sponsor_name: sponsorName,
+        sponsor_kind: sponsorKind ?? "community",
+        kind: kind ?? "first-in-neighbourhood",
+        expires_at: expiresAt,
+        active: true,
+        status: "open",
+        claimed_by_address: null,
+        tx_hash: null,
+        funding_tx_hash: fundingTxHash,
+        client_intent_id: clientIntentId,
+        funding_status: fundingStatus,
+        contributing_contributor_ids: contributorIds ?? [],
+      });
+      return Response.json({ bountyId: row.id }, { status: 201, headers: NO_STORE });
     }
 
     return err(400, "unknown action");

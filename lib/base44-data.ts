@@ -476,6 +476,24 @@ export function b44Available(): boolean {
   return base44Configured;
 }
 
+/** Create a Bounty entity under service role via the measurement-gateway
+ *  `bounty-insert` action — Bounty's create RLS is closed, so the gateway
+ *  is the only write path (the anonymous `entities.Bounty.create` 403s).
+ *  The gateway enforces `progress: 0` / `status: "open"` and requires a
+ *  declared `funding_status`; everything outside its allowlist is dropped. */
+export async function b44CreateBounty(
+  record: Record<string, unknown>,
+): Promise<string> {
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "bounty-insert",
+    bounty: record,
+  });
+  const bountyId = unwrap<string>(res, "bountyId");
+  if (typeof bountyId !== "string" || bountyId.length === 0)
+    throw new Error("Invalid bounty-insert gateway response");
+  return bountyId;
+}
+
 /** Mark a Base44 Bounty as paid. Returns true on success. */
 export async function b44MarkBountyPaid(
   bountyId: string,

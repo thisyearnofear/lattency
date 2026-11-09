@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "seed": "tsx scripts/seed-base44.ts",
     "process-scan": "tsx --conditions=react-server scripts/process-scan.ts",
+    "scan-worker": "tsx --conditions=react-server scripts/scan-worker.ts",
     "base44:login": "npx base44 login",
     "base44:create": "npx base44 create",
     "base44:deploy": "npx base44 deploy",

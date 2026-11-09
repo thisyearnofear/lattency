@@ -10,7 +10,7 @@
 
 import { log } from "./log";
 import { base44Configured, getBase44 } from "./base44";
-import { b44MarkBountyPaid } from "./base44-data";
+import { b44CreateBounty, b44MarkBountyPaid } from "./base44-data";
 import { cityDisplayName } from "./cities";
 import { bountyState } from "./bounty-state";
 import { sanitizeContributorId } from "./measurements";
@@ -600,7 +600,9 @@ export async function createBounty(input: BountyCreationInput): Promise<Bounty> 
 
   if (base44Configured) {
     try {
-      const created = (await getBase44().entities.Bounty.create({
+      // Bounty's create RLS is closed — the gateway's bounty-insert action
+      // is the only write path. It enforces progress:0/status:"open" itself.
+      const bountyId = await b44CreateBounty({
         title: base.goal,
         description: base.sponsor,
         reward: base.rewardNim,
@@ -610,18 +612,18 @@ export async function createBounty(input: BountyCreationInput): Promise<Bounty> 
         target_neighbourhood: area.neighbourhood,
         criteria: base.kind,
         target: base.target,
-        progress: 0,
         sponsor_name: base.sponsor,
         sponsor_kind: base.sponsorKind,
         kind: base.kind,
         expires_at: base.expiresAt,
-        active: true,
-        status: "open",
         funding_tx_hash: base.fundingTxHash ?? null,
         client_intent_id: base.clientIntentId ?? null,
-        funding_status: base.fundingStatus ?? null,
-      })) as { id: string };
-      const bounty: Bounty = { ...base, id: created.id };
+        // Fail closed: a create that reaches this point without a verified
+        // funding status lands "unverified" — never an absent flag that the
+        // board would read as funded.
+        funding_status: base.fundingStatus ?? "unverified",
+      });
+      const bounty: Bounty = { ...base, id: bountyId };
       log.info("bounty created (Base44)", {
         scope: "bounties.create",
         bountyId: bounty.id,
@@ -713,7 +715,15 @@ export async function createFounderBountyEntity(city: string): Promise<string | 
       return existing[0].id;
     }
 
-    const created = (await getBase44().entities.Bounty.create({
+    // Same closed create RLS — through the gateway like sponsor bounties.
+    // progress is NOT seeded at 1 anymore: the gateway enforces progress:0,
+    // and the update-bounty-progress call that runs right after this in the
+    // café-create `after()` callback fills 0→1 and flips the row to
+    // "claiming" — the pipeline confirming the fill beats authoring it.
+    // funding_status "verified": Lattency funds the founder reward directly
+    // (there is no sponsor deposit to verify), and "unverified" would hide
+    // a real reward from the board.
+    const bountyId = await b44CreateBounty({
       title: `First café in ${name}`,
       description: `Founder reward for the first café mapped in ${name}`,
       reward: 50,
@@ -723,16 +733,14 @@ export async function createFounderBountyEntity(city: string): Promise<string | 
       target_neighbourhood: "",
       criteria: "first-cafe",
       target: 1,
-      progress: 1,
       sponsor_name: "Lattency",
       sponsor_kind: "community",
       kind: "first-in-neighbourhood",
       expires_at: "2099-12-31",
-      active: true,
-      status: "open",
-    })) as { id: string };
-    log.info("founder bounty entity created", { scope: "bounties.founder.create", city, bountyId: created.id });
-    return created.id;
+      funding_status: "verified",
+    });
+    log.info("founder bounty entity created", { scope: "bounties.founder.create", city, bountyId });
+    return bountyId;
   } catch (err) {
     log.warn("founder bounty entity creation failed", {
       scope: "bounties.founder.create",

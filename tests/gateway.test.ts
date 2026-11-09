@@ -112,6 +112,7 @@ function makeClient(over: Partial<{
   const cafeUpdate = vi.fn().mockResolvedValue({});
   const scanCreate = vi.fn().mockResolvedValue({ id: "vs-1" });
   const scanUpdate = vi.fn().mockResolvedValue({});
+  const bountyCreate = vi.fn().mockResolvedValue({ id: "b-1" });
   const client = {
     asServiceRole: {
       entities: {
@@ -132,10 +133,11 @@ function makeClient(over: Partial<{
           create: scanCreate,
           update: scanUpdate,
         },
+        Bounty: { create: bountyCreate },
       },
     },
   };
-  return { client, create, cafeUpdate, scanCreate, scanUpdate };
+  return { client, create, cafeUpdate, scanCreate, scanUpdate, bountyCreate };
 }
 
 describe("measurementGatewayHandler", () => {
@@ -228,6 +230,12 @@ describe("entity RLS policy files", () => {
       expect(v.properties).toHaveProperty(field);
     }
     expect(v.required).toEqual(["venue_id"]);
+  });
+  it("Bounty create is closed — the gateway is the only write path", () => {
+    const b = JSON.parse(readFileSync("base44/entities/Bounty.json", "utf8"));
+    expect(b.rls.create).toBe(false);
+    // The public board read is pre-existing behaviour, deliberately kept.
+    expect(b.rls.read).toBe(true);
   });
 });
 
@@ -1116,6 +1124,145 @@ describe("measurementGatewayHandler venue-scan-status action", () => {
       status: "preview",
       splat_url: "https://blob/draft.spz",
     });
+  });
+});
+
+describe("measurementGatewayHandler bounty-insert action", () => {
+  const H = "x-lattency-server-key" as const;
+  const call = (
+    bounty: unknown,
+    client: ReturnType<typeof makeClient>["client"] = makeClient().client,
+  ) =>
+    measurementGatewayHandler(
+      req({ action: "bounty-insert", bounty }, { [H]: SECRET }),
+      SECRET,
+      () => client,
+    );
+
+  it("writes an allowlisted record with server-enforced progress/status", async () => {
+    const { client, bountyCreate } = makeClient();
+    const res = await call(
+      {
+        title: "3 express cafés in Hoxton",
+        description: "Sponsored",
+        reward: 20,
+        currency: "NIM",
+        reward_lunas: 2_000_000,
+        target_city: "london",
+        target_neighbourhood: "Hoxton",
+        criteria: "tier-target:express",
+        target: 3,
+        sponsor_name: "Community Fibre",
+        sponsor_kind: "isp",
+        kind: "tier-target",
+        expires_at: "2099-12-31",
+        funding_tx_hash: "deadbeef",
+        client_intent_id: "ci-1",
+        funding_status: "verified",
+        contributing_contributor_ids: ["contrib-a"],
+        // Everything below must be dropped or overridden.
+        progress: 99,
+        status: "paid",
+        active: false,
+        claimed_by_address: "NQ07",
+        tx_hash: "0x",
+        id: "injected",
+        created_by: "attacker@example.com",
+        approved: true,
+      },
+      client,
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ bountyId: "b-1" });
+    const rec = bountyCreate.mock.calls[0][0];
+    expect(rec).toEqual({
+      title: "3 express cafés in Hoxton",
+      description: "Sponsored",
+      reward: 20,
+      currency: "NIM",
+      reward_lunas: 2_000_000,
+      target_city: "london",
+      target_neighbourhood: "Hoxton",
+      criteria: "tier-target:express",
+      target: 3,
+      progress: 0,
+      sponsor_name: "Community Fibre",
+      sponsor_kind: "isp",
+      kind: "tier-target",
+      expires_at: "2099-12-31",
+      active: true,
+      status: "open",
+      claimed_by_address: null,
+      tx_hash: null,
+      funding_tx_hash: "deadbeef",
+      client_intent_id: "ci-1",
+      funding_status: "verified",
+      contributing_contributor_ids: ["contrib-a"],
+    });
+  });
+
+  it("rejects missing or out-of-enum funding_status before writing", async () => {
+    const { client, bountyCreate } = makeClient();
+    for (const funding_status of [undefined, null, "unverfied", "VERIFIED", 42, true]) {
+      const res = await call(
+        { title: "t", reward: 1, funding_status },
+        client,
+      );
+      expect(res.status, JSON.stringify(funding_status)).toBe(400);
+    }
+    expect(bountyCreate).not.toHaveBeenCalled();
+  });
+
+  it("keeps an honest unverified flag — the board hides it downstream", async () => {
+    const { client, bountyCreate } = makeClient();
+    const res = await call(
+      { title: "t", reward: 1, funding_status: "unverified" },
+      client,
+    );
+    expect(res.status).toBe(201);
+    expect(bountyCreate.mock.calls[0][0].funding_status).toBe("unverified");
+  });
+
+  it("400s on missing title/reward and malformed fields", async () => {
+    const { client, bountyCreate } = makeClient();
+    for (const bounty of [
+      { reward: 1, funding_status: "verified" },
+      { title: "", reward: 1, funding_status: "verified" },
+      { title: "t", funding_status: "verified" },
+      { title: "t", reward: 0, funding_status: "verified" },
+      { title: "t", reward: -5, funding_status: "verified" },
+      { title: "t", reward: "20", funding_status: "verified" },
+      { title: "t", reward: 1, funding_status: "verified", sponsor_kind: "government" },
+      { title: "t", reward: 1, funding_status: "verified", kind: "rigged" },
+      { title: "t", reward: 1, funding_status: "verified", target: 0 },
+      { title: "t", reward: 1, funding_status: "verified", target: 1.5 },
+      { title: "t", reward: 1, funding_status: "verified", reward_lunas: -1 },
+      { title: "t", reward: 1, funding_status: "verified", contributing_contributor_ids: "contrib-a" },
+      { title: "t", reward: 1, funding_status: "verified", contributing_contributor_ids: [42] },
+    ]) {
+      const res = await call(bounty, client);
+      expect(res.status, JSON.stringify(bounty)).toBe(400);
+    }
+    expect(bountyCreate).not.toHaveBeenCalled();
+  });
+
+  it("defaults the entity-defaulted fields when omitted", async () => {
+    const { client, bountyCreate } = makeClient();
+    const res = await call(
+      { title: "t", reward: 5, funding_status: "verified" },
+      client,
+    );
+    expect(res.status).toBe(201);
+    const rec = bountyCreate.mock.calls[0][0];
+    expect(rec.currency).toBe("NIM");
+    expect(rec.reward_lunas).toBe(500_000);
+    expect(rec.target).toBe(1);
+    expect(rec.sponsor_kind).toBe("community");
+    expect(rec.kind).toBe("first-in-neighbourhood");
+    expect(rec.contributing_contributor_ids).toEqual([]);
+    expect(rec.expires_at).toBeNull();
+    expect(rec.funding_tx_hash).toBeNull();
+    expect(rec.client_intent_id).toBeNull();
   });
 });
 

@@ -72,6 +72,26 @@ describe("private gateway adapters", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it("creates a bounty through the private gateway", async () => {
+    gatewayInvoke.mockResolvedValue({ data: { bountyId: "b-9" } });
+    const { b44CreateBounty } = await import("@/lib/base44-data");
+    const record = { title: "x", reward: 1, funding_status: "verified" };
+    await expect(b44CreateBounty(record)).resolves.toBe("b-9");
+    expect(gatewayInvoke).toHaveBeenCalledWith("measurement-gateway", {
+      action: "bounty-insert",
+      bounty: record,
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed bounty-insert response rather than faking an id", async () => {
+    gatewayInvoke.mockResolvedValue({ data: {} });
+    const { b44CreateBounty } = await import("@/lib/base44-data");
+    await expect(
+      b44CreateBounty({ title: "x", reward: 1, funding_status: "verified" }),
+    ).rejects.toThrow(/bounty-insert/);
+  });
+
   it("distinguishes an absent cafe from a malformed gateway response", async () => {
     const { b44GetCafeById } = await import("@/lib/base44-data");
     gatewayInvoke.mockResolvedValueOnce({ cafe: null });

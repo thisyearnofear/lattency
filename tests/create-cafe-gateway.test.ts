@@ -17,7 +17,7 @@ function makeClient(over: Partial<{ createCafeErr: Error; createMeasErr: Error }
   const measCreate = vi.fn().mockImplementation(() =>
     over.createMeasErr ? Promise.reject(over.createMeasErr) : Promise.resolve({ id: "m1" }));
   const measFilter = vi.fn().mockResolvedValue([]);
-  return { client: { asServiceRole: { entities: { Cafe: { create: cafeCreate, get: vi.fn(), delete: cafeDelete, update: vi.fn() }, Measurement: { create: measCreate, filter: measFilter }, VenueScan: { filter: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn() } } } },
+  return { client: { asServiceRole: { entities: { Cafe: { create: cafeCreate, get: vi.fn(), delete: cafeDelete, update: vi.fn() }, Measurement: { create: measCreate, filter: measFilter }, VenueScan: { filter: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn() }, Bounty: { create: vi.fn() } } } },
     cafeCreate, cafeDelete, measCreate, measFilter };
 }
 
