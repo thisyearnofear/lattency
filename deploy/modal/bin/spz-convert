@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# spz-convert shim: scan-worker calls `spz-convert <in.ply> -o <out.spz>`;
+# the spz repo's tool is `ply_to_spz <in.ply> <out.spz>`. Translate args.
+set -euo pipefail
+PLY="/opt/spz-src/build/ply_to_spz"
+input=""
+out=""
+extra=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o|--output) out="$2"; shift 2 ;;
+    -o?*) out="${1#-o}"; shift ;;
+    --output=*) out="${1#--output=}"; shift ;;
+    -*) extra+=("$1"); shift ;;
+    *) if [ -z "$input" ]; then input="$1"; else extra+=("$1"); fi; shift ;;
+  esac
+done
+[ -n "$input" ] || { echo "usage: spz-convert <input.ply> -o <output.spz>" >&2; exit 2; }
+[ -n "$out" ] || out="${input%.ply}.spz"
+exec "$PLY" "$input" "$out"

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# colmap wrapper — the conda-forge build links against libraries inside
+# its env, so point the loader at them explicitly.
+set -euo pipefail
+export LD_LIBRARY_PATH="/opt/colmap-env/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec /opt/colmap-env/bin/colmap "$@"

@@ -169,15 +169,16 @@ function runTool(bin: string, args: string[], hint: string): Promise<void> {
   });
 }
 
-export function createScanWorker(cfg: ScanWorkerConfig): {
-  server: Server;
-  isBusy: () => boolean;
-} {
-  let busy = false;
-
-  async function runJob(scanId: string): Promise<void> {
-    const workerKey = cfg.workerKey ?? "";
-    const jobErr = async (err: unknown): Promise<void> => {
+/** Run one scan through the full pipeline. Shared by the HTTP server's
+ *  /run handler and the `--once <scan_id>` CLI mode (used by the Modal
+ *  GPU function, which spawns one container per scan instead of hosting
+ *  a permanent worker). */
+export async function runScanJob(
+  cfg: ScanWorkerConfig,
+  scanId: string,
+): Promise<void> {
+  const workerKey = cfg.workerKey ?? "";
+  const jobErr = async (err: unknown): Promise<void> => {
       // The scan fails closed to `rejected`; the cause stays in worker logs.
       console.error(
         `scan-worker [${scanId}] job failed:`,
@@ -308,7 +309,13 @@ export function createScanWorker(cfg: ScanWorkerConfig): {
     } catch (err) {
       await jobErr(err);
     }
-  }
+}
+
+export function createScanWorker(cfg: ScanWorkerConfig): {
+  server: Server;
+  isBusy: () => boolean;
+} {
+  let busy = false;
 
   async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -355,7 +362,7 @@ export function createScanWorker(cfg: ScanWorkerConfig): {
       if (busy) return sendJson(res, 409, { error: "busy" });
       busy = true;
       sendJson(res, 202, { accepted: true, scan_id: scanId });
-      void runJob(scanId).finally(() => {
+      void runScanJob(cfg, scanId).finally(() => {
         busy = false;
       });
       return;
@@ -382,13 +389,30 @@ const invokedDirectly =
 
 if (invokedDirectly) {
   const cfg = configFromEnv();
-  const { server } = createScanWorker(cfg);
-  server.listen(cfg.port, () => {
-    console.log(
-      `scan-worker listening on :${cfg.port} — POST /run {scan_id}, GET /health`,
-    );
-    if (!cfg.workerKey || cfg.workerKey.length < 32)
-      console.warn("SCAN_WORKER_KEY unset/short — /run will answer 503 until configured");
-    if (!cfg.appUrl) console.warn("APP_URL unset — jobs will fail before they start");
-  });
+  // `--once <scan_id>` runs a single job and exits — the entrypoint the
+  // Modal GPU function uses (one container per scan, no always-on server).
+  const onceIdx = process.argv.indexOf("--once");
+  if (onceIdx !== -1) {
+    const scanId = process.argv[onceIdx + 1];
+    if (!scanId || !SCAN_ID_RE.test(scanId)) {
+      console.error("usage: scan-worker --once <scan_id>");
+      process.exit(2);
+    }
+    runScanJob(cfg, scanId)
+      .then(() => process.exit(0))
+      .catch((err) => {
+        console.error("scan-worker --once failed:", err instanceof Error ? err.message : err);
+        process.exit(1);
+      });
+  } else {
+    const { server } = createScanWorker(cfg);
+    server.listen(cfg.port, () => {
+      console.log(
+        `scan-worker listening on :${cfg.port} — POST /run {scan_id}, GET /health`,
+      );
+      if (!cfg.workerKey || cfg.workerKey.length < 32)
+        console.warn("SCAN_WORKER_KEY unset/short — /run will answer 503 until configured");
+      if (!cfg.appUrl) console.warn("APP_URL unset — jobs will fail before they start");
+    });
+  }
 }

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Wrapper for gsplat's examples/simple_trainer.py matching the scan-worker
+# contract: `gsplat --data_dir X --result_dir Y --max_steps N`.
+# simple_trainer.py uses tyro subcommands ({default,mcmc}); inject "default"
+# plus --save_ply/--disable_viewer unless the caller already passed them,
+# then after a successful run copy the newest point_cloud_*.ply to
+# <result_dir>/splat.ply (the path the worker hands to spz-convert).
+#
+# Pinned to gsplat v1.5.3: that release's example only imports modules the
+# PyPI wheel ships (the repo's newer color_correct/losses helpers are not in
+# any released wheel), so the wheel's compiled CUDA extension is used while
+# the example sources come from the matching tag.
+set -uo pipefail
+ROOT="/opt/gsplat-src"
+export KMP_DUPLICATE_LIB_OK=TRUE
+export PYTHONPATH="$ROOT/examples${PYTHONPATH:+:$PYTHONPATH}"
+
+args=("$@")
+first="${args[0]:-}"
+case "$first" in
+  default|mcmc|-h|--help|"") ;;
+  *) args=("default" "${args[@]}") ;;
+esac
+
+has_flag() { local pat="$1"; shift; local a; for a in "$@"; do [[ "$a" == *"$pat"* ]] && return 0; done; return 1; }
+
+# Locate result_dir for the post-run ply copy.
+result_dir=""
+prev=""
+for a in "${args[@]}"; do
+  if [[ "$prev" == "--result_dir" ]]; then result_dir="$a"; fi
+  case "$a" in --result_dir=*) result_dir="${a#--result_dir=}" ;; esac
+  prev="$a"
+done
+
+extra=()
+has_flag save_ply "${args[@]}" || extra+=(--save_ply)
+has_flag disable_viewer "${args[@]}" || extra+=(--disable_viewer)
+
+python3 "$ROOT/examples/simple_trainer.py" "${args[@]}" "${extra[@]}"
+rc=$?
+
+if [ "$rc" -eq 0 ] && [ -n "$result_dir" ] && [ -d "$result_dir/ply" ]; then
+  latest=$(ls -t "$result_dir"/ply/point_cloud_*.ply 2>/dev/null | head -1)
+  if [ -n "$latest" ]; then
+    cp "$latest" "$result_dir/splat.ply"
+    echo "gsplat wrapper: copied $latest -> $result_dir/splat.ply"
+  fi
+fi
+exit $rc
