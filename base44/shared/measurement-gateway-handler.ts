@@ -1,5 +1,10 @@
 import { authorizeGateway } from "./gateway-auth.ts";
 import {
+  isVenueFactField,
+  venueFactValue,
+  venuePhotoError,
+} from "./cafe-vocabulary.ts";
+import {
   measurementInputFromRecord,
   measurementRecord,
   validateMeasurement,
@@ -20,6 +25,10 @@ export interface GatewayClient {
       };
       Cafe: {
         get: (id: string) => Promise<Record<string, unknown> | null>;
+        update: (
+          id: string,
+          record: Record<string, unknown>,
+        ) => Promise<unknown>;
       };
       VenueScan: {
         filter: (
@@ -485,6 +494,106 @@ export async function measurementGatewayHandler(
       await base44.asServiceRole.entities.VenueScan.update(scanId, {
         takedown_requested: true,
         takedown_reason: reason.trim(),
+      });
+      return Response.json({ ok: true }, { headers: NO_STORE });
+    }
+
+    if (action === "venue-fact") {
+      // Rung-2 micro-contribution: one confirmed fact on the venue record.
+      // The field allowlist is the whole write surface — nothing outside
+      // VENUE_FACT_FIELDS can reach Cafe.update.
+      const b = body as Record<string, unknown>;
+      const cafeId = b.cafe_id;
+      if (typeof cafeId !== "string" || cafeId.length === 0 || cafeId.length > 128)
+        return err(400, "cafe_id required");
+      const field = b.field;
+      if (!isVenueFactField(field))
+        return err(400, "field is not an allowed venue fact");
+      const contributorId = b.contributor_id;
+      if (
+        contributorId !== undefined &&
+        contributorId !== null &&
+        (typeof contributorId !== "string" || contributorId.length > 128)
+      )
+        return err(400, "contributor_id invalid");
+      const contributorIpHash = b.contributor_ip_hash;
+      if (
+        contributorIpHash !== undefined &&
+        contributorIpHash !== null &&
+        (typeof contributorIpHash !== "string" || contributorIpHash.length > 128)
+      )
+        return err(400, "contributor_ip_hash invalid");
+
+      const fact = venueFactValue(field, b.value);
+      if (!fact.ok) return err(400, fact.error);
+
+      let cafe: Record<string, unknown> | null;
+      try {
+        cafe = await base44.asServiceRole.entities.Cafe.get(cafeId);
+      } catch (e) {
+        const status = (e as { status?: number })?.status;
+        if (status === 404) return err(404, "cafe not found");
+        throw e;
+      }
+      if (!cafe) return err(404, "cafe not found");
+
+      let update: Record<string, unknown>;
+      if (field === "milk_options") {
+        // Newest observation appends to the menu rather than replacing it —
+        // a café that added oat milk didn't stop pouring dairy. Deduped.
+        const existing = Array.isArray(cafe.milk_options)
+          ? (cafe.milk_options as unknown[]).filter(
+              (v): v is string => typeof v === "string",
+            )
+          : [];
+        update = {
+          milk_options: [
+            ...new Set([...existing, ...(fact.value as string[])]),
+          ],
+        };
+      } else {
+        update = { [field]: fact.value };
+      }
+      await base44.asServiceRole.entities.Cafe.update(cafeId, update);
+      return Response.json({ ok: true }, { headers: NO_STORE });
+    }
+
+    if (action === "venue-photo") {
+      // Rung-3 micro-contribution: one photo becomes the venue's face.
+      // Newest-wins on the single Cafe.photo_url field.
+      const b = body as Record<string, unknown>;
+      const cafeId = b.cafe_id;
+      if (typeof cafeId !== "string" || cafeId.length === 0 || cafeId.length > 128)
+        return err(400, "cafe_id required");
+      const contributorId = b.contributor_id;
+      if (
+        contributorId !== undefined &&
+        contributorId !== null &&
+        (typeof contributorId !== "string" || contributorId.length > 128)
+      )
+        return err(400, "contributor_id invalid");
+      const contributorIpHash = b.contributor_ip_hash;
+      if (
+        contributorIpHash !== undefined &&
+        contributorIpHash !== null &&
+        (typeof contributorIpHash !== "string" || contributorIpHash.length > 128)
+      )
+        return err(400, "contributor_ip_hash invalid");
+      const photoError = venuePhotoError(b.photo_url);
+      if (photoError) return err(400, photoError);
+
+      let cafe: Record<string, unknown> | null;
+      try {
+        cafe = await base44.asServiceRole.entities.Cafe.get(cafeId);
+      } catch (e) {
+        const status = (e as { status?: number })?.status;
+        if (status === 404) return err(404, "cafe not found");
+        throw e;
+      }
+      if (!cafe) return err(404, "cafe not found");
+
+      await base44.asServiceRole.entities.Cafe.update(cafeId, {
+        photo_url: b.photo_url,
       });
       return Response.json({ ok: true }, { headers: NO_STORE });
     }

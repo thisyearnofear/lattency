@@ -73,7 +73,7 @@ Mechanics of the ask layer, kept deliberately boring:
 
 1. ✅ `lib/venue-needs.ts` — pure need derivation + tests (no UI yet). **Shipped.**
 2. ✅ Ask cards on the venue drawer/detail — needs-driven, one rung each. **Shipped** (`components/venue-ask-card.tsx`); receipts on completion still pending.
-3. Standalone fact + photo contribution endpoints (reuse photo pipeline from café creation; consent line for "no identifiable people").
+3. ✅ Standalone fact + photo contribution endpoints (reuse photo pipeline from café creation; consent line for "no identifiable people"). **Shipped** — `POST /api/venues/[id]/facts` + `POST /api/venues/[id]/photos` → `venue-fact` / `venue-photo` gateway actions; ask-card CTAs open `components/venue-fact-sheet.tsx` / `components/venue-photo-sheet.tsx`.
 4. Session-context ask ranking (proximity when located; dismissal decay in localStorage). *Partially shipped* — dismissals decay (7-day TTL); proximity ranking still pending.
 5. Depth-gated ask escalation (unlock rungs by prior contributions).
 

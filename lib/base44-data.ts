@@ -366,6 +366,50 @@ export async function b44FinalizeVenueScan(input: {
   });
 }
 
+/** Rung-2 micro-contribution: write one confirmed fact field onto the
+ *  venue record. The gateway enforces the VENUE_FACT_FIELDS allowlist and
+ *  validates the value against the shared vocabulary, so `field`/`value`
+ *  are the only things that can change. Throws on gateway errors —
+ *  `{status: 404}` when the café is unknown. */
+export async function b44UpdateVenueFact(input: {
+  cafeId: string;
+  field: string;
+  value: unknown;
+  contributorId: string | null;
+  contributorIpHash: string | null;
+}): Promise<void> {
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-fact",
+    cafe_id: input.cafeId,
+    field: input.field,
+    value: input.value,
+    contributor_id: input.contributorId,
+    contributor_ip_hash: input.contributorIpHash,
+  });
+  if (unwrap<unknown>(res, "ok") !== true)
+    throw new Error("Invalid venue-fact gateway response");
+}
+
+/** Rung-3 micro-contribution: one photo becomes the venue's face
+ *  (newest-wins on Cafe.photo_url). Throws on gateway errors —
+ *  `{status: 404}` when the café is unknown. */
+export async function b44UpdateVenuePhoto(input: {
+  cafeId: string;
+  photoUrl: string;
+  contributorId: string | null;
+  contributorIpHash: string | null;
+}): Promise<void> {
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-photo",
+    cafe_id: input.cafeId,
+    photo_url: input.photoUrl,
+    contributor_id: input.contributorId,
+    contributor_ip_hash: input.contributorIpHash,
+  });
+  if (unwrap<unknown>(res, "ok") !== true)
+    throw new Error("Invalid venue-photo gateway response");
+}
+
 /** Publicly-visible scans for a venue (non-rejected pipeline states),
  *  projected to safe fields by the gateway. splat_url is null until the
  *  scan is actually published. */

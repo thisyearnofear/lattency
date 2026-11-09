@@ -57,6 +57,27 @@ describe("formatMetadata", () => {
   });
 });
 
+describe("vocabulary single-source", () => {
+  // The constants were moved to base44/shared/cafe-vocabulary.ts so the
+  // Deno gateway validates against the same menu; lib/cafe-metadata.ts
+  // re-exports them. This pins the re-export to the shared module so the
+  // two can never drift.
+  it("lib re-exports are identical to the shared vocabulary", async () => {
+    const shared = await import("@/base44/shared/cafe-vocabulary");
+    const lib = await import("@/lib/cafe-metadata");
+    for (const key of [
+      "VENUE_TYPES",
+      "MILK_OPTIONS",
+      "PRICE_TIERS",
+      "SEATING_TYPES",
+      "NOISE_LEVELS",
+      "TABLE_SPACES",
+    ] as const) {
+      expect(lib[key]).toBe(shared[key]);
+    }
+  });
+});
+
 describe("metadataChips", () => {
   it("returns nothing when no metadata is attached", () => {
     expect(metadataChips({ metadata: undefined })).toEqual([]);

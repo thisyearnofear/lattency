@@ -97,6 +97,7 @@ function makeClient(over: Partial<{
 }> = {}) {
   const create = vi.fn().mockImplementation(() =>
     over.createErr ? Promise.reject(over.createErr) : Promise.resolve({ id: "m-1" }));
+  const cafeUpdate = vi.fn().mockResolvedValue({});
   const scanCreate = vi.fn().mockResolvedValue({ id: "vs-1" });
   const scanUpdate = vi.fn().mockResolvedValue({});
   const client = {
@@ -108,6 +109,7 @@ function makeClient(over: Partial<{
         },
         Cafe: {
           get: vi.fn().mockResolvedValue(over.cafe !== undefined ? over.cafe : { id: "c1", name: "C" }),
+          update: cafeUpdate,
         },
         VenueScan: {
           filter: vi.fn().mockResolvedValue(over.scanRows ?? []),
@@ -121,7 +123,7 @@ function makeClient(over: Partial<{
       },
     },
   };
-  return { client, create, scanCreate, scanUpdate };
+  return { client, create, cafeUpdate, scanCreate, scanUpdate };
 }
 
 describe("measurementGatewayHandler", () => {
@@ -737,6 +739,154 @@ describe("measurementGatewayHandler venue-scan actions", () => {
       );
       expect(res.status).toBe(400);
     }
+  });
+});
+
+describe("measurementGatewayHandler micro-contribution actions", () => {
+  const H = "x-lattency-server-key" as const;
+
+  it("venue-fact writes only the allowlisted field on the venue record", async () => {
+    const { client, cafeUpdate } = makeClient();
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-fact",
+          cafe_id: "c1",
+          field: "seating",
+          value: "tables",
+          contributor_id: "contrib-x",
+          is_admin: true,
+          photo_url: "data:image/jpeg;base64,evil",
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(cafeUpdate).toHaveBeenCalledWith("c1", { seating: "tables" });
+  });
+
+  it("venue-fact 400s on non-allowlisted fields before touching the entity", async () => {
+    const { client, cafeUpdate } = makeClient();
+    for (const field of ["id", "created_by_user_id", "photo_url", "ai_summary", "milkOptions", 7]) {
+      const res = await measurementGatewayHandler(
+        req(
+          { action: "venue-fact", cafe_id: "c1", field, value: "tables" },
+          { [H]: SECRET },
+        ),
+        SECRET,
+        () => client,
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(cafeUpdate).not.toHaveBeenCalled();
+  });
+
+  it("venue-fact 400s on values outside the vocabulary", async () => {
+    const { client, cafeUpdate } = makeClient();
+    for (const [field, value] of [
+      ["power_outlets", "yes"],
+      ["seating", "hammocks"],
+      ["price_tier", "ultra"],
+      ["venue_type", "spaceship"],
+      ["milk_options", "yak"],
+      ["wifi_network", "x".repeat(65)],
+    ] as const) {
+      const res = await measurementGatewayHandler(
+        req({ action: "venue-fact", cafe_id: "c1", field, value }, { [H]: SECRET }),
+        SECRET,
+        () => client,
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(cafeUpdate).not.toHaveBeenCalled();
+  });
+
+  it("venue-fact merges milk_options into the existing menu, deduped", async () => {
+    const { client, cafeUpdate } = makeClient({
+      cafe: { id: "c1", milk_options: ["dairy", "oat", 42] },
+    });
+    const res = await measurementGatewayHandler(
+      req(
+        { action: "venue-fact", cafe_id: "c1", field: "milk_options", value: ["oat", "soy"] },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(200);
+    expect(cafeUpdate).toHaveBeenCalledWith("c1", {
+      milk_options: ["dairy", "oat", "soy"],
+    });
+  });
+
+  it("venue-fact 404s on an unknown café", async () => {
+    const res = await measurementGatewayHandler(
+      req(
+        { action: "venue-fact", cafe_id: "none", field: "seating", value: "tables" },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => makeClient({ cafe: null }).client,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("venue-photo writes the data URL and newest-wins", async () => {
+    const { client, cafeUpdate } = makeClient({
+      cafe: { id: "c1", photo_url: "data:image/jpeg;base64,old" },
+    });
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-photo",
+          cafe_id: "c1",
+          photo_url: "data:image/jpeg;base64,bmV3",
+          contributor_id: "contrib-x",
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(200);
+    expect(cafeUpdate).toHaveBeenCalledWith("c1", {
+      photo_url: "data:image/jpeg;base64,bmV3",
+    });
+  });
+
+  it("venue-photo 400s on non-image, oversized, or missing payloads", async () => {
+    const { client, cafeUpdate } = makeClient();
+    for (const photo_url of [
+      undefined,
+      42,
+      "https://cdn.example/x.jpg",
+      "data:image/gif;base64,R0lG",
+      "data:text/plain;base64,aGk=",
+      `data:image/png;base64,${"A".repeat(1_000_000)}`,
+    ]) {
+      const res = await measurementGatewayHandler(
+        req({ action: "venue-photo", cafe_id: "c1", photo_url }, { [H]: SECRET }),
+        SECRET,
+        () => client,
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(cafeUpdate).not.toHaveBeenCalled();
+  });
+
+  it("venue-photo 404s on an unknown café", async () => {
+    const res = await measurementGatewayHandler(
+      req(
+        { action: "venue-photo", cafe_id: "none", photo_url: "data:image/png;base64,eA==" },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => makeClient({ cafe: null }).client,
+    );
+    expect(res.status).toBe(404);
   });
 });
 

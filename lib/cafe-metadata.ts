@@ -9,14 +9,27 @@
 // ratings. If it can't be observed or measured, it doesn't belong here.
 
 import type { CafeMetadata, CafeStation, VenueType } from "./types";
+import {
+  MILK_OPTIONS,
+  NOISE_LEVELS,
+  PRICE_TIERS,
+  SEATING_TYPES,
+  TABLE_SPACES,
+  VENUE_TYPES,
+} from "../base44/shared/cafe-vocabulary";
 
-export const VENUE_TYPES = [
-  "cafe",
-  "coworking",
-  "hotel-lobby",
-  "library",
-  "hybrid",
-] as const;
+// The vocabulary constants live in base44/shared/cafe-vocabulary.ts so the
+// Deno gateway can validate fact micro-contributions against the same
+// menu — re-exported here to keep lib/cafe-metadata.ts the single import
+// site for app code.
+export {
+  MILK_OPTIONS,
+  NOISE_LEVELS,
+  PRICE_TIERS,
+  SEATING_TYPES,
+  TABLE_SPACES,
+  VENUE_TYPES,
+};
 
 export const VENUE_TYPE_LABELS: Record<VenueType, string> = {
   cafe: "Café",
@@ -25,12 +38,6 @@ export const VENUE_TYPE_LABELS: Record<VenueType, string> = {
   library: "Library",
   hybrid: "Hybrid",
 };
-
-export const MILK_OPTIONS = ["dairy", "oat", "soy", "almond"] as const;
-export const PRICE_TIERS = ["budget", "mid", "premium"] as const;
-export const SEATING_TYPES = ["bar", "tables", "lounge", "mixed"] as const;
-export const NOISE_LEVELS = ["quiet", "moderate", "loud"] as const;
-export const TABLE_SPACES = ["small", "standard", "large"] as const;
 
 export const PRICE_TIER_LABELS: Record<string, string> = {
   budget: "$",

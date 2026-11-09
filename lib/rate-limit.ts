@@ -34,7 +34,9 @@ export type RateLimitScope =
   | { kind: "event" }
   | { kind: "community" }
   | { kind: "takedown" }
-  | { kind: "scanframe"; scanId: string };
+  | { kind: "scanframe"; scanId: string }
+  | { kind: "fact" }
+  | { kind: "photo" };
 
 const LIMITS: Record<RateLimitScope["kind"], { limit: number; windowMs: number }> = {
   // One reading per café per IP per 10 minutes.
@@ -54,6 +56,11 @@ const LIMITS: Record<RateLimitScope["kind"], { limit: number; windowMs: number }
   // covers a ~90s run at ~3fps plus retry margin, keyed per scan so a busy
   // capture session doesn't trip the per-IP limits used elsewhere.
   scanframe: { limit: 300, windowMs: 10 * 60_000 },
+  // Single-fact micro-contributions (rung 2) — enough headroom to confirm
+  // every unconfirmed row on one venue card plus a couple of neighbours.
+  fact: { limit: 10, windowMs: 60 * 60_000 },
+  // Single-photo micro-contributions (rung 3) — heavier payloads, tighter cap.
+  photo: { limit: 5, windowMs: 60 * 60_000 },
 };
 
 interface RateLimitBackend {

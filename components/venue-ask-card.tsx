@@ -15,6 +15,8 @@ import type { PublicVenueScan } from "@/lib/venue-scan-types";
 import { slugify } from "@/lib/slug";
 import { useMatchMedia } from "@/hooks/use-match-media";
 import { VTLink } from "./vt-link";
+import { VenueFactSheet } from "./venue-fact-sheet";
+import { VenuePhotoSheet } from "./venue-photo-sheet";
 
 const CAPTURE_UI_ENABLED = process.env.NEXT_PUBLIC_VENUE_CAPTURE_ENABLED === "1";
 
@@ -43,6 +45,9 @@ export function VenueAskCard({ cafe }: { cafe: CafeStation }) {
   const scanState = scan?.venueId === cafe.id ? scan.state : null;
   const hasPublishedScan = scanState === "published";
   const reducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
+  // Which micro-contribution sheet is open, if any. Kept local to the card
+  // so every surface that mounts an ask card gets rungs 2–3 for free.
+  const [sheet, setSheet] = useState<"facts" | "photo" | null>(null);
 
   useEffect(() => {
     const d = new Set<VenueNeed>();
@@ -106,10 +111,29 @@ export function VenueAskCard({ cafe }: { cafe: CafeStation }) {
     setDismissed((prev) => new Set(prev).add(need));
   }
 
-  // Every non-scan rung lands on the existing contribution affordance —
-  // the drawer's Contribute tab when one is mounted, else the café page's
-  // #contribute section. Micro-endpoints for photo/fact asks land in a
-  // later tranche.
+  // Rung routing: facts and photos are standalone micro-contributions
+  // with their own sheets (one tap / one shot, no full form). Freshness
+  // and upload still land on the existing contribution affordance — the
+  // drawer's Contribute tab when one is mounted, else the café page's
+  // #contribute section. Scan keeps its dedicated capture route.
+  function onCta() {
+    if (need === "facts") {
+      setSheet("facts");
+      return;
+    }
+    if (need === "photo") {
+      setSheet("photo");
+      return;
+    }
+    openContribute();
+  }
+
+  // A landed micro-contribution settles the need locally — the card moves
+  // straight to the next ask rather than re-asking for what's been given.
+  function markAnswered(n: VenueNeed) {
+    setDismissed((prev) => new Set(prev ?? []).add(n));
+  }
+
   function openContribute() {
     const behavior: ScrollBehavior = reducedMotion ? "auto" : "smooth";
     const tab = document.getElementById("drawer-tab-contribute");
@@ -159,12 +183,24 @@ export function VenueAskCard({ cafe }: { cafe: CafeStation }) {
       ) : (
         <button
           type="button"
-          onClick={openContribute}
+          onClick={onCta}
           className="pressable mt-3 bg-ink text-cream font-mono text-[10px] tracking-[0.22em] uppercase px-4 py-2 hover:bg-ink/90 transition-colors"
         >
           {CTA_LABEL[need]}
         </button>
       )}
+      <VenueFactSheet
+        cafe={cafe}
+        open={sheet === "facts"}
+        onClose={() => setSheet(null)}
+        onLanded={() => markAnswered("facts")}
+      />
+      <VenuePhotoSheet
+        cafe={cafe}
+        open={sheet === "photo"}
+        onClose={() => setSheet(null)}
+        onLanded={() => markAnswered("photo")}
+      />
     </div>
   );
 }

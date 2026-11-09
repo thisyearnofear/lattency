@@ -20,6 +20,7 @@ import {
 } from "@/lib/cafe-metadata";
 import { CITIES, DEFAULT_CITY_ID, cityDisplayName } from "@/lib/cities";
 import { postWithRetry } from "@/lib/fetch-retry";
+import { resizePhotoToDataUrl } from "@/lib/photo-resize";
 import { TIER_COLOUR, TIER_USE, tierForDown } from "@/lib/map-data";
 import { CrossfadePanel } from "@/components/crossfade-panel";
 import { ContributionCelebration } from "./contribution-celebration";
@@ -367,28 +368,16 @@ export function CafeContributionForm({
     }
   }, []);
 
-  // Step 5: Photo — client-side canvas resize to 800px JPEG
-  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  // Step 5: Photo — client-side canvas resize to 800px JPEG (shared with
+  // the single-photo micro-contribution sheet via lib/photo-resize.ts).
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxDim = 800;
-        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-        update("photo", dataUrl);
-      };
-      img.src = ev.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+    try {
+      update("photo", await resizePhotoToDataUrl(file));
+    } catch {
+      // A non-image file simply doesn't populate the photo slot.
+    }
   }
 
   // Submit
