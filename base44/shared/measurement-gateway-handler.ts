@@ -21,6 +21,20 @@ export interface GatewayClient {
       Cafe: {
         get: (id: string) => Promise<Record<string, unknown> | null>;
       };
+      VenueScan: {
+        filter: (
+          query: Record<string, unknown>,
+          sort?: string,
+          limit?: number,
+          offset?: number,
+        ) => Promise<Record<string, unknown>[]>;
+        get: (id: string) => Promise<Record<string, unknown> | null>;
+        create: (record: Record<string, unknown>) => Promise<{ id: string }>;
+        update: (
+          id: string,
+          record: Record<string, unknown>,
+        ) => Promise<unknown>;
+      };
     };
   };
 }
@@ -100,6 +114,117 @@ export async function measurementGatewayHandler(
         },
         { headers: NO_STORE },
       );
+    }
+
+    if (action === "venue-scan-insert") {
+      const scan = (body as Record<string, unknown>).scan;
+      if (scan === null || typeof scan !== "object" || Array.isArray(scan))
+        return err(400, "scan object required");
+      const record = scan as Record<string, unknown>;
+      const venueId = record.venue_id;
+      if (typeof venueId !== "string" || venueId.length === 0 || venueId.length > 128)
+        return err(400, "scan.venue_id required");
+      const contributorId = record.contributor_id;
+      if (
+        contributorId !== undefined &&
+        contributorId !== null &&
+        (typeof contributorId !== "string" || contributorId.length > 128)
+      )
+        return err(400, "scan.contributor_id invalid");
+      const assetUrl = record.capture_asset_url;
+      if (
+        assetUrl !== undefined &&
+        assetUrl !== null &&
+        (typeof assetUrl !== "string" || assetUrl.length > 2048)
+      )
+        return err(400, "scan.capture_asset_url invalid");
+
+      // The consent checkpoint is re-verified server-side: a scan record
+      // cannot be created without both affirmations, regardless of what the
+      // caller's UI enforced.
+      const consent = record.consent_attestation;
+      if (consent === null || typeof consent !== "object" || Array.isArray(consent))
+        return err(400, "scan.consent_attestation required");
+      const attestation = consent as Record<string, unknown>;
+      if (attestation.venue_permission !== true || attestation.patron_notice !== true)
+        return err(400, "consent attestation must affirm venue permission and patron notice");
+      const ts = attestation.timestamp;
+      const timestamp =
+        typeof ts === "string" && !Number.isNaN(Date.parse(ts))
+          ? ts
+          : new Date().toISOString();
+
+      const row = await base44.asServiceRole.entities.VenueScan.create({
+        venue_id: venueId,
+        contributor_id: typeof contributorId === "string" ? contributorId : null,
+        capture_asset_url: typeof assetUrl === "string" ? assetUrl : null,
+        consent_attestation: {
+          venue_permission: true,
+          patron_notice: true,
+          timestamp,
+        },
+        status: "captured",
+        splat_url: null,
+        takedown_requested: false,
+        blur_verified: false,
+      });
+      return Response.json({ scanId: row.id }, { status: 201, headers: NO_STORE });
+    }
+
+    if (action === "venue-scans") {
+      const venueId = (body as Record<string, unknown>).venue_id;
+      if (typeof venueId !== "string" || venueId.length === 0 || venueId.length > 128)
+        return err(400, "venue_id required");
+      const rows = await base44.asServiceRole.entities.VenueScan.filter(
+        { venue_id: venueId, status: "published" },
+        "-created_date",
+        20,
+        0,
+      );
+      // Public projection: never expose contributor_id, consent records, or
+      // the raw capture asset to readers.
+      return Response.json(
+        {
+          scans: rows.map((r) => ({
+            id: r.id,
+            venue_id: r.venue_id,
+            splat_url: r.splat_url ?? null,
+            status: r.status,
+            created: r.created_date ?? null,
+          })),
+        },
+        { headers: NO_STORE },
+      );
+    }
+
+    if (action === "venue-scan-takedown") {
+      const scanId = (body as Record<string, unknown>).scan_id;
+      if (typeof scanId !== "string" || scanId.length === 0 || scanId.length > 128)
+        return err(400, "scan_id required");
+      const venueId = (body as Record<string, unknown>).venue_id;
+      if (typeof venueId !== "string" || venueId.length === 0 || venueId.length > 128)
+        return err(400, "venue_id required");
+      const reason = (body as Record<string, unknown>).reason;
+      if (typeof reason !== "string" || reason.trim().length === 0 || reason.length > 500)
+        return err(400, "reason required (max 500 characters)");
+
+      let scan: Record<string, unknown> | null;
+      try {
+        scan = await base44.asServiceRole.entities.VenueScan.get(scanId);
+      } catch (e) {
+        const status = (e as { status?: number })?.status;
+        if (status === 404) return err(404, "scan not found");
+        throw e;
+      }
+      // A venue_id that doesn't match the scan's venue gets the same 404 —
+      // confirming the pair exists would leak scan metadata.
+      if (!scan || scan.venue_id !== venueId) return err(404, "scan not found");
+
+      await base44.asServiceRole.entities.VenueScan.update(scanId, {
+        takedown_requested: true,
+        takedown_reason: reason.trim(),
+      });
+      return Response.json({ ok: true }, { headers: NO_STORE });
     }
 
     if (action === "cafe") {

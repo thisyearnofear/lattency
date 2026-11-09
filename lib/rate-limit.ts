@@ -32,7 +32,8 @@ export type RateLimitScope =
   | { kind: "cafe" }
   | { kind: "bounty" }
   | { kind: "event" }
-  | { kind: "community" };
+  | { kind: "community" }
+  | { kind: "takedown" };
 
 const LIMITS: Record<RateLimitScope["kind"], { limit: number; windowMs: number }> = {
   // One reading per café per IP per 10 minutes.
@@ -46,6 +47,8 @@ const LIMITS: Record<RateLimitScope["kind"], { limit: number; windowMs: number }
   event: { limit: 5, windowMs: 60 * 60_000 },
   // Community registrations are the same spam surface, one tier up.
   community: { limit: 5, windowMs: 60 * 60_000 },
+  // Owner-veto requests on venue scans — flagged per scan, spam-capped per IP.
+  takedown: { limit: 5, windowMs: 60 * 60_000 },
 };
 
 interface RateLimitBackend {

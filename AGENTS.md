@@ -65,7 +65,7 @@ Aurora PostgreSQL is retired. The entire backend is now **Base44** (entities + D
 | `lib/haptics.ts` | Guarded `navigator.vibrate` no-op wrapper for pay-off moments |
 | `hooks/use-bounty-match.ts` | Client fetch that finds the open bounty a contribution is pushing forward (shared by celebration + measurement success) |
 | `hooks/use-live-doc-title.ts` | Temporarily replaces the tab title (live speed-test readout) and restores it on exit |
-| `base44/entities/` | Entity schemas: Cafe, Measurement, Sponsorship, Bounty, ContributorProfile, Event, Community |
+| `base44/entities/` | Entity schemas: Cafe, Measurement, Sponsorship, Bounty, ContributorProfile, Event, Community, VenueScan |
 | `base44/functions/` | 7 Deno backend functions (service role) |
 | `base44/agents/workspace_concierge.jsonc` | AI agent config |
 | `base44/config.jsonc` | Project config (entitiesDir, functionsDir, agentsDir) |
@@ -148,4 +148,13 @@ New UI must match the newsprint/transit identity: hard offset shadows (`shadow-[
 
 - Writes to Cafe/Measurement entities now route through the `measurement-gateway` and `create-cafe` Deno functions, authenticated by a shared secret header `x-lattency-server-key` (constant-time compared). The Next.js side calls it via `lib/base44-gateway.ts` (`getBase44Gateway()`), which requires `NEXT_PUBLIC_BASE44_APP_ID` plus `LATTENCY_SERVER_KEY` (>=32 chars, server env only — NEVER `NEXT_PUBLIC_`). Both sides must carry the same private value.
 - Deployed and verified on Base44 (ce01242): restrictive RLS is live — anonymous `entities.Measurement`/`Cafe` writes return 403 and reads return zero rows; `measurement-gateway`/`create-cafe` return 401 without/with a wrong `x-lattency-server-key` and serve projected fields only when keyed. Function-side secrets are registered with `npx base44 secrets set KEY=VALUE` (project-linked via `base44/.app.jsonc`, gitignored); the same value must also be set as `LATTENCY_SERVER_KEY` in `.env.local` locally and in the Vercel env for production. Seeded/direct entity writes are denied outside the gateway — do not run the existing seed script.
+
+## Venue 3D capture (feature-flagged skeleton)
+
+- Consent-first venue scanning per `docs/venue-3d-insights.md` / `docs/venue-3d-research.md`. Everything ships behind `VENUE_CAPTURE_ENABLED` (server, `lib/venue-capture-policy.ts` `venueCaptureEnabled()` — true only when the env is `"1"`) and `NEXT_PUBLIC_VENUE_CAPTURE_ENABLED` (UI affordances). Both default OFF.
+- `base44/entities/VenueScan.json` — venue_id, contributor_id, capture_asset_url, consent_attestation {venue_permission, patron_notice, timestamp}, status enum (captured→processing→published|rejected|taken_down), splat_url, takedown_requested, blur_verified. RLS is all-false; the only paths are three `measurement-gateway` actions: `venue-scan-insert` (allowlisted fields, re-verifies both consent affirmations, forces status captured), `venue-scans` (published-only read, safe-field projection), `venue-scan-takedown` (sets takedown_requested after venue match).
+- API: `POST`/`GET /api/venue-scans` and `POST /api/venue-scans/[id]/takedown` — all 503 `VENUE_CAPTURE_PAUSED` while the flag is off. Takedown rate-limits on the `takedown` scope (5/hr/IP).
+- UI: `components/venue-tour-stamp.tsx` ("3D tour available" stamp on the café drawer when a published scan exists), a "Capture this venue" link on the venue page, and the `app/capture/[slug]` consent-checkpoint stub (404s when the flag is off). No viewer, no upload.
+- Bounty kind `"venue-capture"` exists in `BountyKind`/the Bounty entity enum but is deliberately unwired — no progress attribution, not in `BOUNTY_KINDS`.
+- **Pending before any launch**: the real pipeline (file storage → moderation → `deface` blur + audio strip → gsplat/COLMAP → SPZ), owner verification for the veto path, and open counsel items — BIPA exposure on face geometry, Kenya DPA s.37 commercial-use consent, and whether platform-produced splats keep intermediary-liability shields. See the docs' guardrails; do not flip the flag casually.
 - The realtime Measurement.subscribe feed was replaced by a sanitized 30s visible-tab refresh; raw entity tools were removed from the concierge agent. Public responses must explicitly allowlist fields; use `publicCafe` for raw cafe-row projections.

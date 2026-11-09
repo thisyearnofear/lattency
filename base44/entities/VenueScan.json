@@ -1,0 +1,30 @@
+{
+  "name": "VenueScan",
+  "type": "object",
+  "title": "VenueScan",
+  "properties": {
+    "venue_id":            { "type": "string" },
+    "contributor_id":      { "type": "string" },
+    "capture_asset_url":   { "type": "string", "default": null },
+    "consent_attestation": {
+      "type": "object",
+      "properties": {
+        "venue_permission": { "type": "boolean" },
+        "patron_notice":    { "type": "boolean" },
+        "timestamp":        { "type": "string", "format": "date-time" }
+      }
+    },
+    "status":              { "type": "string", "enum": ["captured", "processing", "published", "rejected", "taken_down"], "default": "captured" },
+    "splat_url":           { "type": "string", "default": null },
+    "takedown_requested":  { "type": "boolean", "default": false },
+    "takedown_reason":     { "type": "string", "default": null },
+    "blur_verified":       { "type": "boolean", "default": false }
+  },
+  "required": ["venue_id"],
+  "rls": {
+    "create": false,
+    "read": false,
+    "update": false,
+    "delete": false
+  }
+}

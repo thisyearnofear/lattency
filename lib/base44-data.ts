@@ -8,6 +8,7 @@ import { getBase44, base44Configured } from "./base44";
 import { getBase44Gateway } from "./base44-gateway";
 import type { CafeDetail, CafeStation } from "./types";
 import type { Community, CommunityEvent } from "./events";
+import type { PublicVenueScan, VenueScanConsentAttestation } from "./venue-scan-types";
 import { log } from "./log";
 
 export { base44Configured };
@@ -256,6 +257,65 @@ export async function b44InsertEvent(e: CommunityEvent): Promise<string> {
     approved: false,
   })) as unknown as string;
   return String(id);
+}
+
+export interface B44VenueScanInsert {
+  venueId: string;
+  contributorId: string | null;
+  captureAssetUrl?: string | null;
+  consentAttestation: VenueScanConsentAttestation;
+}
+
+/** Insert a venue-scan record under service role (RLS on VenueScan is fully
+ *  closed — the measurement-gateway action is the only write path). */
+export async function b44InsertVenueScan(input: B44VenueScanInsert): Promise<string> {
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-scan-insert",
+    scan: {
+      venue_id: input.venueId,
+      contributor_id: input.contributorId,
+      capture_asset_url: input.captureAssetUrl ?? null,
+      consent_attestation: input.consentAttestation,
+    },
+  });
+  const scanId = unwrap<string>(res, "scanId");
+  if (typeof scanId !== "string" || scanId.length === 0)
+    throw new Error("Invalid venue-scan gateway response");
+  return scanId;
+}
+
+/** Published scans for a venue, projected to public fields by the gateway. */
+export async function b44ListPublishedVenueScans(
+  venueId: string,
+): Promise<PublicVenueScan[]> {
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-scans",
+    venue_id: venueId,
+  });
+  const scans = unwrap<Record<string, unknown>[]>(res, "scans");
+  if (!Array.isArray(scans)) throw new Error("Invalid venue-scan gateway response");
+  return scans.map((r) => ({
+    id: String(r.id),
+    venueId: String(r.venue_id ?? ""),
+    splatUrl: (r.splat_url as string) ?? null,
+    status: (r.status as PublicVenueScan["status"]) ?? "published",
+    created: (r.created as string) ?? null,
+  }));
+}
+
+/** Flags a scan for owner-veto review. The gateway verifies the scan exists
+ *  and belongs to `venueId` before setting `takedown_requested`. */
+export async function b44RequestVenueScanTakedown(
+  scanId: string,
+  venueId: string,
+  reason: string,
+): Promise<void> {
+  await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-scan-takedown",
+    scan_id: scanId,
+    venue_id: venueId,
+    reason,
+  });
 }
 
 export function b44Available(): boolean {

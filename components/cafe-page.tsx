@@ -21,6 +21,7 @@ import { AiVenueSummary } from "./ai-venue-summary";
 import { DataSourceNote } from "./data-source-note";
 import { peakBucket } from "@/lib/time-of-day";
 import { resolveCafePhoto } from "@/lib/cafe-photos";
+import { slugify } from "@/lib/slug";
 
 const TIER_COLOUR: Record<Tier, string> = {
   express: "var(--color-express)",
@@ -49,6 +50,8 @@ const BUCKET_LABEL: Record<TimeBucket, string> = {
   evening: "Evening",
 };
 const BUCKET_ORDER: TimeBucket[] = ["morning", "afternoon", "evening"];
+
+const CAPTURE_UI_ENABLED = process.env.NEXT_PUBLIC_VENUE_CAPTURE_ENABLED === "1";
 
 function DistributionChart({ detail }: { detail: CafeDetailType }) {
   const byBucket = new Map(detail.distribution.map((d) => [d.timeBucket, d]));
@@ -229,6 +232,14 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
                 Tier wrong? log a reading ↓
               </a>
             </div>
+            {CAPTURE_UI_ENABLED && (
+              <VTLink
+                href={`/capture/${slugify(cafe.name)}`}
+                className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.2em] uppercase text-ink-faint hover:text-ink transition-colors"
+              >
+                <span aria-hidden>◈</span> Capture this venue
+              </VTLink>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-3 pt-4 border-t border-ink/15">

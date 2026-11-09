@@ -91,9 +91,14 @@ function makeClient(over: Partial<{
   rows: Record<string, unknown>[];
   cafe: Record<string, unknown> | null;
   createErr: Error;
+  scanRows: Record<string, unknown>[];
+  scan: Record<string, unknown> | null;
+  scanGetErr: Error;
 }> = {}) {
   const create = vi.fn().mockImplementation(() =>
     over.createErr ? Promise.reject(over.createErr) : Promise.resolve({ id: "m-1" }));
+  const scanCreate = vi.fn().mockResolvedValue({ id: "vs-1" });
+  const scanUpdate = vi.fn().mockResolvedValue({});
   const client = {
     asServiceRole: {
       entities: {
@@ -104,10 +109,19 @@ function makeClient(over: Partial<{
         Cafe: {
           get: vi.fn().mockResolvedValue(over.cafe !== undefined ? over.cafe : { id: "c1", name: "C" }),
         },
+        VenueScan: {
+          filter: vi.fn().mockResolvedValue(over.scanRows ?? []),
+          get: vi.fn().mockImplementation(() =>
+            over.scanGetErr
+              ? Promise.reject(over.scanGetErr)
+              : Promise.resolve(over.scan !== undefined ? over.scan : { id: "vs-1", venue_id: "c1" })),
+          create: scanCreate,
+          update: scanUpdate,
+        },
       },
     },
   };
-  return { client, create };
+  return { client, create, scanCreate, scanUpdate };
 }
 
 describe("measurementGatewayHandler", () => {
@@ -174,6 +188,169 @@ describe("entity RLS policy files", () => {
     expect(c.rls.read).toBe(false);
     expect(c.rls.update).toBe(false);
     expect(c.rls.delete).toBe(false);
+  });
+  it("VenueScan is fully closed — gateway actions are the only path", () => {
+    const v = JSON.parse(readFileSync("base44/entities/VenueScan.json", "utf8"));
+    expect(v.rls).toEqual({ create: false, read: false, update: false, delete: false });
+    expect(v.properties.status.enum).toEqual([
+      "captured",
+      "processing",
+      "published",
+      "rejected",
+      "taken_down",
+    ]);
+    expect(v.required).toEqual(["venue_id"]);
+  });
+});
+
+const CONSENT = { venue_permission: true, patron_notice: true, timestamp: "2026-11-10T08:00:00Z" };
+
+describe("measurementGatewayHandler venue-scan actions", () => {
+  const H = "x-lattency-server-key" as const;
+
+  it("venue-scan-insert writes an allowlisted record in captured status", async () => {
+    const { client, scanCreate } = makeClient();
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-insert",
+          scan: {
+            venue_id: "c1",
+            contributor_id: "contrib-x",
+            consent_attestation: CONSENT,
+            status: "published",
+            splat_url: "https://evil",
+            blur_verified: true,
+            takedown_requested: true,
+            id: "injected",
+          },
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(201);
+    const rec = scanCreate.mock.calls[0][0];
+    expect(rec).toEqual({
+      venue_id: "c1",
+      contributor_id: "contrib-x",
+      capture_asset_url: null,
+      consent_attestation: CONSENT,
+      status: "captured",
+      splat_url: null,
+      takedown_requested: false,
+      blur_verified: false,
+    });
+  });
+
+  it("venue-scan-insert 400s on missing or partial consent before writing", async () => {
+    const { client, scanCreate } = makeClient();
+    for (const consent_attestation of [
+      undefined,
+      { venue_permission: true },
+      { venue_permission: true, patron_notice: false },
+      { venue_permission: false, patron_notice: true },
+    ]) {
+      const res = await measurementGatewayHandler(
+        req(
+          { action: "venue-scan-insert", scan: { venue_id: "c1", consent_attestation } },
+          { [H]: SECRET },
+        ),
+        SECRET,
+        () => client,
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(scanCreate).not.toHaveBeenCalled();
+  });
+
+  it("venue-scans filters published and projects only safe fields", async () => {
+    const { client } = makeClient({
+      scanRows: [
+        {
+          id: "vs-1",
+          venue_id: "c1",
+          splat_url: "https://cdn/x.spz",
+          status: "published",
+          created_date: "2026-11-10T08:00:00Z",
+          contributor_id: "SECRET",
+          consent_attestation: CONSENT,
+          capture_asset_url: "SECRET",
+        },
+      ],
+    });
+    const res = await measurementGatewayHandler(
+      req({ action: "venue-scans", venue_id: "c1" }, { [H]: SECRET }),
+      SECRET,
+      () => client,
+    );
+    const body = await res.json();
+    expect(body.scans[0]).toEqual({
+      id: "vs-1",
+      venue_id: "c1",
+      splat_url: "https://cdn/x.spz",
+      status: "published",
+      created: "2026-11-10T08:00:00Z",
+    });
+    expect(client.asServiceRole.entities.VenueScan.filter).toHaveBeenCalledWith(
+      { venue_id: "c1", status: "published" },
+      "-created_date",
+      20,
+      0,
+    );
+  });
+
+  it("venue-scan-takedown sets the flag on a venue match, 404s otherwise", async () => {
+    const { client, scanUpdate } = makeClient({ scan: { id: "vs-1", venue_id: "c1" } });
+    const res = await measurementGatewayHandler(
+      req(
+        { action: "venue-scan-takedown", scan_id: "vs-1", venue_id: "c1", reason: "owner request" },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(200);
+    expect(scanUpdate).toHaveBeenCalledWith("vs-1", {
+      takedown_requested: true,
+      takedown_reason: "owner request",
+    });
+
+    const wrongVenue = await measurementGatewayHandler(
+      req(
+        { action: "venue-scan-takedown", scan_id: "vs-1", venue_id: "other", reason: "x" },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => makeClient({ scan: { id: "vs-1", venue_id: "c1" } }).client,
+    );
+    expect(wrongVenue.status).toBe(404);
+
+    const missing = await measurementGatewayHandler(
+      req(
+        { action: "venue-scan-takedown", scan_id: "nope", venue_id: "c1", reason: "x" },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => makeClient({ scan: null }).client,
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  it("venue-scan-takedown 400s on an over-long or missing reason", async () => {
+    const { client } = makeClient();
+    for (const reason of ["x".repeat(501), "", 42]) {
+      const res = await measurementGatewayHandler(
+        req(
+          { action: "venue-scan-takedown", scan_id: "vs-1", venue_id: "c1", reason },
+          { [H]: SECRET },
+        ),
+        SECRET,
+        () => client,
+      );
+      expect(res.status).toBe(400);
+    }
   });
 });
 

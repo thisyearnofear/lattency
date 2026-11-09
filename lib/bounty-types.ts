@@ -8,7 +8,8 @@ export type BountyKind =
   | "first-in-neighbourhood"
   | "attribute-match"
   | "tier-target"
-  | "nth-contributor";
+  | "nth-contributor"
+  | "venue-capture";
 
 export interface Bounty {
   id: string;
@@ -116,11 +117,15 @@ export const BOUNTY_KINDS: BountyKind[] = [
   "nth-contributor",
 ];
 
+// "venue-capture" is deliberately absent from BOUNTY_KINDS: the bounty kind
+// exists so capture rewards have a type, but sponsor creation and progress
+// attribution stay unwired until the consent pipeline ships.
 export const BOUNTY_KIND_LABELS: Record<BountyKind, string> = {
   "first-in-neighbourhood": "First in area",
   "attribute-match": "Attribute match",
   "tier-target": "Tier target",
   "nth-contributor": "Nth contributor",
+  "venue-capture": "Venue capture",
 };
 
 export function bountyKindLabel(kind: BountyKind): string {
@@ -133,5 +138,7 @@ export function bountyKindLabel(kind: BountyKind): string {
       return "tier target";
     case "nth-contributor":
       return "nth contributor";
+    case "venue-capture":
+      return "venue capture";
   }
 }
