@@ -195,10 +195,24 @@ describe("entity RLS policy files", () => {
     expect(v.properties.status.enum).toEqual([
       "captured",
       "processing",
+      "preview",
+      "refining",
       "published",
       "rejected",
       "taken_down",
+      "superseded",
     ]);
+    // Capture run v2 manifest + supersede fields exist alongside the rest.
+    for (const field of [
+      "quality_score",
+      "coverage_sectors",
+      "face_events",
+      "supersedes_id",
+      "frame_count",
+      "frames_received",
+    ]) {
+      expect(v.properties).toHaveProperty(field);
+    }
     expect(v.required).toEqual(["venue_id"]);
   });
 });
@@ -241,7 +255,91 @@ describe("measurementGatewayHandler venue-scan actions", () => {
       splat_url: null,
       takedown_requested: false,
       blur_verified: false,
+      quality_score: null,
+      coverage_sectors: [],
+      face_events: null,
+      supersedes_id: null,
+      frame_count: null,
+      frames_received: [],
     });
+    expect(await res.json()).toEqual({ scanId: "vs-1", superseded: false });
+  });
+
+  it("venue-scan-insert retires a same-venue prior scan to superseded", async () => {
+    const { client, scanCreate, scanUpdate } = makeClient({
+      scan: { id: "vs-old", venue_id: "c1", status: "published" },
+    });
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-insert",
+          scan: {
+            venue_id: "c1",
+            contributor_id: "contrib-x",
+            consent_attestation: CONSENT,
+            supersedes_id: "vs-old",
+          },
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ scanId: "vs-1", superseded: true });
+    expect(client.asServiceRole.entities.VenueScan.get).toHaveBeenCalledWith("vs-old");
+    expect(scanUpdate).toHaveBeenCalledWith("vs-old", { status: "superseded" });
+    expect(scanCreate.mock.calls[0][0].supersedes_id).toBe("vs-old");
+  });
+
+  it("venue-scan-insert 400s on a missing or cross-venue supersedes_id", async () => {
+    const { client, scanCreate } = makeClient({ scan: null });
+    const missing = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-insert",
+          scan: { venue_id: "c1", consent_attestation: CONSENT, supersedes_id: "nope" },
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(missing.status).toBe(400);
+
+    const crossVenue = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-insert",
+          scan: { venue_id: "c1", consent_attestation: CONSENT, supersedes_id: "vs-old" },
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => makeClient({ scan: { id: "vs-old", venue_id: "other" } }).client,
+    );
+    expect(crossVenue.status).toBe(400);
+    expect(scanCreate).not.toHaveBeenCalled();
+  });
+
+  it("venue-scan-insert leaves a taken_down prior untouched", async () => {
+    const { scanUpdate, client } = makeClient({
+      scan: { id: "vs-old", venue_id: "c1", status: "taken_down" },
+    });
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-insert",
+          scan: { venue_id: "c1", consent_attestation: CONSENT, supersedes_id: "vs-old" },
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).superseded).toBe(false);
+    expect(scanUpdate).not.toHaveBeenCalled();
   });
 
   it("venue-scan-insert 400s on missing or partial consent before writing", async () => {
@@ -265,7 +363,7 @@ describe("measurementGatewayHandler venue-scan actions", () => {
     expect(scanCreate).not.toHaveBeenCalled();
   });
 
-  it("venue-scans filters published and projects only safe fields", async () => {
+  it("venue-scans projects non-rejected states, splat only when published", async () => {
     const { client } = makeClient({
       scanRows: [
         {
@@ -273,10 +371,40 @@ describe("measurementGatewayHandler venue-scan actions", () => {
           venue_id: "c1",
           splat_url: "https://cdn/x.spz",
           status: "published",
+          quality_score: 87,
           created_date: "2026-11-10T08:00:00Z",
           contributor_id: "SECRET",
           consent_attestation: CONSENT,
           capture_asset_url: "SECRET",
+          frames_received: [{ seq: 0, ts: "x", bytes: 1 }],
+        },
+        {
+          id: "vs-2",
+          venue_id: "c1",
+          splat_url: "https://cdn/draft.spz",
+          status: "preview",
+          quality_score: null,
+          created_date: "2026-11-11T08:00:00Z",
+          contributor_id: "SECRET",
+        },
+        {
+          id: "vs-3",
+          venue_id: "c1",
+          status: "rejected",
+          created_date: "2026-11-12T08:00:00Z",
+        },
+        {
+          id: "vs-4",
+          venue_id: "c1",
+          status: "taken_down",
+          created_date: "2026-11-13T08:00:00Z",
+        },
+        {
+          id: "vs-5",
+          venue_id: "c1",
+          status: "superseded",
+          splat_url: "https://cdn/old.spz",
+          created_date: "2026-11-14T08:00:00Z",
         },
       ],
     });
@@ -286,19 +414,277 @@ describe("measurementGatewayHandler venue-scan actions", () => {
       () => client,
     );
     const body = await res.json();
-    expect(body.scans[0]).toEqual({
-      id: "vs-1",
-      venue_id: "c1",
-      splat_url: "https://cdn/x.spz",
-      status: "published",
-      created: "2026-11-10T08:00:00Z",
-    });
+    // Pipeline states are transparent; exits (rejected/taken_down/
+    // superseded) never surface.
+    expect(body.scans).toEqual([
+      {
+        id: "vs-1",
+        venue_id: "c1",
+        splat_url: "https://cdn/x.spz",
+        status: "published",
+        quality_score: 87,
+        created: "2026-11-10T08:00:00Z",
+      },
+      {
+        id: "vs-2",
+        venue_id: "c1",
+        splat_url: null,
+        status: "preview",
+        quality_score: null,
+        created: "2026-11-11T08:00:00Z",
+      },
+    ]);
     expect(client.asServiceRole.entities.VenueScan.filter).toHaveBeenCalledWith(
-      { venue_id: "c1", status: "published" },
+      { venue_id: "c1" },
       "-created_date",
-      20,
+      50,
       0,
     );
+  });
+
+  it("venue-scan-get returns the gating fields or null", async () => {
+    const { client } = makeClient({
+      scan: {
+        id: "vs-1",
+        venue_id: "c1",
+        contributor_id: "contrib-x",
+        status: "captured",
+        supersedes_id: null,
+        consent_attestation: CONSENT,
+        frames_received: [{ seq: 0 }],
+      },
+    });
+    const res = await measurementGatewayHandler(
+      req({ action: "venue-scan-get", scan_id: "vs-1" }, { [H]: SECRET }),
+      SECRET,
+      () => client,
+    );
+    const body = await res.json();
+    expect(body.scan).toEqual({
+      id: "vs-1",
+      venue_id: "c1",
+      contributor_id: "contrib-x",
+      status: "captured",
+      supersedes_id: null,
+    });
+    // Internal fields stay internal even on the gating read.
+    expect(body.scan).not.toHaveProperty("consent_attestation");
+    expect(body.scan).not.toHaveProperty("frames_received");
+
+    const missing = await measurementGatewayHandler(
+      req({ action: "venue-scan-get", scan_id: "nope" }, { [H]: SECRET }),
+      SECRET,
+      () => makeClient({ scan: null }).client,
+    );
+    expect((await missing.json()).scan).toBeNull();
+  });
+
+  it("venue-scan-frame appends manifest entries and dedupes on seq", async () => {
+    const { client, scanUpdate } = makeClient({
+      scan: {
+        id: "vs-1",
+        venue_id: "c1",
+        contributor_id: "contrib-x",
+        status: "captured",
+        frames_received: [],
+      },
+    });
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-frame",
+          scan_id: "vs-1",
+          contributor_id: "contrib-x",
+          seq: 3,
+          ts: "2026-11-10T08:00:01Z",
+          bytes: 12345,
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: 1 });
+    expect(scanUpdate).toHaveBeenCalledWith("vs-1", {
+      frames_received: [{ seq: 3, ts: "2026-11-10T08:00:01Z", bytes: 12345 }],
+    });
+
+    // Duplicate seq → idempotent, no second write.
+    const dup = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-frame",
+          scan_id: "vs-1",
+          contributor_id: "contrib-x",
+          seq: 3,
+          ts: "2026-11-10T08:00:01Z",
+          bytes: 12345,
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () =>
+        makeClient({
+          scan: {
+            id: "vs-1",
+            contributor_id: "contrib-x",
+            status: "captured",
+            frames_received: [{ seq: 3, ts: "t", bytes: 1 }],
+          },
+        }).client,
+    );
+    expect((await dup.json()).deduped).toBe(true);
+  });
+
+  it("venue-scan-frame 403s contributor mismatch and 409s non-captured scans", async () => {
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-frame",
+          scan_id: "vs-1",
+          contributor_id: "contrib-y",
+          seq: 0,
+          ts: "t",
+          bytes: 10,
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () =>
+        makeClient({
+          scan: { id: "vs-1", contributor_id: "contrib-x", status: "captured" },
+        }).client,
+    );
+    expect(res.status).toBe(403);
+
+    const processing = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-frame",
+          scan_id: "vs-1",
+          contributor_id: "contrib-x",
+          seq: 0,
+          ts: "t",
+          bytes: 10,
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () =>
+        makeClient({
+          scan: { id: "vs-1", contributor_id: "contrib-x", status: "processing" },
+        }).client,
+    );
+    expect(processing.status).toBe(409);
+  });
+
+  it("venue-scan-frame 400s on invalid seq/ts/bytes before reading", async () => {
+    const { client, scanUpdate } = makeClient();
+    for (const patch of [
+      { seq: -1 },
+      { seq: 1.5 },
+      { seq: 5000 },
+      { ts: "" },
+      { ts: "x".repeat(65) },
+      { bytes: 0 },
+      { bytes: 512 * 1024 + 1 },
+      { bytes: "10" },
+    ]) {
+      const res = await measurementGatewayHandler(
+        req(
+          {
+            action: "venue-scan-frame",
+            scan_id: "vs-1",
+            contributor_id: "contrib-x",
+            seq: 0,
+            ts: "t",
+            bytes: 10,
+            ...patch,
+          },
+          { [H]: SECRET },
+        ),
+        SECRET,
+        () => client,
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(scanUpdate).not.toHaveBeenCalled();
+  });
+
+  it("venue-scan-finalize writes the manifest and leaves status captured", async () => {
+    const { client, scanUpdate } = makeClient({
+      scan: {
+        id: "vs-1",
+        venue_id: "c1",
+        contributor_id: "contrib-x",
+        status: "captured",
+      },
+    });
+    const res = await measurementGatewayHandler(
+      req(
+        {
+          action: "venue-scan-finalize",
+          scan_id: "vs-1",
+          contributor_id: "contrib-x",
+          frame_count: 120,
+          quality_score: 82,
+          coverage_sectors: ["N", "NE", "E"],
+          face_events: 1,
+        },
+        { [H]: SECRET },
+      ),
+      SECRET,
+      () => client,
+    );
+    expect(res.status).toBe(200);
+    expect(scanUpdate).toHaveBeenCalledWith("vs-1", {
+      frame_count: 120,
+      quality_score: 82,
+      coverage_sectors: ["N", "NE", "E"],
+      face_events: 1,
+    });
+  });
+
+  it("venue-scan-finalize rejects bad manifests and non-captured scans", async () => {
+    const { client, scanUpdate } = makeClient();
+    const base = {
+      action: "venue-scan-finalize",
+      scan_id: "vs-1",
+      contributor_id: "contrib-x",
+      frame_count: 10,
+      quality_score: 50,
+      coverage_sectors: ["N"],
+      face_events: 0,
+    };
+    for (const patch of [
+      { frame_count: -1 },
+      { frame_count: 1.5 },
+      { quality_score: 101 },
+      { quality_score: "high" },
+      { coverage_sectors: ["NNW"] },
+      { coverage_sectors: "N" },
+      { face_events: -1 },
+      { face_events: 0.5 },
+    ]) {
+      const res = await measurementGatewayHandler(
+        req({ ...base, ...patch }, { [H]: SECRET }),
+        SECRET,
+        () => client,
+      );
+      expect(res.status).toBe(400);
+    }
+
+    const done = await measurementGatewayHandler(
+      req(base, { [H]: SECRET }),
+      SECRET,
+      () =>
+        makeClient({
+          scan: { id: "vs-1", contributor_id: "contrib-x", status: "published" },
+        }).client,
+    );
+    expect(done.status).toBe(409);
+    expect(scanUpdate).not.toHaveBeenCalled();
   });
 
   it("venue-scan-takedown sets the flag on a venue match, 404s otherwise", async () => {

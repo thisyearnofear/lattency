@@ -1,24 +1,29 @@
 "use client";
 
-// The capture-run flow for the venue-capture pilot — three steps run as a
+// The capture-run flow for the venue-capture pilot — four steps run as a
 // mission: BRIEF (the capture-day checklist), ATTEST (three required
-// consent attestations), ARM (the printable patron notice). There is still
-// no upload behind it: arming the run surfaces the notice and the
-// pipeline-status line, nothing more.
+// consent attestations), RUN (the live capture coach — camera, sector
+// dial, quality chips, frame-chunk upload), ARMED (the run's score card
+// plus the printable patron notice). The run record is created when RUN
+// begins so the attestations bind to the frames that follow.
 
 import { useState } from "react";
+import { CaptureCoach, type CaptureRunSummary } from "./capture-coach";
+import { useContributor } from "@/hooks/use-contributor";
 
-const RUN_STEPS = ["BRIEF", "ATTEST", "ARM"] as const;
+const RUN_STEPS = ["BRIEF", "ATTEST", "RUN", "ARMED"] as const;
 
-// The capture-day checklist from docs/venue-capture-patron-notice.md.
+// The capture-day checklist from docs/venue-capture-patron-notice.md plus
+// the two v2 additions (tab stays open, face-flag instrument).
 const CAPTURE_DAY_CHECKLIST = [
   "Confirm the venue's signed consent is on file — the \u201cvenue has opted in\u201d state.",
   "Place the entrance notice where people walk in.",
   "Film during the agreed off-peak window only — a near-empty room makes a better model and has fewer faces to blur.",
-  "Walk a slow loop covering every public area. Skip restrooms, staff-only areas, and anything the venue flagged.",
+  "Walk a slow loop: entrance → seating → counter → back. Turning in place isn't a scan — move your feet. Skip restrooms, staff-only areas, and anything the venue flagged.",
+  "Keep this tab open while you film — we hold the screen awake and upload frames as you go.",
+  "The coach flags quality live. If a face enters frame, tap FACES and reframe — or stop.",
   "If anyone asks you to stop — stop. Tell them about the blur/removal option.",
   "No audio needed — we strip it on upload anyway.",
-  "Upload within 24 hours. Raw footage is deleted from our side within 72 hours.",
 ];
 
 // Trimmed entrance notice from docs/venue-capture-patron-notice.md — the
@@ -60,14 +65,27 @@ function Attestation({
   );
 }
 
-export function CaptureRun({ venueName }: { venueName: string }) {
+export function CaptureRun({
+  venueName,
+  venueId,
+}: {
+  venueName: string;
+  /** The cafe record id the scan attaches to — without it no run can open. */
+  venueId?: string | null;
+}) {
+  const contributor = useContributor();
   const [step, setStep] = useState(0);
   const [venuePermission, setVenuePermission] = useState(false);
   const [patronNotice, setPatronNotice] = useState(false);
   const [patronSafety, setPatronSafety] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [scanId, setScanId] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<CaptureRunSummary | null>(null);
 
   const attested = venuePermission && patronNotice && patronSafety;
+  const canRun = attested && Boolean(venueId) && Boolean(contributor.id);
 
   const copyNotice = async () => {
     try {
@@ -79,9 +97,50 @@ export function CaptureRun({ venueName }: { venueName: string }) {
     }
   };
 
+  // Mint the run record as RUN begins — the attestations bind to whatever
+  // frames follow. A failed create never reaches the camera.
+  const openRun = async () => {
+    if (!canRun || opening) return;
+    setOpening(true);
+    setOpenError(null);
+    try {
+      const res = await fetch("/api/venue-scans", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          venue_id: venueId,
+          contributor_id: contributor.id,
+          consent_attestation: {
+            venue_permission: true,
+            patron_notice: true,
+            timestamp: new Date().toISOString(),
+          },
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setOpenError(
+          body.error ?? "couldn't open the run — please try again",
+        );
+        return;
+      }
+      const body = (await res.json()) as { scanId?: string };
+      if (!body.scanId) {
+        setOpenError("couldn't open the run — please try again");
+        return;
+      }
+      setScanId(body.scanId);
+      setStep(2);
+    } catch {
+      setOpenError("couldn't reach the network — check you're online");
+    } finally {
+      setOpening(false);
+    }
+  };
+
   return (
     <div className="border border-ink/40 bg-cream-edge/40 shadow-[3px_4px_0_0_var(--color-ink)]">
-      {/* Run progress — BRIEF → ATTEST → ARM */}
+      {/* Run progress — BRIEF → ATTEST → RUN → ARMED */}
       <div className="flex items-center gap-2 border-b border-ink/15 px-6 py-3 font-mono text-[10px] tracking-[0.22em] uppercase">
         {RUN_STEPS.map((label, i) => (
           <span key={label} className="flex items-center gap-2">
@@ -171,6 +230,19 @@ export function CaptureRun({ venueName }: { venueName: string }) {
               if anyone — patron or staff — asks me to stop.
             </Attestation>
 
+            {openError && (
+              <p className="mt-3 border border-ink/40 bg-cream px-3 py-2 font-mono text-[10px] tracking-[0.14em] uppercase text-ink">
+                {openError}
+              </p>
+            )}
+            {!venueId && (
+              <p className="mt-3 font-serif italic text-ink-soft text-[13px] leading-snug">
+                This venue&rsquo;s record couldn&rsquo;t be resolved, so a run
+                can&rsquo;t open here. The attestations still stand if you try
+                again later.
+              </p>
+            )}
+
             <div className="mt-4 flex items-center gap-4">
               <button
                 type="button"
@@ -181,28 +253,92 @@ export function CaptureRun({ venueName }: { venueName: string }) {
               </button>
               <button
                 type="button"
-                disabled={!attested}
-                onClick={() => setStep(2)}
+                disabled={!canRun || opening}
+                onClick={openRun}
                 className={`flex-1 py-2.5 font-mono text-[11px] tracking-[0.22em] uppercase transition-colors ${
-                  attested
+                  canRun && !opening
                     ? "bg-ink text-cream hover:bg-ink/90"
                     : "bg-ink/20 text-ink-faint cursor-not-allowed"
                 }`}
               >
-                Arm the run →
+                {opening ? "Opening run…" : "Begin live run →"}
               </button>
             </div>
           </div>
         )}
 
-        {step === 2 && attested && (
+        {step === 2 && scanId && (
           <div>
-            <p className="stamp mb-3">Step 03 — Arm</p>
+            <p className="stamp mb-4">Step 03 — Live run</p>
+            <CaptureCoach
+              scanId={scanId}
+              contributorId={contributor.id}
+              onDone={(s) => {
+                setSummary(s);
+                setStep(3);
+              }}
+              onAbort={() => setStep(1)}
+            />
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <p className="stamp mb-3">Step 04 — Armed</p>
             <p className="font-display text-lg font-black uppercase tracking-[-0.01em] text-ink">
-              Run armed — {venueName}
+              Run recorded — {venueName}
             </p>
-            <p className="mt-1 font-serif italic text-ink-soft text-[13px] leading-snug">
-              Print or paste this notice at the entrance before you film.
+
+            {/* Score card — self-reported capture inputs, honest labels. */}
+            {summary && (
+              <div className="mt-4 border-2 border-ink/80 bg-cream p-4 shadow-[3px_4px_0_0_var(--color-ink)]">
+                <p className="mb-3 font-mono text-[10px] tracking-[0.22em] uppercase text-ink-faint">
+                  Capture score card — what the pipeline received
+                </p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-4">
+                  <div>
+                    <p className="font-display text-2xl font-black text-ink">
+                      {summary.qualityScore}
+                    </p>
+                    <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-faint">
+                      Quality score /100
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-display text-2xl font-black text-ink">
+                      {summary.coverageSectors.length}/8
+                    </p>
+                    <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-faint">
+                      Views recorded
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-display text-2xl font-black text-ink">
+                      {summary.framesLanded}/{summary.framesSent}
+                    </p>
+                    <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-faint">
+                      Frames landed
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-display text-2xl font-black text-ink">
+                      {summary.faceEvents}
+                    </p>
+                    <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-ink-faint">
+                      Face events
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 border-t border-ink/15 pt-3 font-serif italic text-ink-soft text-[13px] leading-snug">
+                  Status: captured — the pipeline (blur, alignment, preview)
+                  takes it from here. Nothing is public until it publishes.
+                </p>
+              </div>
+            )}
+
+            <p className="mt-4 font-serif italic text-ink-soft text-[13px] leading-snug">
+              Print or paste this notice at the entrance for the next run —
+              or if you&rsquo;re filming again today.
             </p>
 
             <div className="mt-4 border-2 border-ink/80 bg-cream p-4 shadow-[3px_4px_0_0_var(--color-ink)]">
@@ -221,10 +357,6 @@ export function CaptureRun({ venueName }: { venueName: string }) {
             >
               {copied ? "Copied ✓" : "Copy notice text"}
             </button>
-
-            <p className="mt-4 border-t border-ink/15 pt-4 font-serif italic text-ink-soft text-[13px] leading-snug">
-              Upload opens when your venue&rsquo;s scan slot is confirmed.
-            </p>
           </div>
         )}
       </div>

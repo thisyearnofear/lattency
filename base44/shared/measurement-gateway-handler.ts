@@ -45,6 +45,22 @@ function err(status: number, error: string): Response {
   return Response.json({ error }, { status, headers: NO_STORE });
 }
 
+// Capture-run v2 constants — kept inline because this file ships to the
+// Deno backend and can't import from the Next.js lib/ tree.
+const SCAN_SECTORS = new Set(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]);
+// Statuses a public reader may hear about. rejected / taken_down /
+// superseded are exits — never projected.
+const SCAN_PUBLIC_STATUSES = new Set([
+  "captured",
+  "processing",
+  "preview",
+  "refining",
+  "published",
+]);
+const SCAN_MAX_SEQ = 4999;
+const SCAN_MAX_FRAME_BYTES = 512 * 1024;
+const SCAN_MAX_MANIFEST = 2000;
+
 export async function measurementGatewayHandler(
   req: Request,
   secret: string | undefined,
@@ -139,6 +155,33 @@ export async function measurementGatewayHandler(
       )
         return err(400, "scan.capture_asset_url invalid");
 
+      // Rescan/gap-fill: the new scan may supersede a prior one, which must
+      // exist and belong to the same venue. Validated before anything writes.
+      const supersedesId = record.supersedes_id;
+      if (
+        supersedesId !== undefined &&
+        supersedesId !== null &&
+        (typeof supersedesId !== "string" ||
+          supersedesId.length === 0 ||
+          supersedesId.length > 128)
+      )
+        return err(400, "scan.supersedes_id invalid");
+      let prior: Record<string, unknown> | null = null;
+      if (typeof supersedesId === "string") {
+        try {
+          prior = await base44.asServiceRole.entities.VenueScan.get(supersedesId);
+        } catch (e) {
+          const status = (e as { status?: number })?.status;
+          if (status === 404)
+            return err(400, "scan.supersedes_id references no existing scan");
+          throw e;
+        }
+        if (!prior)
+          return err(400, "scan.supersedes_id references no existing scan");
+        if (prior.venue_id !== venueId)
+          return err(400, "superseded scan must belong to the same venue");
+      }
+
       // The consent checkpoint is re-verified server-side: a scan record
       // cannot be created without both affirmations, regardless of what the
       // caller's UI enforced.
@@ -167,8 +210,34 @@ export async function measurementGatewayHandler(
         splat_url: null,
         takedown_requested: false,
         blur_verified: false,
+        quality_score: null,
+        coverage_sectors: [],
+        face_events: null,
+        supersedes_id: typeof supersedesId === "string" ? supersedesId : null,
+        frame_count: null,
+        frames_received: [],
       });
-      return Response.json({ scanId: row.id }, { status: 201, headers: NO_STORE });
+
+      // The new run exists — retire the prior scan unless it's already in a
+      // terminal takedown state (a legal hold outranks supersession). The
+      // update is best-effort: the scan is created either way, so a failed
+      // supersede must not lose the run.
+      let superseded = false;
+      if (prior && prior.status !== "taken_down") {
+        try {
+          await base44.asServiceRole.entities.VenueScan.update(
+            supersedesId as string,
+            { status: "superseded" },
+          );
+          superseded = true;
+        } catch {
+          /* supersede bookkeeping can be retried — the run itself is safe */
+        }
+      }
+      return Response.json(
+        { scanId: row.id, superseded },
+        { status: 201, headers: NO_STORE },
+      );
     }
 
     if (action === "venue-scans") {
@@ -176,25 +245,218 @@ export async function measurementGatewayHandler(
       if (typeof venueId !== "string" || venueId.length === 0 || venueId.length > 128)
         return err(400, "venue_id required");
       const rows = await base44.asServiceRole.entities.VenueScan.filter(
-        { venue_id: venueId, status: "published" },
+        { venue_id: venueId },
         "-created_date",
-        20,
+        50,
         0,
       );
-      // Public projection: never expose contributor_id, consent records, or
-      // the raw capture asset to readers.
+      // Public projection, capture-run v2: pipeline status is transparent
+      // (readers see processing/preview/refining, not just published), but
+      // splat_url is projected only once the scan is actually published, and
+      // contributor_id / consent records / the frame manifest never leave.
       return Response.json(
         {
-          scans: rows.map((r) => ({
-            id: r.id,
-            venue_id: r.venue_id,
-            splat_url: r.splat_url ?? null,
-            status: r.status,
-            created: r.created_date ?? null,
-          })),
+          scans: rows
+            .filter(
+              (r) =>
+                typeof r.status === "string" && SCAN_PUBLIC_STATUSES.has(r.status),
+            )
+            .map((r) => ({
+              id: r.id,
+              venue_id: r.venue_id,
+              splat_url: r.status === "published" ? (r.splat_url ?? null) : null,
+              status: r.status,
+              quality_score:
+                typeof r.quality_score === "number" ? r.quality_score : null,
+              created: r.created_date ?? null,
+            })),
         },
         { headers: NO_STORE },
       );
+    }
+
+    if (action === "venue-scan-get") {
+      // Internal read used by the Next.js routes for gating (venue/city
+      // resolution, contributor match). Returns only the fields the routes
+      // need — this is never forwarded to the client verbatim.
+      const scanId = (body as Record<string, unknown>).scan_id;
+      if (typeof scanId !== "string" || scanId.length === 0 || scanId.length > 128)
+        return err(400, "scan_id required");
+      let scan: Record<string, unknown> | null;
+      try {
+        scan = await base44.asServiceRole.entities.VenueScan.get(scanId);
+      } catch (e) {
+        const status = (e as { status?: number })?.status;
+        if (status === 404)
+          return Response.json({ scan: null }, { headers: NO_STORE });
+        throw e;
+      }
+      return Response.json(
+        {
+          scan: scan
+            ? {
+                id: scan.id,
+                venue_id: scan.venue_id,
+                contributor_id: scan.contributor_id ?? null,
+                status: scan.status,
+                supersedes_id: scan.supersedes_id ?? null,
+              }
+            : null,
+        },
+        { headers: NO_STORE },
+      );
+    }
+
+    if (action === "venue-scan-frame") {
+      // Appends one keyframe-chunk manifest entry to a live scan. Image bytes
+      // are NOT stored — blob storage is Phase 1 infra; the Next.js route
+      // validates the JPEG and we record only {seq, ts, bytes}.
+      const b = body as Record<string, unknown>;
+      const scanId = b.scan_id;
+      if (typeof scanId !== "string" || scanId.length === 0 || scanId.length > 128)
+        return err(400, "scan_id required");
+      const contributorId = b.contributor_id;
+      if (
+        typeof contributorId !== "string" ||
+        contributorId.length === 0 ||
+        contributorId.length > 128
+      )
+        return err(400, "contributor_id required");
+      const seq = b.seq;
+      if (
+        typeof seq !== "number" ||
+        !Number.isInteger(seq) ||
+        seq < 0 ||
+        seq > SCAN_MAX_SEQ
+      )
+        return err(400, "seq must be an integer 0–4999");
+      const ts = b.ts;
+      if (typeof ts !== "string" || ts.length === 0 || ts.length > 64)
+        return err(400, "ts required (string, max 64 characters)");
+      const bytes = b.bytes;
+      if (
+        typeof bytes !== "number" ||
+        !Number.isInteger(bytes) ||
+        bytes <= 0 ||
+        bytes > SCAN_MAX_FRAME_BYTES
+      )
+        return err(400, "bytes must be an integer byte count (max 512KB)");
+
+      let scan: Record<string, unknown> | null;
+      try {
+        scan = await base44.asServiceRole.entities.VenueScan.get(scanId);
+      } catch (e) {
+        const status = (e as { status?: number })?.status;
+        if (status === 404) return err(404, "scan not found");
+        throw e;
+      }
+      if (!scan) return err(404, "scan not found");
+      // Frames can only land on the scan of the contributor who owns it.
+      if (
+        typeof scan.contributor_id === "string" &&
+        scan.contributor_id !== contributorId
+      )
+        return err(403, "contributor mismatch");
+      if (scan.status !== "captured")
+        return err(409, "scan is not accepting frames");
+
+      const existing = Array.isArray(scan.frames_received)
+        ? (scan.frames_received as Record<string, unknown>[])
+        : [];
+      // Idempotent on seq — a retried chunk isn't double-counted.
+      if (existing.some((f) => f && f.seq === seq)) {
+        return Response.json(
+          { received: existing.length, deduped: true },
+          { headers: NO_STORE },
+        );
+      }
+      if (existing.length >= SCAN_MAX_MANIFEST)
+        return err(400, "frame manifest full");
+
+      await base44.asServiceRole.entities.VenueScan.update(scanId, {
+        frames_received: [...existing, { seq, ts, bytes }],
+      });
+      return Response.json(
+        { received: existing.length + 1 },
+        { headers: NO_STORE },
+      );
+    }
+
+    if (action === "venue-scan-finalize") {
+      // End-of-run manifest write: the coach's self-reported capture
+      // metrics. Status stays "captured" — the GPU pipeline owns every
+      // transition past this point.
+      const b = body as Record<string, unknown>;
+      const scanId = b.scan_id;
+      if (typeof scanId !== "string" || scanId.length === 0 || scanId.length > 128)
+        return err(400, "scan_id required");
+      const contributorId = b.contributor_id;
+      if (
+        typeof contributorId !== "string" ||
+        contributorId.length === 0 ||
+        contributorId.length > 128
+      )
+        return err(400, "contributor_id required");
+      const frameCount = b.frame_count;
+      if (
+        typeof frameCount !== "number" ||
+        !Number.isInteger(frameCount) ||
+        frameCount < 0 ||
+        frameCount > 10000
+      )
+        return err(400, "frame_count must be an integer 0–10000");
+      const qualityScore = b.quality_score;
+      if (
+        qualityScore !== null &&
+        (typeof qualityScore !== "number" ||
+          !Number.isFinite(qualityScore) ||
+          qualityScore < 0 ||
+          qualityScore > 100)
+      )
+        return err(400, "quality_score must be a number 0–100 or null");
+      const coverageSectors = b.coverage_sectors;
+      if (
+        !Array.isArray(coverageSectors) ||
+        coverageSectors.length > 16 ||
+        coverageSectors.some(
+          (s) => typeof s !== "string" || !SCAN_SECTORS.has(s),
+        )
+      )
+        return err(400, "coverage_sectors must be an array of compass sectors");
+      const faceEvents = b.face_events;
+      if (
+        faceEvents !== null &&
+        (typeof faceEvents !== "number" ||
+          !Number.isInteger(faceEvents) ||
+          faceEvents < 0 ||
+          faceEvents > 10000)
+      )
+        return err(400, "face_events must be an integer 0–10000 or null");
+
+      let scan: Record<string, unknown> | null;
+      try {
+        scan = await base44.asServiceRole.entities.VenueScan.get(scanId);
+      } catch (e) {
+        const status = (e as { status?: number })?.status;
+        if (status === 404) return err(404, "scan not found");
+        throw e;
+      }
+      if (!scan) return err(404, "scan not found");
+      if (
+        typeof scan.contributor_id === "string" &&
+        scan.contributor_id !== contributorId
+      )
+        return err(403, "contributor mismatch");
+      if (scan.status !== "captured")
+        return err(409, "scan can no longer be finalized");
+
+      await base44.asServiceRole.entities.VenueScan.update(scanId, {
+        frame_count: frameCount,
+        quality_score: qualityScore,
+        coverage_sectors: coverageSectors,
+        face_events: faceEvents,
+      });
+      return Response.json({ ok: true }, { headers: NO_STORE });
     }
 
     if (action === "venue-scan-takedown") {

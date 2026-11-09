@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const b44InsertVenueScan = vi.fn().mockResolvedValue("vs-1");
-const b44ListPublishedVenueScans = vi.fn().mockResolvedValue([]);
+const b44InsertVenueScan = vi
+  .fn()
+  .mockResolvedValue({ scanId: "vs-1", superseded: false });
+const b44ListVenueScans = vi.fn().mockResolvedValue([]);
 const b44RequestVenueScanTakedown = vi.fn().mockResolvedValue(undefined);
 const b44GetCafeById = vi.fn().mockResolvedValue({ city: "london" });
 const checkRateLimit = vi.fn().mockResolvedValue(true);
@@ -14,7 +16,7 @@ vi.mock("@/lib/base44-data", () => ({
   },
   b44GetCafeById: (...a: unknown[]) => b44GetCafeById(...a),
   b44InsertVenueScan: (...a: unknown[]) => b44InsertVenueScan(...a),
-  b44ListPublishedVenueScans: (...a: unknown[]) => b44ListPublishedVenueScans(...a),
+  b44ListVenueScans: (...a: unknown[]) => b44ListVenueScans(...a),
   b44RequestVenueScanTakedown: (...a: unknown[]) => b44RequestVenueScanTakedown(...a),
 }));
 vi.mock("@/lib/rate-limit", () => ({
@@ -86,7 +88,7 @@ describe("venue capture policy", () => {
 describe("POST /api/venue-scans", () => {
   beforeEach(() => {
     cfg.configured = true;
-    [b44InsertVenueScan, b44ListPublishedVenueScans, b44GetCafeById].forEach((f) =>
+    [b44InsertVenueScan, b44ListVenueScans, b44GetCafeById].forEach((f) =>
       f.mockClear(),
     );
     b44GetCafeById.mockResolvedValue({ city: "london" });
@@ -169,12 +171,44 @@ describe("POST /api/venue-scans", () => {
       venueId: "c1",
       contributorId: "contrib-abc",
       captureAssetUrl: null,
+      supersedesId: null,
       consentAttestation: {
         venue_permission: true,
         patron_notice: true,
         timestamp: "2026-11-10T08:00:00Z",
       },
     });
+  });
+
+  it("accepts supersedes_id and reports whether the prior scan retired", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    b44InsertVenueScan.mockResolvedValueOnce({ scanId: "vs-2", superseded: true });
+    const { POST } = await import("@/app/api/venue-scans/route");
+    const res = await POST(
+      post("http://x/api/venue-scans", { ...VALID_SCAN, supersedes_id: "vs-1" }),
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({
+      scanId: "vs-2",
+      status: "captured",
+      superseded: true,
+    });
+    expect(b44InsertVenueScan).toHaveBeenCalledWith(
+      expect.objectContaining({ supersedesId: "vs-1" }),
+    );
+  });
+
+  it("400s on a malformed supersedes_id before touching the backend", async () => {
+    vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
+    const { POST } = await import("@/app/api/venue-scans/route");
+    for (const supersedes_id of [42, " ", "x".repeat(129), ["vs-1"]]) {
+      const res = await POST(
+        post("http://x/api/venue-scans", { ...VALID_SCAN, supersedes_id }),
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(b44GetCafeById).not.toHaveBeenCalled();
+    expect(b44InsertVenueScan).not.toHaveBeenCalled();
   });
 
   it("503s when the backend is unconfigured even with the flag on", async () => {
@@ -252,7 +286,7 @@ describe("POST /api/venue-scans", () => {
 describe("GET /api/venue-scans", () => {
   beforeEach(() => {
     cfg.configured = true;
-    b44ListPublishedVenueScans.mockClear();
+    b44ListVenueScans.mockClear();
     b44GetCafeById.mockClear();
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -265,12 +299,12 @@ describe("GET /api/venue-scans", () => {
     );
     expect(res.status).toBe(503);
     expect((await res.json()).code).toBe("VENUE_CAPTURE_PAUSED");
-    expect(b44ListPublishedVenueScans).not.toHaveBeenCalled();
+    expect(b44ListVenueScans).not.toHaveBeenCalled();
   });
 
   it("returns the gateway-projected scans for a venue", async () => {
     vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
-    b44ListPublishedVenueScans.mockResolvedValueOnce([
+    b44ListVenueScans.mockResolvedValueOnce([
       { id: "vs-1", venueId: "c1", splatUrl: "https://cdn/x.spz", status: "published", created: "t" },
     ]);
     const { GET } = await import("@/app/api/venue-scans/route");
@@ -278,7 +312,7 @@ describe("GET /api/venue-scans", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.scans).toHaveLength(1);
-    expect(b44ListPublishedVenueScans).toHaveBeenCalledWith("c1");
+    expect(b44ListVenueScans).toHaveBeenCalledWith("c1");
   });
 
   it("400s without venue_id", async () => {
@@ -286,13 +320,13 @@ describe("GET /api/venue-scans", () => {
     const { GET } = await import("@/app/api/venue-scans/route");
     const res = await GET(new NextRequest("http://x/api/venue-scans"));
     expect(res.status).toBe(400);
-    expect(b44ListPublishedVenueScans).not.toHaveBeenCalled();
+    expect(b44ListVenueScans).not.toHaveBeenCalled();
   });
 
   it("serves published scans regardless of the pilot city list", async () => {
     vi.stubEnv("VENUE_CAPTURE_ENABLED", "1");
     vi.stubEnv("VENUE_CAPTURE_CITIES", "paris");
-    b44ListPublishedVenueScans.mockResolvedValueOnce([
+    b44ListVenueScans.mockResolvedValueOnce([
       { id: "vs-9", venueId: "c1", splatUrl: null, status: "published", created: "t" },
     ]);
     const { GET } = await import("@/app/api/venue-scans/route");

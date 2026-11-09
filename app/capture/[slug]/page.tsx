@@ -15,11 +15,11 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 // /capture/[slug] — the consent-first capture run for venue 3D capture.
-// A stub by design: it briefs the contributor, collects the consent
-// attestations, and arms the run with the patron notice — but the upload
-// itself doesn't exist yet. The pipeline (storage → blur verification →
-// gsplat/COLMAP → SPZ) is Phase 1 infra, and the flow says so plainly
-// rather than pretending otherwise.
+// BRIEF → ATTEST → RUN → ARMED: the live coach streams JPEG keyframe
+// chunks to /api/venue-scans/:id/upload as the contributor films. Frame
+// *bytes* aren't persisted yet (no object storage — Phase 1 infra); the
+// scan record carries the manifest, quality signals, and consent record
+// so the pipeline can pick up real captures the moment storage lands.
 export default async function CapturePage({
   params,
 }: {
@@ -69,11 +69,11 @@ export default async function CapturePage({
             already lives here. Consent comes first, always.
           </p>
 
-          <CaptureRun venueName={venueName} />
+          <CaptureRun venueName={venueName} venueId={cafe?.id ?? null} />
 
           <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-faint">
-            Pipeline status: consent checkpoint live · upload opens once the
-            venue has opted in
+            Pipeline status: live-run coach active · frame bytes land when
+            object storage ships
           </p>
         </div>
       </main>

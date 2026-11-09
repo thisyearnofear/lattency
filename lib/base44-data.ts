@@ -263,29 +263,113 @@ export interface B44VenueScanInsert {
   venueId: string;
   contributorId: string | null;
   captureAssetUrl?: string | null;
+  /** Prior scan this run replaces — the gateway verifies it exists and
+   *  belongs to the same venue, then retires it to `superseded`. */
+  supersedesId?: string | null;
   consentAttestation: VenueScanConsentAttestation;
 }
 
 /** Insert a venue-scan record under service role (RLS on VenueScan is fully
  *  closed — the measurement-gateway action is the only write path). */
-export async function b44InsertVenueScan(input: B44VenueScanInsert): Promise<string> {
+export async function b44InsertVenueScan(
+  input: B44VenueScanInsert,
+): Promise<{ scanId: string; superseded: boolean }> {
   const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
     action: "venue-scan-insert",
     scan: {
       venue_id: input.venueId,
       contributor_id: input.contributorId,
       capture_asset_url: input.captureAssetUrl ?? null,
+      supersedes_id: input.supersedesId ?? null,
       consent_attestation: input.consentAttestation,
     },
   });
   const scanId = unwrap<string>(res, "scanId");
   if (typeof scanId !== "string" || scanId.length === 0)
     throw new Error("Invalid venue-scan gateway response");
-  return scanId;
+  return { scanId, superseded: unwrap<boolean>(res, "superseded") === true };
 }
 
-/** Published scans for a venue, projected to public fields by the gateway. */
-export async function b44ListPublishedVenueScans(
+/** The internal fields a route needs for gating a scan's write paths —
+ *  never forwarded to the client verbatim. */
+export interface B44VenueScanInternal {
+  id: string;
+  venueId: string;
+  contributorId: string | null;
+  status: string;
+  supersedesId: string | null;
+}
+
+/** Fetch a scan's gating fields by id; null when the scan doesn't exist. */
+export async function b44GetVenueScan(
+  scanId: string,
+): Promise<B44VenueScanInternal | null> {
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-scan-get",
+    scan_id: scanId,
+  });
+  const scan = unwrap<Record<string, unknown> | null>(res, "scan");
+  if (scan === null) return null;
+  if (!scan || typeof scan !== "object" || Array.isArray(scan))
+    throw new Error("Invalid venue-scan gateway response");
+  return {
+    id: String(scan.id),
+    venueId: String(scan.venue_id ?? ""),
+    contributorId: (scan.contributor_id as string | null) ?? null,
+    status: String(scan.status ?? ""),
+    supersedesId: (scan.supersedes_id as string | null) ?? null,
+  };
+}
+
+/** Append one frame-chunk manifest entry to a live scan. The route validates
+ *  the JPEG itself; the gateway records only {seq, ts, bytes} — image bytes
+ *  are never persisted until object storage lands (Phase 1 infra). */
+export async function b44AppendVenueScanFrame(input: {
+  scanId: string;
+  contributorId: string;
+  seq: number;
+  ts: string;
+  bytes: number;
+}): Promise<{ received: number }> {
+  const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-scan-frame",
+    scan_id: input.scanId,
+    contributor_id: input.contributorId,
+    seq: input.seq,
+    ts: input.ts,
+    bytes: input.bytes,
+  });
+  const received = unwrap<number>(res, "received");
+  if (typeof received !== "number")
+    throw new Error("Invalid venue-scan gateway response");
+  return { received };
+}
+
+/** End-of-run manifest write — frame count, quality score, sectors, face
+ *  events. Status stays `captured`; the pipeline owns later transitions. */
+export async function b44FinalizeVenueScan(input: {
+  scanId: string;
+  contributorId: string;
+  frameCount: number;
+  qualityScore: number | null;
+  coverageSectors: string[];
+  faceEvents: number | null;
+}): Promise<void> {
+  await getBase44Gateway().functions.invoke("measurement-gateway", {
+    action: "venue-scan-finalize",
+    scan_id: input.scanId,
+    contributor_id: input.contributorId,
+    frame_count: input.frameCount,
+    quality_score: input.qualityScore,
+    coverage_sectors: input.coverageSectors,
+    face_events: input.faceEvents,
+  });
+}
+
+/** Publicly-visible scans for a venue (non-rejected pipeline states),
+ *  projected to safe fields by the gateway. splat_url is null until the
+ *  scan is actually published. */
+export async function b44ListVenueScans(
   venueId: string,
 ): Promise<PublicVenueScan[]> {
   const res = await getBase44Gateway().functions.invoke("measurement-gateway", {
@@ -299,6 +383,7 @@ export async function b44ListPublishedVenueScans(
     venueId: String(r.venue_id ?? ""),
     splatUrl: (r.splat_url as string) ?? null,
     status: (r.status as PublicVenueScan["status"]) ?? "published",
+    qualityScore: typeof r.quality_score === "number" ? r.quality_score : null,
     created: (r.created as string) ?? null,
   }));
 }

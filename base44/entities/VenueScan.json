@@ -14,11 +14,17 @@
         "timestamp":        { "type": "string", "format": "date-time" }
       }
     },
-    "status":              { "type": "string", "enum": ["captured", "processing", "published", "rejected", "taken_down"], "default": "captured" },
+    "status":              { "type": "string", "enum": ["captured", "processing", "preview", "refining", "published", "rejected", "taken_down", "superseded"], "default": "captured" },
     "splat_url":           { "type": "string", "default": null },
     "takedown_requested":  { "type": "boolean", "default": false },
     "takedown_reason":     { "type": "string", "default": null },
-    "blur_verified":       { "type": "boolean", "default": false }
+    "blur_verified":       { "type": "boolean", "default": false },
+    "quality_score":       { "type": "number", "default": null },
+    "coverage_sectors":    { "type": "array", "items": { "type": "string" }, "default": [] },
+    "face_events":         { "type": "number", "default": null },
+    "supersedes_id":       { "type": "string", "default": null },
+    "frame_count":         { "type": "number", "default": null },
+    "frames_received":     { "type": "array", "items": { "type": "object" }, "default": [] }
   },
   "required": ["venue_id"],
   "rls": {

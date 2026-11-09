@@ -33,7 +33,8 @@ export type RateLimitScope =
   | { kind: "bounty" }
   | { kind: "event" }
   | { kind: "community" }
-  | { kind: "takedown" };
+  | { kind: "takedown" }
+  | { kind: "scanframe"; scanId: string };
 
 const LIMITS: Record<RateLimitScope["kind"], { limit: number; windowMs: number }> = {
   // One reading per café per IP per 10 minutes.
@@ -49,6 +50,10 @@ const LIMITS: Record<RateLimitScope["kind"], { limit: number; windowMs: number }
   community: { limit: 5, windowMs: 60 * 60_000 },
   // Owner-veto requests on venue scans — flagged per scan, spam-capped per IP.
   takedown: { limit: 5, windowMs: 60 * 60_000 },
+  // Keyframe chunks during a capture run — one POST per JPEG frame. The cap
+  // covers a ~90s run at ~3fps plus retry margin, keyed per scan so a busy
+  // capture session doesn't trip the per-IP limits used elsewhere.
+  scanframe: { limit: 300, windowMs: 10 * 60_000 },
 };
 
 interface RateLimitBackend {
@@ -156,7 +161,9 @@ export async function checkRateLimit(
   const key =
     scope.kind === "measurement"
       ? `rl:m:${scope.cafeId}:${ipHash}`
-      : `rl:${scope.kind}:${ipHash}`;
+      : scope.kind === "scanframe"
+        ? `rl:sf:${scope.scanId}:${ipHash}`
+        : `rl:${scope.kind}:${ipHash}`;
 
   try {
     const count = await (await getBackend()).increment(key, windowMs);
