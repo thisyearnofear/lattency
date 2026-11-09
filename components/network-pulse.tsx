@@ -24,7 +24,8 @@ function countWithin(cafes: Awaited<ReturnType<typeof getCafes>>, days: number):
 }
 
 export async function NetworkPulse({ city }: { city: string }) {
-  const cafes = await getCafes({ city });
+  // Transient backend outage → render nothing rather than fail the prerender.
+  const cafes = await getCafes({ city }).catch(() => []);
   const last24h = countWithin(cafes, 0);
   const last7d = countWithin(cafes, 7);
 

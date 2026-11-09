@@ -35,7 +35,7 @@ export async function generateMetadata({
   params: Promise<{ city: string }>;
 }): Promise<Metadata> {
   const { city } = await params;
-  const allCafes = await getCafes({ all: true });
+  const allCafes = await getCafes({ all: true }).catch(() => []);
   const config = resolveCityConfig(city, allCafes);
   const description = `Where can you work in ${config.name} today? Community-reported wifi speeds for cafés, coworking spaces, and hotel lobbies — mapped like a metro network.`;
 
@@ -62,9 +62,9 @@ export default async function CityHome({
   params: Promise<{ city: string }>;
 }) {
   const { city } = await params;
-  const allCafes = await getCafes({ all: true });
+  const allCafes = await getCafes({ all: true }).catch(() => []);
   const cityConfig = resolveCityConfig(city, allCafes);
-  const cafes = await getCafes({ city });
+  const cafes = await getCafes({ city }).catch(() => []);
   const liveCities = getLiveCities(allCafes);
   // The hero is re-rendered on the server every 60s, so a time-of-day line
   // ("this morning / this afternoon / tonight") always reads current and

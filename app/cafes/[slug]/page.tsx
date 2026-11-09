@@ -14,10 +14,16 @@ export const dynamicParams = true;
 export async function generateStaticParams() {
   // Pre-render slugs from every curated city so /cafes/ozone-coffee-roasters
   // and /cafes/about-thyme both ship as static HTML at build time.
-  const cityCafes = await Promise.all(
-    CITY_ORDER.map((city) => getCafes({ city })),
-  );
-  return cityCafes.flat().map((c) => ({ slug: slugify(c.name) }));
+  try {
+    const cityCafes = await Promise.all(
+      CITY_ORDER.map((city) => getCafes({ city })),
+    );
+    return cityCafes.flat().map((c) => ({ slug: slugify(c.name) }));
+  } catch {
+    // A transient backend outage at build time must not fail the deploy —
+    // ISR regenerates these pages at runtime.
+    return [];
+  }
 }
 
 export async function generateMetadata({
@@ -26,7 +32,14 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const cafe = await getCafeBySlug(slug);
+  let cafe;
+  try {
+    cafe = await getCafeBySlug(slug);
+  } catch {
+    // A transient backend outage during prerender must not fail the build —
+    // ISR regenerates the metadata on the next request.
+    return { title: "Lattency" };
+  }
   if (!cafe) return { title: "Not found" };
 
   const tier = cafe.tier[0].toUpperCase() + cafe.tier.slice(1);
@@ -58,7 +71,12 @@ export default async function CafeRoute({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const cafe = await getCafeBySlug(slug);
+  let cafe;
+  try {
+    cafe = await getCafeBySlug(slug);
+  } catch {
+    notFound();
+  }
   if (!cafe) notFound();
 
   return (

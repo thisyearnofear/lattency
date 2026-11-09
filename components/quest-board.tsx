@@ -31,7 +31,8 @@ interface Quest {
 }
 
 export async function QuestBoard({ city, cityName }: { city: string; cityName: string }) {
-  const cafes = await getCafes({ city });
+  // Transient backend outage → empty board state, not a failed prerender.
+  const cafes = await getCafes({ city }).catch(() => []);
 
   const untested = cafes.filter((c) => c.measurementCount === 0);
   const stale = cafes

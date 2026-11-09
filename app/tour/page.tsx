@@ -23,7 +23,9 @@ export const metadata: Metadata = {
 };
 
 export default async function Tour() {
-  const cafes = await getCafes();
+  // A transient backend outage during prerender must not fail the build —
+  // the reel still runs on an empty station list.
+  const cafes = await getCafes().catch(() => []);
 
   return (
     <>

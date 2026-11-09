@@ -20,7 +20,13 @@ export default async function CafeOGImage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const cafe = await getCafeBySlug(slug);
+  let cafe;
+  try {
+    cafe = await getCafeBySlug(slug);
+  } catch {
+    // Transient backend outage → a minimal card rather than a broken image.
+    cafe = null;
+  }
   if (!cafe) {
     return new ImageResponse(
       (

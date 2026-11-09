@@ -25,9 +25,11 @@ export default async function CityOGImage({
   params: Promise<{ city: string }>;
 }) {
   const { city } = await params;
-  const allCafes = await getCafes({ all: true });
+  // Transient backend outage → render the city card with zero stations
+  // rather than 500 the image route.
+  const allCafes = await getCafes({ all: true }).catch(() => []);
   const config = resolveCityConfig(city, allCafes);
-  const cafes = await getCafes({ city });
+  const cafes = await getCafes({ city }).catch(() => []);
   const tierCounts: Record<Tier, number> = { express: 0, local: 0, suspended: 0 };
   for (const c of cafes) tierCounts[c.tier]++;
   const total = cafes.length;
