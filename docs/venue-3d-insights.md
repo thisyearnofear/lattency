@@ -55,3 +55,24 @@ This is not a pivot to "3D venue marketplace." It's **ground-truth spatial+conne
 - No non-commercial-licensed code in the pipeline (gsplat + COLMAP only).
 - No payment reactivation entanglement — capture bounties launch unpaid-or-credit while `bountyPaymentsEnabled()` stays false until the funding-verification path ships.
 - 3D is additive to the workspace-finder journey — it must not displace tier/freshness/provenance as the headline on any surface.
+
+## Capture run v2 — elevation findings (docs/venue-3d-ux-research.md, committed 33bda67)
+
+Five moves ranked by impact:
+
+1. **Record in-app at controlled bitrate, upload during capture.** MediaRecorder ~6–8Mbps → ~45–60MB per 60s run. iOS has no background upload — chunked upload-during-capture (or JPEG keyframes at 2–5fps + manifest) is the architecture, not a resumable spinner.
+2. **Live capture coach, honestly labeled.** Geometry-backed coverage is native-only; browsers get sector progress ("views recorded"), Laplacian sharpness warnings, DeviceMotion pace hints, and BlazeFace face-in-frame warnings — consent becomes a live control, not a checkbox. Never a fake "85% scanned."
+3. **Pre-upload quality gate + staged pipeline.** Client-side signals hard-gate broken captures; bounded pose-registration validation before gsplat; coarse preview splat → final with truthful states (Aligning → Building preview → Refining → Published).
+4. **Rescan/supersede is first-class.** Gap-fill and "retake this segment" semantics (Scaniverse Sites model) — `VenueScan` needs them instead of terminal `rejected`.
+5. **Recognition over points.** Named tour credit + specific next mission + scarce coverage bounties (Wikipedia RCT +60%/90d); trivial scan rewards backfire (Pokémon GO mass deletions).
+
+Assumptions corrected:
+
+- "Self-host only" is stale — Splat3D/MakeSplat/vid2scene now ship commercial video→splat APIs (bake-off vs gsplat self-host, self-host stays default).
+- InstantSplat is non-commercial via DUSt3R init — fast preview needs another path.
+- iOS WebXR/AR is a dead end — guidance is 2D overlays only.
+- SPZ alone isn't enough — serve streamed SOG/RAD for progressive delivery; `KHR_gaussian_splatting` is ratified glTF.
+- Matterport's stationary-rotation UX is wrong for splatting — copy its task/recovery UX, not its motion.
+- Owner-claim is uphill (~56% GBP unclaimed; claiming correlated with lower ratings on Yelp) — the venue workspace must be immediately useful.
+
+Schema deltas required for v2: `quality_score`, `coverage_sectors`, `face_events`, supersede/rescan semantics on `VenueScan`.
