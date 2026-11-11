@@ -317,6 +317,8 @@ export function CafePage({ cafe }: { cafe: CafeDetailType }) {
               city={cafe.city}
               neighbourhood={cafe.neighbourhood}
               currentTier={cafe.tier}
+              cafeLat={cafe.lat}
+              cafeLng={cafe.lng}
             />
           </div>
         </div>

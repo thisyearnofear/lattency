@@ -546,6 +546,8 @@ export function CafeDetail({
                       city={d.city}
                       neighbourhood={d.neighbourhood}
                       currentTier={d.tier}
+                      cafeLat={d.lat}
+                      cafeLng={d.lng}
                       onContributed={onContributed}
                     />
                   ),

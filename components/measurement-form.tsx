@@ -13,6 +13,7 @@ import { useContributor } from "@/hooks/use-contributor";
 import { useBountyMatch } from "@/hooks/use-bounty-match";
 import { haptic } from "@/lib/haptics";
 import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
+import { useOnSiteKm } from "@/hooks/use-on-site";
 import { GrowBar } from "./grow-bar";
 
 // Maps a download speed to the tier it would fall into — mirrors the
@@ -72,6 +73,10 @@ export function MeasurementForm({
   /** The station's tier before this reading — lets the success state say
    *  whether the contributor's reading moved the line up or down. */
   currentTier,
+  /** Venue coordinates — enables the "on-site / remote test" signal in the
+   *  success state when the browser already holds a geolocation grant. */
+  cafeLat,
+  cafeLng,
   onContributed,
 }: {
   cafeId: string;
@@ -79,6 +84,8 @@ export function MeasurementForm({
   city?: string;
   neighbourhood?: string;
   currentTier?: Tier;
+  cafeLat?: number;
+  cafeLng?: number;
   onContributed?: (reading: MeasurementReading) => void;
 }) {
   const { inMiniApp } = useNimiq();
@@ -98,6 +105,15 @@ export function MeasurementForm({
   const [testState, setTestState] = useState<TestState>("idle");
   const [progress, setProgress] = useState<SpeedTestProgress | null>(null);
   const [autoResult, setAutoResult] = useState<SpeedTestResult | null>(null);
+
+  // Presence signal — only resolves when the browser already holds a geo
+  // grant (never prompts). null = unknown; the success state renders no
+  // badge rather than guess.
+  const onSiteKm = useOnSiteKm(
+    cafeLat !== undefined && cafeLng !== undefined
+      ? { lat: cafeLat, lng: cafeLng }
+      : null,
+  );
 
   const downNum = Number(down);
   const valid =
@@ -243,6 +259,16 @@ export function MeasurementForm({
               : "Your reading moved the line down. The map is honest because of you."
             : `Thanks — your measurement is now part of ${cafeName}’s ${TIER_LABEL[newTier]} line.`}
         </p>
+
+        {/* Presence signal — honest distance disclosure. Only shown when a
+            geo grant already exists; "remote test" beats a fake "verified". */}
+        {onSiteKm !== null && (
+          <p className="font-mono text-[10px] tracking-[0.18em] uppercase mt-2 text-ink-faint">
+            {onSiteKm < 1
+              ? `on-site · ~${Math.max(20, Math.round(onSiteKm * 1000))}m from venue`
+              : `remote test · ~${onSiteKm.toFixed(1)}km from venue`}
+          </p>
+        )}
 
         {/* Bounty connection — the reward this reading just pushed forward.
             An unfunded seed target shows the same progress, minus the NIM
