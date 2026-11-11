@@ -4,6 +4,7 @@ import { TopNav } from "@/components/top-nav";
 import { BountiesBoard } from "@/components/bounties-board";
 import { SponsorDashboard } from "@/components/sponsor-dashboard";
 import { TIER_COLOUR, TIER_PATH, TIER_USE } from "@/lib/map-data";
+import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
 import type { Tier } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -64,6 +65,7 @@ function PitchBlock({
 }
 
 export default function PartnersPage() {
+  const paymentsEnabled = bountyPaymentsEnabled();
   return (
     <>
       <TopNav current="partners" />
@@ -171,10 +173,15 @@ export default function PartnersPage() {
           body={
             <>
               <p>
-                Run a speed test, snap a photo, fill the metadata. Bounties are paused while payment verification is completed.
+                Run a speed test, snap a photo, fill the metadata.{" "}
+                {paymentsEnabled
+                  ? "Fill a bounty and the NIM lands in your wallet."
+                  : "Bounties are paused while payment verification is completed."}
               </p>
               <p className="font-mono text-[13px] text-ink-faint">
-                NIM payouts paused pending verification · M-Pesa / Stripe with the first ISP partner.
+                {paymentsEnabled
+                  ? "NIM payouts live · M-Pesa / Stripe with the first ISP partner."
+                  : "NIM payouts paused pending verification · M-Pesa / Stripe with the first ISP partner."}
               </p>
             </>
           }
