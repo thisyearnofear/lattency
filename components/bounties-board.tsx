@@ -16,6 +16,7 @@
 // with no sponsor behind it is both an honest demo and the sponsor pitch.
 
 import Link from "next/link";
+import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
 import { getBounties, sponsorBadgeStyle, bountyKindLabel, type Bounty } from "@/lib/bounties";
 import { BountyClaim } from "./bounty-claim";
 import { GrowBar } from "./grow-bar";
@@ -143,6 +144,7 @@ export async function BountiesBoard({
 }) {
   const all = await getBounties(city, cafeCount);
   const items = limit ? all.slice(0, limit) : all;
+  const paymentsEnabled = bountyPaymentsEnabled();
   // Any unfunded example on the visible board needs the disclosure below —
   // the cards are otherwise indistinguishable from funded ones, and the label
   // only fits in card chrome, not as an explanation.
@@ -195,7 +197,7 @@ export async function BountiesBoard({
         {[
           { n: "01", verb: "Stake", body: "Pre-pay a small bounty for a target — first café in an area, or the 10th reported test at a spot." },
           { n: "02", verb: "Run", body: "Walk in, run a real speed test, snap a photo, fill the metadata. The reading lands on the map." },
-          { n: "03", verb: "Attribute + pay", body: "The reward is bound to the contributor whose reading closed the bounty. Payouts are paused while payment verification is completed." },
+          { n: "03", verb: "Attribute + pay", body: paymentsEnabled ? "The reward is bound to the contributor whose reading closed the bounty — paid in NIM, straight to their wallet." : "The reward is bound to the contributor whose reading closed the bounty. Payouts are paused while payment verification is completed." },
         ].map((step) => (
           <li
             key={step.n}
@@ -241,7 +243,7 @@ export async function BountiesBoard({
       )}
 
       <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-faint mt-5">
-        Bounty payouts paused ·{" "}
+        {paymentsEnabled ? "Bounty payouts live · paid in NIM" : "Bounty payouts paused"} ·{" "}
         <Link href="/partners" className="text-ink underline underline-offset-4 hover:text-express">
           /partners
         </Link>

@@ -14,6 +14,7 @@ import { readContributorId } from "@/lib/contributor";
 import { milestoneFor } from "@/lib/milestones";
 import { useBountyMatch } from "@/hooks/use-bounty-match";
 import { haptic } from "@/lib/haptics";
+import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
 import { useShareCard } from "./share-card";
 import { YourLine, type TrailStation } from "./your-line";
 import { GrowBar } from "./grow-bar";
@@ -287,7 +288,7 @@ export function ContributionCelebration({
             {bounty.progress + 1 >= bounty.target
               ? bounty.synthetic
                 ? " Target reached — no sponsor behind it yet."
-                : " Bounty filled — payout paused."
+                : bountyPaymentsEnabled() ? " Bounty filled — NIM payout incoming." : " Bounty filled — payout paused."
               : ` ${bounty.target - bounty.progress - 1} more to unlock.`}
           </p>
         </div>

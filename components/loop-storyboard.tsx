@@ -10,6 +10,7 @@ import Link from "next/link";
 import { TIER_COLOUR, TIER_USE } from "@/lib/map-data";
 import { LOOP_DURATIONS, LOOP_STEPS } from "@/lib/tour-loop";
 import { useMatchMedia } from "@/hooks/use-match-media";
+import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
 
 export { LOOP_STEPS } from "@/lib/tour-loop";
 
@@ -175,7 +176,7 @@ function BountyToast() {
         </span>
       </div>
       <p className="font-serif italic text-[12px] text-ink-faint mt-1.5">
-        2 more reported readings · bounties paused
+        {bountyPaymentsEnabled() ? "2 more reported readings · NIM bounty live" : "2 more reported readings · bounties paused"}
       </p>
     </div>
   );

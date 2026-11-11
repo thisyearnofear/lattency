@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { cityPath, DEFAULT_CITY_ID } from "@/lib/cities";
+import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
 
 export function TourFinale() {
   const mapHref = cityPath(DEFAULT_CITY_ID);
@@ -25,7 +26,7 @@ export function TourFinale() {
       </h2>
       <p className="font-serif italic text-cream/70 text-base sm:text-lg md:text-xl mt-4 max-w-2xl">
         London, Nairobi, and San Francisco are live. Tap a station, log a
-        reported reading, and push a bounty forward — payouts paused.
+        reported reading, and {bountyPaymentsEnabled() ? "push a bounty forward — and earn NIM." : "push a bounty forward — payouts paused."}
       </p>
       <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3 mt-6 sm:mt-7">
         <Link

@@ -9,6 +9,7 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { BrandMark } from "./brand-mark";
 import { cityPath, DEFAULT_CITY_ID } from "@/lib/cities";
+import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
 
 gsap.registerPlugin(useGSAP);
 
@@ -109,7 +110,7 @@ export function TourHero() {
         {[
           "Community speed reports",
           "Objective facts — no stars",
-          "Bounties · payouts paused",
+          bountyPaymentsEnabled() ? "Bounties · paid in NIM" : "Bounties · payouts paused",
         ].map((line) => (
           <li
             key={line}

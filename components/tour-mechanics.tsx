@@ -5,13 +5,14 @@
 // Desktop: five equal columns.
 
 import { LOOP_STEPS } from "@/lib/tour-loop";
+import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
 
 const OUTCOMES = [
   { verb: "Tap", result: "A real place, not a review." },
   { verb: "Read", result: "Reported speeds, not vibes." },
-  { verb: "Test", result: "Edge round-trip you can’t fake." },
+  { verb: "Test", result: "A real edge round-trip, not a self-report." },
   { verb: "Land", result: "Your pin extends the line." },
-  { verb: "Close", result: "Bounty targets — payouts paused." },
+  { verb: "Close", result: bountyPaymentsEnabled() ? "Bounty targets — paid in NIM." : "Bounty targets — payouts paused." },
 ] as const;
 
 export function TourMechanics() {

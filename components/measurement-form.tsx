@@ -12,6 +12,7 @@ import { useNimiq } from "@/hooks/use-nimiq";
 import { useContributor } from "@/hooks/use-contributor";
 import { useBountyMatch } from "@/hooks/use-bounty-match";
 import { haptic } from "@/lib/haptics";
+import { bountyPaymentsEnabled } from "@/lib/bounty-policy";
 import { GrowBar } from "./grow-bar";
 
 // Maps a download speed to the tier it would fall into — mirrors the
@@ -264,7 +265,9 @@ export function MeasurementForm({
               {bounty.progress + 1 >= bounty.target
                 ? bounty.synthetic
                   ? "Target reached — no sponsor behind it yet."
-                  : "Filled — payouts paused."
+                  : bountyPaymentsEnabled()
+                    ? "Filled — NIM payout incoming."
+                    : "Filled — payouts paused."
                 : bounty.synthetic
                   ? `${bounty.target - bounty.progress - 1} more to close the gap.`
                   : `${bounty.target - bounty.progress - 1} more to close the bounty.`}
